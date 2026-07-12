@@ -1,0 +1,55 @@
+name: Deploy web app to GitHub Pages
+
+# Publishes the standalone web app (webapp module) to
+# https://olluorg.github.io/stramus/ on every push to main.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege needed by actions/deploy-pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One Pages deploy at a time; let a newer push cancel an in-flight run.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Gradle build + dependency cache. The Kotlin/JS plugin downloads its own
+      # Node/Yarn; kormium is resolved from Maven Central (no sibling checkout in CI).
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build production web bundle
+        run: ./gradlew :webapp:jsBrowserDistribution --no-daemon
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: webapp/build/dist/js/productionExecutable
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

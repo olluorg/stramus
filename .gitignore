@@ -1,0 +1,22 @@
+# Gradle
+.gradle/
+build/
+
+# Kotlin
+.kotlin/
+
+# Kotlin/JS — keep kotlin-js-store/yarn.lock committed for reproducible CI builds
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.fleet/
+.vscode/
+
+# OS
+.DS_Store
+
+# Local Gradle config / secrets
+local.properties

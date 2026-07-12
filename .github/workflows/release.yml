@@ -1,0 +1,47 @@
+name: Release browser extension
+
+# Builds the MV3 browser extension and attaches a ready-to-load / ready-to-upload
+# ZIP to a GitHub Release. Triggered by pushing a version tag, e.g.:
+#   git tag v0.1.0 && git push origin v0.1.0
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build production extension bundle
+        run: ./gradlew :extension:jsBrowserDistribution --no-daemon
+
+      # Package the loadable extension directory. Source maps are dropped to keep the
+      # artifact lean and Web-Store-friendly; the manifest + bundle + wasm are kept.
+      - name: Package extension ZIP
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          OUT="stramus-extension-${VERSION}.zip"
+          echo "ZIP=$OUT" >> "$GITHUB_ENV"
+          cd extension/build/dist/js/productionExecutable
+          zip -r "$GITHUB_WORKSPACE/$OUT" . -x '*.map' -x '*.LICENSE.txt'
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ZIP }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
