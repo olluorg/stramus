@@ -14,6 +14,8 @@ import io.github.kormium.suspendTransaction
 import kotlin.time.Clock
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
+import stramus.core.crypto.hashPin
+import stramus.core.crypto.randomSalt
 import stramus.core.model.Card
 import stramus.core.model.CardKind
 import stramus.core.model.CardSection
@@ -22,6 +24,7 @@ import stramus.core.model.Section
 import stramus.core.repo.CardRepository
 import stramus.core.repo.CardSectionRepository
 import stramus.core.repo.CollectionRepository
+import stramus.core.repo.FaviconRepository
 import stramus.core.repo.SectionRepository
 
 /** Everything the UI needs: the open database plus the repositories over it. */
@@ -31,6 +34,7 @@ class StramusStore internal constructor(
     val collections: CollectionRepository,
     val cardSections: CardSectionRepository,
     val cards: CardRepository,
+    val favicons: FaviconRepository,
 )
 
 private const val DEFAULT_SECTION_TITLE = "Главный"
@@ -52,13 +56,27 @@ suspend fun openStramusStore(name: String = "stramus"): StramusStore {
         runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "kind" text NOT NULL DEFAULT 'link'""") }
         runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "content" text""") }
         runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "mime" text""") }
+        runCatching { Sections.execSql("""ALTER TABLE "sections" ADD COLUMN "pinSalt" text""") }
+        runCatching { Sections.execSql("""ALTER TABLE "sections" ADD COLUMN "pinHash" text""") }
+        runCatching { Collections.execSql("""ALTER TABLE "collections" ADD COLUMN "readOnly" integer NOT NULL DEFAULT 0""") }
     }
 
     val sections = KormiumSectionRepository(db)
     val defaultId = sections.defaultSectionId()
-    // Attach any collections without a section (fresh migration) to the default one.
     db.suspendTransaction {
+        // Attach any collections without a section (fresh migration) to the default one.
         Collections.execSql("""UPDATE "collections" SET "sectionId" = '$defaultId' WHERE "sectionId" IS NULL OR "sectionId" = ''""")
+        // Un-group cards pointing at a card section of another collection: earlier builds moved a
+        // card between collections without clearing its section, and such a card matched no group
+        // and so was drawn nowhere. Ungrouped is the only place it can be shown.
+        Cards.execSql(
+            """
+            UPDATE "cards" SET "cardSectionId" = NULL
+            WHERE "cardSectionId" IS NOT NULL AND "cardSectionId" NOT IN (
+                SELECT "id" FROM "card_sections" WHERE "collectionId" = "cards"."collectionId"
+            )
+            """.trimIndent(),
+        )
     }
 
     return StramusStore(
@@ -67,11 +85,12 @@ suspend fun openStramusStore(name: String = "stramus"): StramusStore {
         KormiumCollectionRepository(db, defaultId),
         KormiumCardSectionRepository(db),
         KormiumCardRepository(db),
+        KormiumFaviconRepository(db),
     )
 }
 
-private fun SectionRow.toModel() = Section(id, title, position, deletable != 0, collapsed != 0)
-private fun CollectionRow.toModel() = Collection(id, sectionId, title, position, createdAt)
+private fun SectionRow.toModel() = Section(id, title, position, deletable != 0, collapsed != 0, pinHash != null)
+private fun CollectionRow.toModel() = Collection(id, sectionId, title, position, createdAt, readOnly != 0)
 private fun CardSectionRow.toModel() = CardSection(id, collectionId, title, description, position, collapsed != 0)
 private fun CardRow.toModel() =
     Card(id, collectionId, cardSectionId, CardKind.from(kind), title, url, favicon, content, mime, position, createdAt)
@@ -91,6 +110,8 @@ internal class KormiumSectionRepository(
             this.position = db.suspendAutocommit { Sections.count() }.toInt()
             this.deletable = 1
             this.collapsed = 0
+            this.pinSalt = null
+            this.pinHash = null
         }
         db.suspendTransaction { Sections.insert(row) }
         return row.toModel()
@@ -127,9 +148,36 @@ internal class KormiumSectionRepository(
             this.position = 0
             this.deletable = 0
             this.collapsed = 0
+            this.pinSalt = null
+            this.pinHash = null
         }
         db.suspendTransaction { Sections.insert(row) }
         return row.id
+    }
+
+    override suspend fun setPin(id: Uuid, pin: String) {
+        val salt = randomSalt()
+        val hash = hashPin(pin, salt)
+        db.suspendTransaction {
+            Sections.update(
+                SectionRow().apply { this.pinSalt = salt; this.pinHash = hash },
+            ) { where { Sections.id eq id } }
+        }
+    }
+
+    override suspend fun clearPin(id: Uuid) {
+        // SQL, not an update built from a row: a row cannot carry "set this column back to null" —
+        // an unset column and one assigned null are the same thing to it.
+        db.suspendTransaction {
+            Sections.execSql("""UPDATE "sections" SET "pinSalt" = NULL, "pinHash" = NULL WHERE "id" = '$id'""")
+        }
+    }
+
+    override suspend fun verifyPin(id: Uuid, pin: String): Boolean {
+        val row = db.suspendAutocommit { Sections.findOne { where { Sections.id eq id } } } ?: return false
+        val salt = row.pinSalt
+        val hash = row.pinHash ?: return true // not locked: there is nothing to get wrong
+        return salt != null && hashPin(pin, salt) == hash
     }
 }
 
@@ -149,6 +197,7 @@ internal class KormiumCollectionRepository(
             this.title = title
             this.position = db.suspendAutocommit { Collections.count() }.toInt()
             this.createdAt = Clock.System.now()
+            this.readOnly = 0
         }
         db.suspendTransaction { Collections.insert(row) }
         return row.toModel()
@@ -200,6 +249,14 @@ internal class KormiumCollectionRepository(
                     pos++
                 }
             }
+        }
+    }
+
+    override suspend fun setReadOnly(id: Uuid, readOnly: Boolean) {
+        db.suspendTransaction {
+            Collections.update(
+                CollectionRow().apply { this.readOnly = if (readOnly) 1 else 0 },
+            ) { where { Collections.id eq id } }
         }
     }
 }
@@ -320,26 +377,45 @@ internal class KormiumCardRepository(
         db.suspendTransaction { Cards.deleteWhere { where { Cards.id eq id } } }
     }
 
-    override suspend fun move(id: Uuid, toCollectionId: Uuid, newIndex: Int) {
+    override suspend fun move(id: Uuid, toCollectionId: Uuid, cardSectionId: Uuid?, newIndex: Int) {
         db.suspendTransaction {
             val moving = Cards.findOne { where { Cards.id eq id } } ?: return@suspendTransaction
             val fromCollectionId = moving.collectionId
 
-            // Reattach to the target collection first, then renumber the target order with the moved
-            // card spliced in at newIndex; each update writes only the column it assigns.
-            if (fromCollectionId != toCollectionId) {
-                Cards.update(CardRow().apply { collectionId = toCollectionId }) { where { Cards.id eq id } }
-            }
+            // A card can only join a section of the collection it lands in; anything else (a stale
+            // section from the collection it came from) would hide it from every group.
+            val groups = CardSections.find {
+                where { CardSections.collectionId eq toCollectionId }
+                orderBy ASC CardSections.position
+            }.map { it.id }
+            val group = cardSectionId?.takeIf { it in groups }
 
+            // Reattach first, so the renumbering below sees the card in its new home. This goes
+            // through SQL because an update built from a row can't clear cardSectionId — an unset
+            // column and one assigned null look the same to it.
+            val groupValue = if (group == null) "NULL" else "'$group'"
+            Cards.execSql(
+                """UPDATE "cards" SET "collectionId" = '$toCollectionId', "cardSectionId" = $groupValue WHERE "id" = '$id'""",
+            )
+
+            // Renumber the target collection one group at a time — ungrouped first, then each card
+            // section in its own order — with the moved card spliced into its group at newIndex.
+            // Positions stay a single collection-wide sequence, so a group's cards never interleave.
             val target = Cards.find {
                 where { Cards.collectionId eq toCollectionId }
                 orderBy ASC Cards.position
-            }.map { it.id }.filter { it != id }.toMutableList()
-            target.add(newIndex.coerceIn(0, target.size), id)
-            target.forEachIndexed { i, cid ->
-                Cards.update(CardRow().apply { position = i }) { where { Cards.id eq cid } }
+            }
+            var pos = 0
+            for (g in listOf<Uuid?>(null) + groups) {
+                val ids = target.filter { it.cardSectionId == g && it.id != id }.map { it.id }.toMutableList()
+                if (g == group) ids.add(newIndex.coerceIn(0, ids.size), id)
+                for (cid in ids) {
+                    Cards.update(CardRow().apply { position = pos }) { where { Cards.id eq cid } }
+                    pos++
+                }
             }
 
+            // The card left a hole in the order of the collection it came from.
             if (fromCollectionId != toCollectionId) {
                 Cards.find {
                     where { Cards.collectionId eq fromCollectionId }
@@ -351,21 +427,34 @@ internal class KormiumCardRepository(
         }
     }
 
-    override suspend fun moveToSection(id: Uuid, cardSectionId: Uuid?) {
-        db.suspendTransaction {
-            val moving = Cards.findOne { where { Cards.id eq id } } ?: return@suspendTransaction
-            // Place the card at the end of its collection's order so it lands last in the new group.
-            val end = Cards.count { where { Cards.collectionId eq moving.collectionId } }.toInt()
-            val value = if (cardSectionId == null) "NULL" else "'$cardSectionId'"
-            Cards.execSql("""UPDATE "cards" SET "cardSectionId" = $value, "position" = $end WHERE "id" = '$id'""")
-        }
-    }
-
     override suspend fun search(query: String): List<Card> = db.suspendAutocommit {
         val pattern = "%$query%"
         Cards.find {
             where { (Cards.title like pattern) or (Cards.url like pattern) or (Cards.content like pattern) }
             orderBy ASC Cards.title
         }.map { it.toModel() }
+    }
+}
+
+internal class KormiumFaviconRepository(
+    private val db: SuspendDatabase<StramusDb>,
+) : FaviconRepository {
+
+    override suspend fun all(): Map<String, String> = db.suspendAutocommit {
+        Favicons.all().associate { it.host to it.dataUri }
+    }
+
+    override suspend fun put(host: String, dataUri: String) {
+        val row = FaviconRow().apply {
+            this.host = host
+            this.dataUri = dataUri
+            this.updatedAt = Clock.System.now()
+        }
+        // Replace rather than update: the row for a host may or may not exist, and one row per host
+        // is the whole invariant of the cache.
+        db.suspendTransaction {
+            Favicons.deleteWhere { where { Favicons.host eq host } }
+            Favicons.insert(row)
+        }
     }
 }

@@ -99,7 +99,9 @@
         .col.selected { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
         .col.drop-target { background: var(--accent); color: #fff; outline: 2px solid var(--accent); outline-offset: 1px; }
         .col.drop-target .icon.del { color: #fff; }
-        .col-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .col-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        /* A read-only collection wears its padlock in the sidebar. */
+        .col-lock { flex: 0 0 auto; font-size: 12px; padding: 0 2px; }
 
         .icon.del {
             border: none; background: transparent; color: var(--muted);
@@ -132,28 +134,50 @@
         .card:hover { border-color: var(--accent); transform: translateY(-1px); }
         .fav { width: 24px; height: 24px; flex: 0 0 24px; border-radius: 5px; background: var(--bg); }
         .card-body { min-width: 0; flex: 1; }
-        .card-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .card-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 40px; }
         .card-url { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .card .icon.del { position: absolute; top: 6px; right: 8px; }
+        .card-tools { position: absolute; top: 6px; right: 6px; display: flex; align-items: center; gap: 2px; }
+        .card:hover .icon.edit { opacity: 1; }
 
-        /* Right sidebar: live open-tabs list (extension only) */
+        /* Right sidebar: live open-tabs list (extension only), one group per browser window */
         .tabs {
             width: 280px; flex: 0 0 280px;
             background: var(--panel); border-left: 1px solid var(--border);
             display: flex; flex-direction: column; padding: 16px 12px; gap: 8px;
         }
         .tabs-head { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 4px 8px; }
-        .tab-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+        .tab-search { width: 100%; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+        .tab-search:focus { outline: none; border-color: var(--accent); }
+        /* The scroll lives here, so the header and the search box stay put above it. */
+        .tabs-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+        .tab-window { border-radius: 10px; padding: 0 4px 4px; outline: 2px dashed transparent; outline-offset: -2px; transition: background .12s; }
+        .tab-window.drop-active { outline-color: var(--accent); background: var(--accent-soft); }
+        .tab-window-head { display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 6px 6px 4px; }
+        .tab-window-head .count { font-weight: 500; }
+        .tab-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
         .tab {
             display: flex; align-items: center; gap: 8px;
-            padding: 8px 10px; border-radius: 8px; cursor: grab;
+            padding: 8px 10px; border-radius: 8px; cursor: pointer;
             border: 1px solid transparent;
         }
         .tab:hover { background: var(--bg); border-color: var(--border); }
         .tab:active { cursor: grabbing; }
+        /* The tab selected in its window, the one dragged, and the one a drag would land on. */
+        .tab.current { background: var(--accent-soft); font-weight: 600; }
+        .tab.dragging { opacity: .4; }
+        .tab.drop-target { outline: 2px solid var(--accent); outline-offset: -1px; }
         .tab .fav { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 4px; background: var(--bg); }
-        .tab-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+        .tab-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+        .tab:hover .icon.del { opacity: 1; }
         .empty.small { padding: 16px 8px; font-size: 13px; text-align: left; }
+
+        /* The right sidebar's pane switch: the open tabs, or the browsing history */
+        .pane-switch { display: flex; gap: 2px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
+        .pane-tab { border: none; background: transparent; color: var(--muted); font: inherit; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 4px 8px; border-radius: 6px; cursor: pointer; }
+        .pane-tab:hover { color: var(--text); }
+        .pane-tab.active { background: var(--panel); color: var(--text); }
+        /* A history row is a tab row plus the time of the visit: same look, same drag, no drop target. */
+        .history-time { color: var(--muted); font-size: 11px; flex: 0 0 auto; }
 
         /* Brand row + sidebar collapse controls */
         .brand { display: flex; align-items: center; justify-content: space-between; }
@@ -167,6 +191,15 @@
         .section-title { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 5px; }
         .chevron { font-size: 9px; color: var(--muted); }
         .section.drop-section { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 8px; }
+
+        /* Inline rename (double-click a section title). The field is stacked on a hidden copy of its
+           own text in a one-cell grid, so it is exactly as wide as its content: nothing around it
+           moves, neither when the edit opens nor as the name is typed. The underline marking the
+           edit is a shadow rather than a border, for the same reason. */
+        .inline-edit { display: inline-grid; align-items: center; min-width: 4ch; }
+        .inline-edit > * { grid-area: 1 / 1; }
+        .inline-edit-sizer { visibility: hidden; white-space: pre; padding-right: 1px; }
+        .inline-edit-input { width: 100%; min-width: 0; font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--text); background: transparent; border: none; outline: none; padding: 0; margin: 0; cursor: text; user-select: text; box-shadow: 0 1px 0 var(--accent); }
 
         /* Top toolbar: search + theme/sort/export controls */
         .topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
@@ -183,6 +216,15 @@
         .card-section-title .count { color: var(--muted); font-weight: 500; font-size: 12px; }
         .card-section-head .icon.del { opacity: 0; }
         .card-section-head:hover .icon.del { opacity: 1; }
+
+        /* A card group (the ungrouped area, or one card section) is the drop zone for cards and tabs:
+           the whole block, header and grid alike, so the drop never has to hit the header strip.
+           outline-color is deliberately not transitioned: it starts out as currentColor, so on the
+           first paint the browser would animate a black dashed outline away over the transition. */
+        .card-group { border-radius: 10px; padding: 4px 8px; margin: 0 -8px; outline: 2px dashed transparent; outline-offset: -2px; transition: background .12s; }
+        .card-group.drop-active { outline-color: var(--accent); background: var(--accent-soft); }
+        .card-group.drop-active .empty.small { color: var(--accent); }
+        .card.dragging { opacity: .4; }
 
         /* Right sidebar header row */
         .tabs-head { display: flex; align-items: center; justify-content: space-between; }
@@ -269,6 +311,29 @@
         .settings-btn .gear { font-size: 15px; line-height: 1; }
         .settings-rail { margin-top: auto; }
 
+        /* The section PIN lock: the glyph and menu in the sidebar, the screen that stands in for a
+           locked section, and the modal where its PIN is set. A locked section shows its name and its
+           padlock and nothing else — no collections, no controls. */
+        .section-head .icon.lock { opacity: 0; font-size: 13px; }
+        .section:hover .icon.lock { opacity: 1; }
+        .section.locked .section-title { cursor: pointer; color: var(--muted); }
+        .section.locked .chevron { font-size: 12px; }
+        /* The collection's read-only badge, next to its name in the header. */
+        .ro-badge { margin-left: 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; vertical-align: middle; }
+        .lock-action { width: 220px; }
+        .lock-action.danger { color: var(--danger); border-color: var(--border); }
+        .lock-action.danger:hover { border-color: var(--danger); color: var(--danger); }
+        .lock-screen { display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: 340px; margin: 80px auto; text-align: center; }
+        .lock-icon { font-size: 38px; line-height: 1; }
+        .lock-title { font-size: 18px; font-weight: 700; }
+        .lock-hint { color: var(--muted); font-size: 13px; margin: 0; }
+        .pin-input { width: 220px; border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 8px; padding: 10px 12px; font-size: 16px; text-align: center; letter-spacing: .3em; }
+        .pin-input:focus { outline: none; border-color: var(--accent); }
+        .pin-input::placeholder { letter-spacing: normal; }
+        .pin-error { color: var(--danger); font-size: 13px; min-height: 18px; }
+        .pin-modal { max-width: 420px; }
+        .pin-body { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px; }
+
         /* Settings modal */
         .settings-modal { max-width: 560px; }
         .settings-body { padding: 6px 18px 4px; overflow-y: auto; }
@@ -276,6 +341,7 @@
         .settings-section:last-child { border-bottom: none; }
         .settings-section h4 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
         .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        .settings-row + .settings-row { margin-top: 14px; }
         .settings-label { display: flex; flex-direction: column; gap: 2px; }
         .settings-title { font-weight: 600; }
         .settings-hint { color: var(--muted); font-size: 12px; margin: 0; }

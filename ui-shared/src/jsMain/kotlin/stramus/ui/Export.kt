@@ -4,6 +4,7 @@ package stramus.ui
 
 import stramus.core.db.StramusStore
 import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /** One CSV field, quoted and with embedded quotes doubled per RFC 4180. */
 private fun csvField(value: String): String = "\"" + value.replace("\"", "\"\"") + "\""
@@ -17,10 +18,14 @@ private fun htmlEscape(value: String): String = value
 /**
  * Export every saved link to a CSV file (section, collection, card-section, title, url, createdAt)
  * and trigger a download. Reads the store fresh so the export always reflects current data.
+ *
+ * [lockedSections] are the sections whose PIN has not been entered in this session: a file the user
+ * could open in a spreadsheet is exactly the way around a lock that hides things on screen, so they
+ * are left out — of this export and of [exportBookmarks]. Enter the PIN and they export as usual.
  */
-internal suspend fun exportCsv(store: StramusStore) {
-    val sections = store.sections.all()
-    val collections = store.collections.all()
+internal suspend fun exportCsv(store: StramusStore, lockedSections: Set<Uuid>) {
+    val sections = store.sections.all().filter { it.id !in lockedSections }
+    val collections = store.collections.all().filter { it.sectionId !in lockedSections }
     val sectionTitle = sections.associate { it.id to it.title }
 
     val rows = StringBuilder()
@@ -43,8 +48,8 @@ internal suspend fun exportCsv(store: StramusStore) {
  * Export all links as a Netscape bookmarks file (importable into Chrome/Firefox), nesting
  * Section → Collection folders. Triggers a download.
  */
-internal suspend fun exportBookmarks(store: StramusStore) {
-    val sections = store.sections.all().sortedBy { it.position }
+internal suspend fun exportBookmarks(store: StramusStore, lockedSections: Set<Uuid>) {
+    val sections = store.sections.all().filter { it.id !in lockedSections }.sortedBy { it.position }
     val collections = store.collections.all().sortedBy { it.position }
 
     val html = StringBuilder()

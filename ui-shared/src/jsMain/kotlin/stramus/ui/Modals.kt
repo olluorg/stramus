@@ -41,10 +41,13 @@ internal fun ChildrenBuilder.modalShell(onClose: () -> Unit, panelClass: String,
 }
 
 external interface NoteEditorProps : Props {
+    var strings: Strings
     var heading: String
     var showTitle: Boolean
     var initialTitle: String
     var initialContent: String
+    /** A note in a read-only collection: shown, not edited — no toolbar, no caret, no Save. */
+    var readOnly: Boolean
     var onSave: (title: String, content: String) -> Unit
     var onClose: () -> Unit
 }
@@ -60,10 +63,14 @@ val NoteEditor = FC<NoteEditorProps> { props ->
     // `title = hint` on a toolbar button would call this setter during render → infinite re-render.
     var noteTitle by useState(props.initialTitle)
     val editorRef = useRef<HTMLDivElement>(null)
+    val s = props.strings
+    // Not named `readOnly`: inside an `input { }` builder that local would shadow the element's own
+    // readOnly attribute, exactly as the `title` note above describes.
+    val viewOnly = props.readOnly
 
     useEffectOnce {
         val el = editorRef.current?.asDynamic() ?: return@useEffectOnce
-        el.contentEditable = "true"
+        el.contentEditable = if (viewOnly) "false" else "true"
         el.innerHTML = renderMarkdown(props.initialContent)
     }
 
@@ -78,7 +85,7 @@ val NoteEditor = FC<NoteEditorProps> { props ->
     }
     fun addLink() {
         val sel = selectionText()
-        val url = browserPrompt("Link URL", "https://")
+        val url = browserPrompt(s.linkUrlPrompt, "https://")
         if (!url.isNullOrBlank()) {
             val u = url.trim()
             wrapSelection("<a href=\"$u\">", sel.ifBlank { u }, "</a>")
@@ -106,20 +113,23 @@ val NoteEditor = FC<NoteEditorProps> { props ->
         if (props.showTitle) {
             input {
                 className = ClassName("modal-title-input")
-                placeholder = "Title"
+                placeholder = s.titlePlaceholder
                 value = noteTitle
+                readOnly = props.readOnly
                 onChange = { e -> noteTitle = e.target.value }
             }
         }
-        div {
-            className = ClassName("wysiwyg-toolbar")
-            toolButton("B", "Bold") { cmd("bold") }
-            toolButton("I", "Italic") { cmd("italic") }
-            toolButton("H", "Highlight") { wrapSelection("<mark>", "highlight", "</mark>") }
-            toolButton("</>", "Code") { wrapSelection("<code>", "code", "</code>") }
-            toolButton("🔗", "Link") { addLink() }
-            toolButton("H2", "Heading") { cmd("formatBlock", "H2") }
-            toolButton("• List", "Bulleted list") { cmd("insertUnorderedList") }
+        if (!viewOnly) {
+            div {
+                className = ClassName("wysiwyg-toolbar")
+                toolButton("B", s.toolBold) { cmd("bold") }
+                toolButton("I", s.toolItalic) { cmd("italic") }
+                toolButton("H", s.toolHighlight) { wrapSelection("<mark>", s.highlightPlaceholder, "</mark>") }
+                toolButton("</>", s.toolCode) { wrapSelection("<code>", s.codePlaceholder, "</code>") }
+                toolButton("🔗", s.toolLink) { addLink() }
+                toolButton("H2", s.toolHeading) { cmd("formatBlock", "H2") }
+                toolButton(s.toolListLabel, s.toolList) { cmd("insertUnorderedList") }
+            }
         }
         div {
             className = ClassName("wysiwyg")
@@ -127,17 +137,22 @@ val NoteEditor = FC<NoteEditorProps> { props ->
         }
         div {
             className = ClassName("modal-actions")
-            button { className = ClassName("btn"); onClick = { props.onClose() }; +"Cancel" }
-            button {
-                className = ClassName("btn primary")
-                onClick = { props.onSave(noteTitle.trim().ifBlank { "Note" }, htmlToMarkdown(editorRef.current)) }
-                +"Save"
+            button { className = ClassName("btn"); onClick = { props.onClose() }; +(if (viewOnly) s.close else s.cancel) }
+            if (!viewOnly) {
+                button {
+                    className = ClassName("btn primary")
+                    onClick = {
+                        props.onSave(noteTitle.trim().ifBlank { s.noteDefaultTitle }, htmlToMarkdown(editorRef.current))
+                    }
+                    +s.save
+                }
             }
         }
     }
 }
 
 external interface FileViewerProps : Props {
+    var strings: Strings
     /** Non-null = view an existing file card; null = pick a new file to add. */
     var existing: Card?
     var onSave: (name: String, mime: String, dataUri: String) -> Unit
@@ -151,18 +166,19 @@ val FileViewer = FC<FileViewerProps> { props ->
     var fileName by useState(existing?.title ?: "")
     var mime by useState(existing?.mime ?: "")
     var dataUri by useState(existing?.content ?: "")
+    val s = props.strings
 
     modalShell(props.onClose, "modal file-modal") {
         div {
             className = ClassName("modal-head")
-            h3 { +(if (existing != null) existing.title else "Add file") }
+            h3 { +(if (existing != null) existing.title else s.addFile) }
             button { className = ClassName("icon del"); onClick = { props.onClose() }; +"×" }
         }
 
         if (existing == null) {
             label {
                 className = ClassName("file-picker")
-                +"Choose a file…"
+                +s.chooseFile
                 input {
                     type = FILE_INPUT_TYPE
                     className = ClassName("hidden-file-input")
@@ -178,7 +194,7 @@ val FileViewer = FC<FileViewerProps> { props ->
         }
 
         if (dataUri.isNotBlank()) {
-            filePreview(mime, dataUri, fileName)
+            filePreview(s, mime, dataUri, fileName)
         }
 
         div {
@@ -188,16 +204,18 @@ val FileViewer = FC<FileViewerProps> { props ->
                     className = ClassName("btn")
                     href = dataUri
                     download = fileName
-                    +"⤓ Download"
+                    +s.download
                 }
             }
-            button { className = ClassName("btn"); onClick = { props.onClose() }; +"Close" }
+            button { className = ClassName("btn"); onClick = { props.onClose() }; +s.close }
             if (existing == null) {
                 button {
                     className = ClassName("btn primary")
                     disabled = dataUri.isBlank()
-                    onClick = { if (dataUri.isNotBlank()) props.onSave(fileName.ifBlank { "File" }, mime, dataUri) }
-                    +"Save"
+                    onClick = {
+                        if (dataUri.isNotBlank()) props.onSave(fileName.ifBlank { s.fileDefaultTitle }, mime, dataUri)
+                    }
+                    +s.save
                 }
             }
         }
@@ -205,7 +223,7 @@ val FileViewer = FC<FileViewerProps> { props ->
 }
 
 /** Inline preview for a file: images/video/audio render directly; anything else shows a note. */
-internal fun ChildrenBuilder.filePreview(mime: String, dataUri: String, name: String) {
+internal fun ChildrenBuilder.filePreview(strings: Strings, mime: String, dataUri: String, name: String) {
     div {
         className = ClassName("file-preview")
         when {
@@ -219,7 +237,7 @@ internal fun ChildrenBuilder.filePreview(mime: String, dataUri: String, name: St
                 controls = true
                 src = dataUri
             }
-            else -> div { className = ClassName("empty small"); +"No inline preview for $mime — use Download." }
+            else -> div { className = ClassName("empty small"); +strings.noPreviewFor(mime) }
         }
     }
 }

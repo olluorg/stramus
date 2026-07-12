@@ -20,6 +20,18 @@ interface SectionRepository {
     suspend fun setCollapsed(id: Uuid, collapsed: Boolean)
     /** The id of the non-deletable "Главный" section. */
     suspend fun defaultSectionId(): Uuid
+
+    /**
+     * Put the section behind [pin] (or replace the PIN it already has). Stored salted and hashed —
+     * see `stramus.core.crypto`, which also spells out what the lock does and does not protect.
+     */
+    suspend fun setPin(id: Uuid, pin: String)
+
+    /** Take the lock off, leaving the section open to anyone with the app. */
+    suspend fun clearPin(id: Uuid)
+
+    /** Whether [pin] opens the section. An unlocked section takes any PIN — there is none to get wrong. */
+    suspend fun verifyPin(id: Uuid, pin: String): Boolean
 }
 
 /**
@@ -41,6 +53,9 @@ interface CollectionRepository {
      * drag-and-drop reordering of collections within a section and between sections.
      */
     suspend fun move(id: Uuid, toSectionId: Uuid, newIndex: Int)
+
+    /** Turn the collection's read-only guard on or off. */
+    suspend fun setReadOnly(id: Uuid, readOnly: Boolean)
 }
 
 /** Storage-agnostic access to the card sections (dividers) inside a collection. */
@@ -71,12 +86,29 @@ interface CardRepository {
     suspend fun rename(id: Uuid, title: String)
     suspend fun delete(id: Uuid)
 
-    /** Move [id] to [toCollectionId] at [newIndex], renumbering both the source and target order. */
-    suspend fun move(id: Uuid, toCollectionId: Uuid, newIndex: Int)
-
-    /** Reassign [id] to [cardSectionId] (null = ungrouped) and place it at the end of that group. */
-    suspend fun moveToSection(id: Uuid, cardSectionId: Uuid?)
+    /**
+     * Move [id] into [toCollectionId], into the group [cardSectionId] (null = ungrouped), at
+     * [newIndex] among that group's cards — [Int.MAX_VALUE] appends. Collection, group and order all
+     * move together: a card dropped on a section always ends up *in* that section. Positions in the
+     * source and target collection are renumbered so each group's cards stay contiguous.
+     *
+     * [cardSectionId] must name a section of [toCollectionId]; anything else lands ungrouped.
+     */
+    suspend fun move(id: Uuid, toCollectionId: Uuid, cardSectionId: Uuid?, newIndex: Int)
 
     /** Cards whose title or URL contain [query] (case-insensitive), across all collections. */
     suspend fun search(query: String): List<Card>
+}
+
+/**
+ * The favicon cache: icon bytes as `data:` URIs, keyed by host. A card stores only the *URL* of its
+ * icon, which says nothing once the network — or the icon service — is unavailable; the cached bytes
+ * are what keep a saved link recognisable offline. Entries are refreshed whenever a fetch succeeds.
+ */
+interface FaviconRepository {
+    /** Every cached icon, host → data URI. Read once on start so the first paint needs no network. */
+    suspend fun all(): Map<String, String>
+
+    /** Store (or replace) the icon cached for [host]. */
+    suspend fun put(host: String, dataUri: String)
 }

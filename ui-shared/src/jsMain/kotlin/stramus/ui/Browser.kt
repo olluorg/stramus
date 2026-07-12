@@ -9,6 +9,11 @@ private external interface BrowserWindow {
     fun getSelection(): JsSelection?
     val localStorage: JsStorage
     val document: JsDocument
+    val navigator: JsNavigator
+}
+
+private external interface JsNavigator {
+    val language: String?
 }
 
 private external interface JsSelection
@@ -21,6 +26,8 @@ private external interface JsStorage {
 private external interface JsDocument {
     fun createElement(tag: String): JsElement
     fun execCommand(command: String, showUI: Boolean, value: String?): Boolean
+    fun addEventListener(type: String, listener: () -> Unit)
+    fun removeEventListener(type: String, listener: () -> Unit)
     val body: JsElement
     val documentElement: JsElement
 }
@@ -32,10 +39,45 @@ private external interface JsElement {
     fun removeChild(child: JsElement)
 }
 
-/** The global `encodeURIComponent`, used to build download data-URIs safely. */
-private external fun encodeURIComponent(s: String): String
+/** The global `encodeURIComponent`, used to build download and placeholder data-URIs safely. */
+internal external fun encodeURIComponent(s: String): String
+
+private external fun setTimeout(handler: () -> Unit, timeout: Int): Int
+
+private external fun clearTimeout(id: Int)
+
+/** Run [action] after [delayMs]; the returned handle cancels it via [cancelDelay]. */
+internal fun delay(delayMs: Int, action: () -> Unit): Int = setTimeout(action, delayMs)
+
+internal fun cancelDelay(handle: Int) {
+    clearTimeout(handle)
+}
 
 private fun browserWindow(): BrowserWindow = js("window")
+
+/** What counts as the user still being here: anything they do with a pointer, a key or a wheel. */
+private val ACTIVITY_EVENTS = listOf("mousedown", "mousemove", "keydown", "wheel", "touchstart")
+
+/**
+ * Run [action] once [idleMs] have passed with no sign of the user — every event in [ACTIVITY_EVENTS]
+ * starts the wait over. This is what re-locks an unlocked section on an unattended machine, so the
+ * countdown must be about the person, not about the app: a background tab refresh is not presence.
+ *
+ * The returned function stops the watch (and cancels a pending [action]); the caller owns it.
+ */
+internal fun onIdle(idleMs: Int, action: () -> Unit): () -> Unit {
+    val doc = browserWindow().document
+    var handle = delay(idleMs, action)
+    val restart: () -> Unit = {
+        cancelDelay(handle)
+        handle = delay(idleMs, action)
+    }
+    ACTIVITY_EVENTS.forEach { doc.addEventListener(it, restart) }
+    return {
+        cancelDelay(handle)
+        ACTIVITY_EVENTS.forEach { doc.removeEventListener(it, restart) }
+    }
+}
 
 internal fun browserPrompt(message: String, default: String = ""): String? =
     browserWindow().prompt(message, default)
@@ -55,6 +97,15 @@ internal fun prefSet(key: String, value: String) {
 /** Apply an explicit theme by stamping `data-theme` on <html>; "auto" clears it (OS decides). */
 internal fun applyTheme(theme: String) {
     browserWindow().document.documentElement.setAttribute("data-theme", theme)
+}
+
+/** The browser's preferred language tag ("ru-RU", "en-US", …), lowercased; "" if unavailable. */
+internal fun browserLanguage(): String =
+    runCatching { browserWindow().navigator.language }.getOrNull()?.lowercase() ?: ""
+
+/** Stamp the chosen UI language on <html lang> so screen readers and spellcheck follow it. */
+internal fun applyLang(lang: String) {
+    browserWindow().document.documentElement.setAttribute("lang", lang)
 }
 
 /** Run a `document.execCommand` — the WYSIWYG note editor's formatting (bold, links, lists, …). */

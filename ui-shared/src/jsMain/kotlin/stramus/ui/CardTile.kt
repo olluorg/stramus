@@ -10,45 +10,74 @@ import react.dom.html.ReactHTML.span
 import stramus.core.model.Card
 import stramus.core.model.CardKind
 import web.cssom.ClassName
+import web.data.AllowedEffect
+import web.data.DropEffect
+import web.data.move
 import kotlin.uuid.ExperimentalUuidApi
 
 /**
  * One card. Its look depends on [Card.kind]: a link shows its favicon + URL, a note shows a snippet
- * of its markdown, a file shows an image thumbnail (or a file glyph). When [isDraggable] it joins
- * HTML5 drag-and-drop — [onStartDrag] / [onEndDrag] track it, and dropping another card on it fires
- * [onDropHere] (reorder within the collection).
+ * of its markdown, a file shows an image thumbnail (or a file glyph). Its text comes from [strings],
+ * the active translations handed down by `App`. Hovering reveals [onRename] and [onDelete].
+ *
+ * When [isDraggable] it joins HTML5 drag-and-drop: [onStartDrag] / [onEndDrag] track it, and it is
+ * dimmed while [isDragging]. It takes a drop only while [acceptsDrop] — i.e. while another card is
+ * in flight — so that a dragged tab or collection falls through to the zone behind it instead. A
+ * drop fires [onDropHere], which inserts the dragged card into *this* card's section, before it.
+ *
+ * In a [readOnly] collection the card is still opened and read; what it loses is the rename and
+ * delete buttons — there is nothing here to reach for by accident.
  */
 internal fun ChildrenBuilder.cardTile(
+    strings: Strings,
     card: Card,
     isDraggable: Boolean,
     onOpen: () -> Unit,
+    onRename: (String) -> Unit,
     onDelete: () -> Unit,
+    readOnly: Boolean = false,
+    isDragging: Boolean = false,
+    acceptsDrop: Boolean = false,
     onStartDrag: () -> Unit = {},
     onEndDrag: () -> Unit = {},
     onDropHere: () -> Unit = {},
 ) {
     div {
         key = key(card.id)
-        className = ClassName("card kind-${card.kind.id}")
+        className = ClassName(
+            buildString {
+                append("card kind-${card.kind.id}")
+                if (isDragging) append(" dragging")
+            },
+        )
         draggable = isDraggable
         onClick = { onOpen() }
         if (isDraggable) {
-            onDragStart = { onStartDrag() }
+            onDragStart = { e ->
+                // Firefox refuses to start a drag whose dataTransfer carries nothing.
+                e.dataTransfer.setData("text/plain", card.id.toString())
+                e.dataTransfer.effectAllowed = AllowedEffect.move
+                onStartDrag()
+            }
             onDragEnd = { onEndDrag() }
-            onDragOver = { it.preventDefault() }
+        }
+        if (acceptsDrop) {
+            onDragOver = { e ->
+                e.preventDefault()
+                e.dataTransfer.dropEffect = DropEffect.move
+            }
             onDrop = { e ->
                 e.preventDefault()
+                e.stopPropagation() // this card decides the drop position, not the section behind it
                 onDropHere()
             }
         }
 
         // Leading glyph / thumbnail.
         when (card.kind) {
-            CardKind.LINK -> img {
-                className = ClassName("fav")
-                src = card.favicon ?: ""
-                alt = ""
-                draggable = false // let the card be the drag source, not the image
+            CardKind.LINK -> Favicon {
+                url = card.url
+                favicon = card.favicon
             }
             CardKind.NOTE -> span { className = ClassName("glyph"); +"📝" }
             CardKind.FILE ->
@@ -74,18 +103,33 @@ internal fun ChildrenBuilder.cardTile(
                 className = ClassName("card-url")
                 +when (card.kind) {
                     CardKind.LINK -> card.url
-                    CardKind.NOTE -> (card.content ?: "").replace("\n", " ").ifBlank { "Empty note" }
-                    CardKind.FILE -> card.mime ?: "file"
+                    CardKind.NOTE -> (card.content ?: "").replace("\n", " ").ifBlank { strings.emptyNote }
+                    CardKind.FILE -> card.mime ?: strings.fileLabel
                 }
             }
         }
-        button {
-            className = ClassName("icon del")
-            onClick = { e ->
-                e.stopPropagation()
-                onDelete()
+        if (!readOnly) {
+            div {
+                className = ClassName("card-tools")
+                button {
+                    className = ClassName("icon edit")
+                    title = strings.renameCard
+                    onClick = { e ->
+                        e.stopPropagation()
+                        val name = browserPrompt(strings.cardNamePrompt, card.title)
+                        if (!name.isNullOrBlank() && name.trim() != card.title) onRename(name.trim())
+                    }
+                    +"✎"
+                }
+                button {
+                    className = ClassName("icon del")
+                    onClick = { e ->
+                        e.stopPropagation()
+                        onDelete()
+                    }
+                    +"×"
+                }
             }
-            +"×"
         }
     }
 }

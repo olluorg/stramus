@@ -1,7 +1,7 @@
 package stramus.ui
 
-/** The browser's global FileReader — enough of it to read a picked file as a `data:` URI. */
-private external class FileReader {
+/** The browser's global FileReader — enough of it to read a picked file (or a fetched icon) as a `data:` URI. */
+internal external class FileReader {
     var onload: (() -> Unit)?
     var onerror: (() -> Unit)?
     val result: String?

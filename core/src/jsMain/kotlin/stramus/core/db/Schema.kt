@@ -14,6 +14,8 @@ class SectionRow : Entity() {
     var position by Sections.position
     var deletable by Sections.deletable
     var collapsed by Sections.collapsed
+    var pinSalt by Sections.pinSalt
+    var pinHash by Sections.pinHash
 }
 
 object Sections : Table<StramusDb, SectionRow>("sections", ::SectionRow) {
@@ -23,7 +25,13 @@ object Sections : Table<StramusDb, SectionRow>("sections", ::SectionRow) {
     val deletable by Column.Int() // 1 = user-created (deletable), 0 = the default "Главный"
     val collapsed by Column.Int() // 1 = collapsed in the sidebar, 0 = expanded
 
-    init { id; title; position; deletable; collapsed }
+    // The PIN lock, which a whole section carries: while it holds, the section's collections are not
+    // even named in the sidebar. Both null = open. The PIN itself is never stored — [pinHash] is the
+    // SHA-256 of [pinSalt] + PIN, and entering a PIN re-derives the hash and compares.
+    val pinSalt by Column.Text().nullable()
+    val pinHash by Column.Text().nullable()
+
+    init { id; title; position; deletable; collapsed; pinSalt; pinHash }
 }
 
 class CollectionRow : Entity() {
@@ -32,6 +40,7 @@ class CollectionRow : Entity() {
     var title by Collections.title
     var position by Collections.position
     var createdAt by Collections.createdAt
+    var readOnly by Collections.readOnly
 }
 
 object Collections : Table<StramusDb, CollectionRow>("collections", ::CollectionRow) {
@@ -40,8 +49,9 @@ object Collections : Table<StramusDb, CollectionRow>("collections", ::Collection
     val title by Column.Text()
     val position by Column.Int()
     val createdAt by Column.Instant()
+    val readOnly by Column.Int() // 1 = look, don't touch: no adding, editing, moving or deleting
 
-    init { id; sectionId; title; position; createdAt }
+    init { id; sectionId; title; position; createdAt; readOnly }
 }
 
 class CardSectionRow : Entity() {
@@ -94,6 +104,25 @@ object Cards : Table<StramusDb, CardRow>("cards", ::CardRow) {
     init { id; collectionId; cardSectionId; kind; title; url; favicon; content; mime; position; createdAt }
 }
 
+class FaviconRow : Entity() {
+    var host by Favicons.host
+    var dataUri by Favicons.dataUri
+    var updatedAt by Favicons.updatedAt
+}
+
+/**
+ * Cached favicon bytes, one row per host. A card only stores the *URL* of its icon, so without this
+ * an offline load — or an icon source that went away — leaves the card blank. The bytes are held as
+ * a `data:` URI, the form the UI hands straight to an `<img>`.
+ */
+object Favicons : Table<StramusDb, FaviconRow>("favicons", ::FaviconRow) {
+    val host by Column.Text().primaryKey()
+    val dataUri by Column.Text()
+    val updatedAt by Column.Instant()
+
+    init { host; dataUri; updatedAt }
+}
+
 // Kormium does not own DDL — create the schema explicitly on open. `IF NOT EXISTS` makes this
 // idempotent across reloads of the IndexedDB-persisted database.
 internal val schemaDdl: List<String> = listOf(
@@ -104,6 +133,8 @@ internal val schemaDdl: List<String> = listOf(
         "position" integer NOT NULL,
         "deletable" integer NOT NULL,
         "collapsed" integer NOT NULL DEFAULT 0,
+        "pinSalt" text,
+        "pinHash" text,
         PRIMARY KEY ("id")
     )
     """.trimIndent(),
@@ -114,6 +145,7 @@ internal val schemaDdl: List<String> = listOf(
         "title" text NOT NULL,
         "position" integer NOT NULL,
         "createdAt" text NOT NULL,
+        "readOnly" integer NOT NULL DEFAULT 0,
         PRIMARY KEY ("id")
     )
     """.trimIndent(),
@@ -142,6 +174,14 @@ internal val schemaDdl: List<String> = listOf(
         "position" integer NOT NULL,
         "createdAt" text NOT NULL,
         PRIMARY KEY ("id")
+    )
+    """.trimIndent(),
+    """
+    CREATE TABLE IF NOT EXISTS "favicons" (
+        "host" text NOT NULL,
+        "dataUri" text NOT NULL,
+        "updatedAt" text NOT NULL,
+        PRIMARY KEY ("host")
     )
     """.trimIndent(),
     """CREATE INDEX IF NOT EXISTS "idx_cards_collection" ON "cards" ("collectionId", "position")""",
