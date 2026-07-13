@@ -23,6 +23,8 @@ object ChromeHistoryAccess : HistoryAccess {
                     url = url,
                     title = item.title ?: url,
                     lastVisit = item.lastVisitTime ?: 0.0,
+                    visitCount = item.visitCount ?: 0,
+                    typedCount = item.typedCount ?: 0,
                 )
             }
 

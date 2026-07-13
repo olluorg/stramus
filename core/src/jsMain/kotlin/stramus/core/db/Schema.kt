@@ -22,7 +22,7 @@ object Sections : Table<StramusDb, SectionRow>("sections", ::SectionRow) {
     val id by Column.UUID().primaryKey()
     val title by Column.Text()
     val position by Column.Int()
-    val deletable by Column.Int() // 1 = user-created (deletable), 0 = the default "Главный"
+    val deletable by Column.Int() // 1 = user-created (deletable), 0 = the default section
     val collapsed by Column.Int() // 1 = collapsed in the sidebar, 0 = expanded
 
     // The PIN lock, which a whole section carries: while it holds, the section's collections are not
@@ -83,6 +83,7 @@ class CardRow : Entity() {
     var url by Cards.url
     var favicon by Cards.favicon
     var content by Cards.content
+    var thumb by Cards.thumb
     var mime by Cards.mime
     var position by Cards.position
     var createdAt by Cards.createdAt
@@ -96,12 +97,62 @@ object Cards : Table<StramusDb, CardRow>("cards", ::CardRow) {
     val title by Column.Text()
     val url by Column.Text()
     val favicon by Column.Text().nullable()
-    val content by Column.Text().nullable() // note markdown or file data-URI
+    val content by Column.Text().nullable() // note markdown; null for a file — see [CardBlobs]
+    val thumb by Column.Text().nullable() // downscaled preview of an image file, a `data:` URI
     val mime by Column.Text().nullable() // file MIME type
     val position by Column.Int()
     val createdAt by Column.Instant()
 
-    init { id; collectionId; cardSectionId; kind; title; url; favicon; content; mime; position; createdAt }
+    init { id; collectionId; cardSectionId; kind; title; url; favicon; content; thumb; mime; position; createdAt }
+}
+
+class CardBlobRow : Entity() {
+    var cardId by CardBlobs.cardId
+    var data by CardBlobs.data
+}
+
+/**
+ * The bytes of a file card, one row per card, held as a `data:` URI.
+ *
+ * They live apart from [Cards] because they are the one thing in this database with no upper bound on
+ * size, and the card grid needs none of them: reading a collection reads every column of every card,
+ * so a file inline in `cards` would put megabytes of base64 into the page on every redraw — and into
+ * every `LIKE` the search runs. The grid shows [Cards.thumb]; these bytes are read only when the file
+ * is actually opened.
+ */
+object CardBlobs : Table<StramusDb, CardBlobRow>("card_blobs", ::CardBlobRow) {
+    val cardId by Column.UUID().primaryKey()
+    val data by Column.Text()
+
+    init { cardId; data }
+}
+
+class UsageRow : Entity() {
+    var url by Usage.url
+    var title by Usage.title
+    var host by Usage.host
+    var hits by Usage.hits
+    var lastUsedAt by Usage.lastUsedAt
+}
+
+/**
+ * How often, and how recently, a page was opened *from stramus* — a card followed, a tab switched to,
+ * a visited page reopened, an address typed into the search box. It is what puts the pages the user
+ * actually lives in at the top of the search, and what fills the box with their top sites before a
+ * single character is typed.
+ *
+ * The key is the normalised URL (no scheme, no `www.`, no trailing slash, no fragment or tracking
+ * parameters), so the same page reached by two different links is one row. [host] is kept beside it
+ * because a much-used site lends some of its weight to a page of that site seen for the first time.
+ */
+object Usage : Table<StramusDb, UsageRow>("usage", ::UsageRow) {
+    val url by Column.Text().primaryKey()
+    val title by Column.Text()
+    val host by Column.Text()
+    val hits by Column.Int()
+    val lastUsedAt by Column.Instant()
+
+    init { url; title; host; hits; lastUsedAt }
 }
 
 class FaviconRow : Entity() {
@@ -170,10 +221,18 @@ internal val schemaDdl: List<String> = listOf(
         "url" text NOT NULL,
         "favicon" text,
         "content" text,
+        "thumb" text,
         "mime" text,
         "position" integer NOT NULL,
         "createdAt" text NOT NULL,
         PRIMARY KEY ("id")
+    )
+    """.trimIndent(),
+    """
+    CREATE TABLE IF NOT EXISTS "card_blobs" (
+        "cardId" text NOT NULL,
+        "data" text NOT NULL,
+        PRIMARY KEY ("cardId")
     )
     """.trimIndent(),
     """
@@ -184,5 +243,17 @@ internal val schemaDdl: List<String> = listOf(
         PRIMARY KEY ("host")
     )
     """.trimIndent(),
+    """
+    CREATE TABLE IF NOT EXISTS "usage" (
+        "url" text NOT NULL,
+        "title" text NOT NULL,
+        "host" text NOT NULL,
+        "hits" integer NOT NULL,
+        "lastUsedAt" text NOT NULL,
+        PRIMARY KEY ("url")
+    )
+    """.trimIndent(),
     """CREATE INDEX IF NOT EXISTS "idx_cards_collection" ON "cards" ("collectionId", "position")""",
+    """CREATE INDEX IF NOT EXISTS "idx_card_sections_collection" ON "card_sections" ("collectionId", "position")""",
+    """CREATE INDEX IF NOT EXISTS "idx_collections_section" ON "collections" ("sectionId", "position")""",
 )

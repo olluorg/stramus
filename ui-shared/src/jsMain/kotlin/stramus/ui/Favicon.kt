@@ -1,16 +1,23 @@
 package stramus.ui
 
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import react.FC
 import react.Props
 import react.dom.html.ReactHTML.img
 import react.useEffect
 import react.useState
+import stramus.core.repo.CachedIcon
 import stramus.core.repo.FaviconRepository
 import web.cssom.ClassName
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
 
 /** The global `fetch`, enough of it to ask for an icon and get a promise back. */
 private external fun fetch(url: String, options: dynamic): dynamic
@@ -20,18 +27,37 @@ private external fun fetch(url: String, options: dynamic): dynamic
  * network — or the icon service — is unavailable: the card is then drawn blank. So the bytes behind
  * that URL are kept, as a `data:` URI, in the [FaviconRepository] (a SQLite table), keyed by host.
  *
- * The cache is mirrored in memory for the session: it is read once on start ([initFaviconCache]) and
- * every host is refreshed at most once per page load. Refreshing walks [sourcesFor] in order and
- * keeps the first icon whose bytes it can actually read — the card's own icon URL first, then the
- * icon services. Anything cached survives all of them failing, which is the point of caching at all.
+ * The cache is mirrored in memory for the session: it is read once on start ([initFaviconCache]).
+ * An icon fetched less than [ICON_MAX_AGE] ago is simply used — a page of saved links is a page of
+ * hosts whose icons were settled long ago, and asking the icon services about every one of them on
+ * every load is a great deal of network for an answer that has not changed. What is fetched, then, is
+ * what is missing or old: [sourcesFor] is walked in order and the first icon whose bytes can actually
+ * be read wins — the card's own icon URL first, then the icon services. Anything cached survives all
+ * of them failing, which is the point of caching at all.
  */
-private val cached = mutableMapOf<String, String>()
-private val attempted = mutableSetOf<String>()
+private val cached = mutableMapOf<String, CachedIcon>()
+
+/** Hosts whose fetch is running: the second card of a host waits on the first one's fetch, not its own. */
+private val inFlight = mutableMapOf<String, Deferred<String?>>()
+
+/** Hosts that came back with nothing this session. Asking again would fail again, once per card. */
+private val failed = mutableSetOf<String>()
+
 private var repository: FaviconRepository? = null
 private val faviconScope = MainScope()
 
 /** Bytes larger than this are not a favicon; caching them would only bloat the database. */
 private const val MAX_ICON_BYTES = 150_000
+
+/** How long a fetched icon is taken at its word before the site is asked for it again. */
+private val ICON_MAX_AGE = 30.days
+
+/**
+ * How many icons are fetched at once. A collection of a few hundred links is a few hundred hosts, and
+ * a page that asks for all of them at the same moment gets a slower answer for every one of them —
+ * and looks, to an icon service, like something worth rate-limiting.
+ */
+private val fetchSlots = Semaphore(6)
 
 /** Load the cached icons into memory, so the first paint of a card needs no network at all. */
 internal suspend fun initFaviconCache(repo: FaviconRepository) {
@@ -52,20 +78,38 @@ private fun sourcesFor(host: String, stored: String?): List<String> = listOfNotN
 ).distinct()
 
 /**
- * Fetch [host]'s icon and refresh its cache entry, returning the icon to show — the fresh bytes, or,
- * when every source fails (offline, dead service, no icon at all), whatever was cached before.
- * Returns null only when the icon is unknown and cannot be fetched: the caller then falls back to
- * the placeholder.
+ * The icon to show for [host]: the cached bytes while they are still fresh, otherwise the bytes a
+ * fetch brings back — and, when every source fails (offline, dead service, no icon at all), whatever
+ * was cached before. Null only when the icon is unknown and cannot be fetched: the caller then falls
+ * back to the placeholder.
+ *
+ * Cards of the same host share one fetch rather than each making their own, and no more than
+ * [fetchSlots] of them run at a time.
  */
-private suspend fun refreshFavicon(host: String, stored: String?): String? {
-    if (!attempted.add(host)) return cached[host]
-    for (source in sourcesFor(host, stored)) {
-        val data = fetchDataUri(source) ?: continue
-        cached[host] = data
-        repository?.let { repo -> runCatching { repo.put(host, data) } }
-        return data
+private suspend fun iconFor(host: String, stored: String?): String? {
+    val hit = cached[host]
+    if (hit != null && Clock.System.now() - hit.updatedAt < ICON_MAX_AGE) return hit.dataUri
+    if (host in failed) return hit?.dataUri
+
+    val fetch = inFlight.getOrPut(host) {
+        faviconScope.async {
+            try {
+                fetchSlots.withPermit {
+                    for (source in sourcesFor(host, stored)) {
+                        val data = fetchDataUri(source) ?: continue
+                        cached[host] = CachedIcon(data, Clock.System.now())
+                        repository?.let { repo -> runCatching { repo.put(host, data) } }
+                        return@withPermit data
+                    }
+                    failed += host
+                    cached[host]?.dataUri
+                }
+            } finally {
+                inFlight.remove(host)
+            }
+        }
     }
-    return cached[host]
+    return fetch.await()
 }
 
 /** GET [url] and return its bytes as a `data:` URI, or null if it cannot be fetched or is not an image. */
@@ -138,15 +182,17 @@ val Favicon = FC<FaviconProps> { props ->
     val host = hostOf(props.url)
     val stored = props.favicon?.takeIf { it.isNotBlank() }
 
-    var data by useState<String?> { cached[host] }
+    var data by useState<String?> { cached[host]?.dataUri }
     var broken by useState(false)
 
     useEffect(host, stored) {
         // A tab can navigate under a mounted component: re-key the state on the new host first.
-        data = cached[host]
+        data = cached[host]?.dataUri
         broken = false
+        // Launched on the shared scope, not this effect's: a fetch belongs to the host, not to the one
+        // card that happened to ask for it first, and it outlives that card being scrolled away.
         faviconScope.launch {
-            val fresh = refreshFavicon(host, stored)
+            val fresh = iconFor(host, stored)
             if (fresh != null) {
                 data = fresh
                 broken = false

@@ -9,6 +9,7 @@ import react.ChildrenBuilder
 import react.FC
 import react.Key
 import react.Props
+import react.memo
 import react.dom.html.ReactHTML.aside
 import react.dom.html.ReactHTML.button
 import react.dom.html.ReactHTML.div
@@ -20,8 +21,10 @@ import react.dom.html.ReactHTML.option
 import react.dom.html.ReactHTML.select
 import react.dom.html.ReactHTML.span
 import react.dom.html.ReactHTML.ul
+import react.useCallback
 import react.useEffect
 import react.useEffectOnce
+import react.useMemo
 import react.useRef
 import react.useState
 import stramus.core.db.StramusStore
@@ -31,10 +34,13 @@ import stramus.core.model.CardKind
 import stramus.core.model.CardSection
 import stramus.core.model.Collection
 import stramus.core.model.Section
+import stramus.core.platform.AiAssistant
+import stramus.core.platform.AiAvailability
 import stramus.core.platform.CapturedTab
 import stramus.core.platform.HistoryAccess
 import stramus.core.platform.HistoryEntry
 import stramus.core.platform.TabCapture
+import stramus.core.platform.WebSearchAccess
 import web.cssom.ClassName
 import web.data.DropEffect
 import web.data.move
@@ -43,7 +49,38 @@ import kotlin.uuid.Uuid
 
 private val scope = MainScope()
 
+/**
+ * How long the search box has to stand still before the query reaches the database and the browser's
+ * history. Short: the tabs, the collections and the user's top sites are ranked from memory and appear
+ * on the very keystroke, so this is only what the slower half of the list waits for.
+ */
+private const val SEARCH_DEBOUNCE_MS = 120L
+
+/** How many visited pages the search box asks the browser for. Ranking picks a few of them at most. */
+private const val HISTORY_HITS = 12
+
+/**
+ * How many of the open collection's cards the model is told about. Enough for "what did I save about
+ * X" to have an answer; few enough that a large collection does not eat the model's whole context
+ * before the question is even asked.
+ */
+private const val AI_CONTEXT_CARDS = 50
+
+/**
+ * How long the way back stays open after a deletion. The deletion itself is done — the rows are out
+ * of the database, the search no longer finds them — and this is the window in which the snapshot the
+ * repository handed back can put every one of them where it was, id and all.
+ */
+private const val UNDO_MS = 30_000
+
 internal fun key(id: Uuid): Key = id.toString().unsafeCast<Key>()
+
+/**
+ * A deletion the user can still take back: what to tell them, and what to run if they do. Nothing but
+ * a section, a collection or a card section gets one — deleting a single card is one click to undo by
+ * hand, deleting a section is not.
+ */
+private data class Undo(val message: String, val restore: suspend () -> Unit)
 
 /** Which modal is open. [existing] non-null = editing/viewing that card; null = creating a new one. */
 private data class NoteModal(val collectionId: Uuid, val cardSectionId: Uuid?, val existing: Card?)
@@ -100,6 +137,11 @@ private fun ChildrenBuilder.cardGroup(
 /**
  * One group's cards. A tile takes a drop only while another card is dragged ([draggingCardId]) — and
  * in a [readOnly] collection it neither drags nor drops nor offers its rename and delete buttons.
+ *
+ * Every callback is handed down as it comes, never wrapped per card ({ onOpen(card) } and the like):
+ * [CardTile] is memoized on its props, and a lambda built here would be a new one on every render,
+ * which is to say the memo would never hold and a drag would redraw the whole grid on every mouse
+ * move. The tile passes its own card back instead, and `App` keeps these steady with `useCallback`.
  */
 private fun ChildrenBuilder.cardGrid(
     strings: Strings,
@@ -116,20 +158,21 @@ private fun ChildrenBuilder.cardGrid(
     div {
         className = ClassName("grid")
         cards.forEach { card ->
-            cardTile(
-                strings = strings,
-                card = card,
-                isDraggable = !readOnly,
-                readOnly = readOnly,
-                isDragging = draggingCardId == card.id,
-                acceptsDrop = !readOnly && draggingCardId != null && draggingCardId != card.id,
-                onOpen = { onOpen(card) },
-                onRename = { name -> onRename(card, name) },
-                onDelete = { onDelete(card) },
-                onStartDrag = { onStartDrag(card) },
-                onEndDrag = onEndDrag,
-                onDropHere = { onDropOnTile(card) },
-            )
+            CardTile {
+                key = key(card.id)
+                this.strings = strings
+                this.card = card
+                this.isDraggable = !readOnly
+                this.readOnly = readOnly
+                this.isDragging = draggingCardId == card.id
+                this.acceptsDrop = !readOnly && draggingCardId != null && draggingCardId != card.id
+                this.onOpen = onOpen
+                this.onRename = onRename
+                this.onDelete = onDelete
+                this.onStartDrag = onStartDrag
+                this.onEndDrag = onEndDrag
+                this.onDropHere = onDropOnTile
+            }
         }
     }
 }
@@ -139,15 +182,28 @@ private fun ChildrenBuilder.cardGrid(
  * zone for the whole block, so a tab dropped on the window — rather than on one of its tabs — joins
  * it at the end; that is also how a tab is moved to another window. [active] highlights it while
  * hovered, and [accepts] is set only while a tab is being dragged.
+ *
+ * The ⇅ in the header sorts this window ([onSort]). It is a `select` used as a menu of actions rather
+ * than as a setting: there is no such thing as a window "currently sorted by title" — the sort moves
+ * the browser's tabs once and is done, and a tab opened a second later lands wherever the browser puts
+ * it. So it always shows the ⇅ back, never the choice last made.
+ *
+ * The ⤓ next to it saves the whole window into the open collection ([onSave]) — the drag, done to every
+ * tab at once. [saveHint] is both its tooltip and its condition: null where there is no collection to
+ * save into, and then the button is not there at all.
  */
 private fun ChildrenBuilder.tabWindow(
+    strings: Strings,
     groupKey: Key,
     label: String,
     count: Int,
     accepts: Boolean,
     active: Boolean,
+    saveHint: String?,
     onOver: () -> Unit,
     onDropHere: () -> Unit,
+    onSave: () -> Unit,
+    onSort: (TabSort) -> Unit,
     content: ChildrenBuilder.() -> Unit,
 ) {
     div {
@@ -167,83 +223,115 @@ private fun ChildrenBuilder.tabWindow(
         div {
             className = ClassName("tab-window-head")
             span { +label }
-            span { className = ClassName("count"); +count.toString() }
+            div {
+                className = ClassName("tab-window-tools")
+                if (saveHint != null) {
+                    button {
+                        className = ClassName("tab-save")
+                        hint(saveHint)
+                        onClick = { onSave() }
+                        +"⤓"
+                    }
+                }
+                select {
+                    className = ClassName("tab-sort")
+                    hint(strings.sortTabs)
+                    value = "" // the ⇅ itself: see above, this is a menu, not the window's state
+                    onChange = { e -> TabSort.from(e.target.value)?.let(onSort) }
+                    option { value = ""; +"⇅" }
+                    TabSort.entries.forEach { by ->
+                        option { value = by.id; +by.label(strings) }
+                    }
+                }
+                span { className = ClassName("count"); +count.toString() }
+            }
         }
         content()
     }
 }
 
+external interface TabRowProps : Props {
+    var strings: Strings
+    var tab: CapturedTab
+    var isDragging: Boolean
+    var acceptsDrop: Boolean
+    var isDropTarget: Boolean
+
+    // Each hands back the tab it happened to, for the same reason [CardTileProps] does: one callback
+    // serves every row, so a memoized row's props stay the ones it already has.
+    var onGoTo: (CapturedTab) -> Unit
+    var onClose: (CapturedTab) -> Unit
+    var onStartDrag: (CapturedTab) -> Unit
+    var onEndDrag: () -> Unit
+    var onOver: (CapturedTab) -> Unit
+    var onDropHere: (CapturedTab) -> Unit
+}
+
 /**
  * One open browser tab. It is a drag source (onto a collection, to be saved; onto another tab, to be
- * reordered), and — while another tab is dragged ([acceptsDrop]) — a drop target of its own. Clicking
+ * reordered), and — while another tab is dragged (`acceptsDrop`) — a drop target of its own. Clicking
  * it jumps to the tab; the × closes it. Its dragover stops there, so the window behind it does not
  * also claim the drop; the window's own dragover keeps firing in the gaps between tabs and takes the
  * highlight back, which is why nothing here has to track a dragleave.
+ *
+ * Memoized like [CardTile], and for the same reason: a drag anywhere on the page runs through `App`'s
+ * state, and the tab list has no part in most of it.
  */
-private fun ChildrenBuilder.tabRow(
-    strings: Strings,
-    tab: CapturedTab,
-    isDragging: Boolean,
-    acceptsDrop: Boolean,
-    isDropTarget: Boolean,
-    onGoTo: () -> Unit,
-    onClose: () -> Unit,
-    onStartDrag: () -> Unit,
-    onEndDrag: () -> Unit,
-    onOver: () -> Unit,
-    onDropHere: () -> Unit,
-) {
-    li {
-        key = tab.id.toString().unsafeCast<Key>()
-        className = ClassName(
-            buildString {
-                append("tab")
-                if (tab.active) append(" current")
-                if (isDragging) append(" dragging")
-                if (isDropTarget) append(" drop-target")
-            },
-        )
-        title = strings.goToTab
-        draggable = true
-        onClick = { onGoTo() }
-        onDragStart = { e ->
-            // Some browsers require drag data to be set or they reject drops.
-            e.dataTransfer.setData("text/plain", tab.id.toString())
-            onStartDrag()
-        }
-        onDragEnd = { onEndDrag() }
-        if (acceptsDrop) {
-            onDragOver = { e ->
-                e.preventDefault()
-                e.stopPropagation()
-                e.dataTransfer.dropEffect = DropEffect.move
-                onOver()
+val TabRow = memo(
+    FC<TabRowProps> { props ->
+        val tab = props.tab
+
+        li {
+            className = ClassName(
+                buildString {
+                    append("tab")
+                    if (tab.active) append(" current")
+                    if (props.isDragging) append(" dragging")
+                    if (props.isDropTarget) append(" drop-target")
+                },
+            )
+            hint(props.strings.goToTab)
+            draggable = true
+            onClick = { props.onGoTo(tab) }
+            onDragStart = { e ->
+                // Some browsers require drag data to be set or they reject drops.
+                e.dataTransfer.setData("text/plain", tab.id.toString())
+                props.onStartDrag(tab)
             }
-            onDrop = { e ->
-                e.preventDefault()
-                e.stopPropagation()
-                onDropHere()
+            onDragEnd = { props.onEndDrag() }
+            if (props.acceptsDrop) {
+                onDragOver = { e ->
+                    e.preventDefault()
+                    e.stopPropagation()
+                    e.dataTransfer.dropEffect = DropEffect.move
+                    props.onOver(tab)
+                }
+                onDrop = { e ->
+                    e.preventDefault()
+                    e.stopPropagation()
+                    props.onDropHere(tab)
+                }
+            }
+            Favicon {
+                url = tab.url
+                favicon = tab.favicon
+            }
+            span {
+                className = ClassName("tab-title")
+                +tab.title.ifBlank { hostOf(tab.url) }
+            }
+            button {
+                className = ClassName("icon del")
+                hint(props.strings.closeTab)
+                onClick = { e ->
+                    e.stopPropagation() // closing the tab is not jumping to it
+                    props.onClose(tab)
+                }
+                +"×"
             }
         }
-        Favicon {
-            url = tab.url
-            favicon = tab.favicon
-        }
-        span {
-            className = ClassName("tab-title")
-            +tab.title.ifBlank { hostOf(tab.url) }
-        }
-        button {
-            className = ClassName("icon del")
-            title = strings.closeTab
-            onClick = { e ->
-                e.stopPropagation() // closing the tab is not jumping to it
-                onClose()
-            }
-            +"×"
-        }
-    }
-}
+    },
+)
 
 external interface AppProps : Props {
     /** Present in the extension (chrome.tabs); null in the web app. Enables "Save open tabs". */
@@ -251,11 +339,25 @@ external interface AppProps : Props {
 
     /** Present in the extension (chrome.history); null in the web app. Enables the history pane. */
     var historyAccess: HistoryAccess?
+
+    /**
+     * The browser's own on-device model, where it has one (`builtInAi()`); null everywhere else, and
+     * then the search box simply never offers to ask it.
+     */
+    var ai: AiAssistant?
+
+    /**
+     * The browser's own search (chrome.search in the extension); null in the web app, which cannot ask
+     * which engine the user chose and falls back to a URL of its own.
+     */
+    var webSearch: WebSearchAccess?
 }
 
 val App = FC<AppProps> { props ->
     val tabCapture = props.tabCapture
     val historyAccess = props.historyAccess
+    val ai = props.ai
+    val webSearch = props.webSearch
 
     var store by useState<StramusStore?>(null)
     var sections by useState<List<Section>>(emptyList())
@@ -263,8 +365,27 @@ val App = FC<AppProps> { props ->
     var selectedId by useState<Uuid?>(null)
     var cards by useState<List<Card>>(emptyList())
     var cardSections by useState<List<CardSection>>(emptyList())
+    // Bumped when the one-shot preview backfill writes a thumbnail, to redraw the cards it changed.
+    var thumbsVersion by useState(0)
     var query by useState("")
+    // The cards matching the query (they feed both the dropdown and the full grid) and the visited
+    // pages matching it — the two halves of the search that have to be asked for, rather than ranked
+    // from what is already on screen.
     var searchResults by useState<List<Card>>(emptyList())
+    var searchHistory by useState<List<HistoryEntry>>(emptyList())
+    // Ctrl/Cmd+Enter: every matching card as a grid, instead of the best few in the dropdown.
+    var showAllResults by useState(false)
+    // Bumped whenever a page is opened, so what is ranked by how much the user uses it is re-ranked:
+    // the frecency index itself lives outside React (see Usage.kt).
+    var usageVersion by useState(0)
+    // The box is a question to the model rather than a search. [aiQuestion] is the question actually
+    // asked — the field is cleared for the next one, and re-asking the same thing is the same question.
+    var aiMode by useState(false)
+    var aiQuestion by useState("")
+    // What the browser's model can do for us — shown in the settings, and what decides whether the box
+    // offers to ask it at all. Null until the question has been put to the browser (or there is no
+    // model to put it to).
+    var aiState by useState<AiAvailability?>(null)
     var draggingCardId by useState<Uuid?>(null)
     var draggingCollectionId by useState<Uuid?>(null)
     var openTabs by useState<List<CapturedTab>>(emptyList())
@@ -299,8 +420,10 @@ val App = FC<AppProps> { props ->
     // The unlocked-but-protected section whose lock menu (lock now / change PIN / unprotect) is open.
     var lockMenuId by useState<Uuid?>(null)
     var settingsOpen by useState(false)
-    // The section — sidebar or card section; their ids share one space — being renamed in place.
+    // The section, collection or card section — their ids share one space — being renamed in place.
     var renamingId by useState<Uuid?>(null)
+    // The last deletion, for as long as it can still be taken back. See [UNDO_MS].
+    var undo by useState<Undo?>(null)
     // The pending collapse of a section whose title was just clicked once. See [onTitleClick].
     val clickTimer = useRef<Int>(null)
 
@@ -312,6 +435,9 @@ val App = FC<AppProps> { props ->
     var rightCollapsed by useState(prefGet("rightCollapsed") == "1")
     var rightPane by useState(RightPane.from(prefGet("rightPane")))
     var autoLockMinutes by useState(prefGet("autoLock")?.toIntOrNull() ?: DEFAULT_AUTO_LOCK_MINUTES)
+    // Saving a window's tabs into a collection closes them, as dragging one there does: the tab has
+    // been put away, and leaving it open would be to have it in two places. Unset means the default.
+    var closeSavedTabs by useState(prefGet("closeSavedTabs") != "0")
 
     // Active translations: every string below reads from here, and the same table is handed to the
     // child components. Named `t`, not `s` — `s` is the store in this file's many `val s = store` blocks.
@@ -321,8 +447,46 @@ val App = FC<AppProps> { props ->
     // one of them away goes through these two sets: the sidebar does not name the collections, their
     // cards are never read out of the database, the global search drops them, an export leaves them
     // out, and nothing can be dropped into them.
-    val lockedSectionIds = sections.filter { it.locked && it.id !in unlockedSections }.map { it.id }.toSet()
-    val hiddenCollectionIds = collections.filter { it.sectionId in lockedSectionIds }.map { it.id }.toSet()
+    //
+    // Held across renders, not rebuilt on each one: a fresh set every time would be a different set to
+    // React, and the callbacks below — which is to say the memoized cards hanging off them — would be
+    // rebuilt with it on every mouse move of a drag.
+    val lockedSectionIds = useMemo(sections, unlockedSections) {
+        sections.filter { it.locked && it.id !in unlockedSections }.map { it.id }.toSet()
+    }
+    val hiddenCollectionIds = useMemo(collections, lockedSectionIds) {
+        collections.filter { it.sectionId in lockedSectionIds }.map { it.id }.toSet()
+    }
+
+    // The selected collection's cards, already split into the groups the page draws and sorted the way
+    // the user asked for — done once per change to the cards or the sort, rather than once per group
+    // per render. The ungrouped ones are under the null key.
+    val cardsByGroup = useMemo(cards, sortMode) {
+        cards.groupBy { it.cardSectionId }.mapValues { (_, group) -> sortMode.apply(group) }
+    }
+    val orderedCardSections = useMemo(cardSections) { cardSections.sortedBy { it.position } }
+
+    // Tabs matching the sidebar's own search box (title or URL). The search only hides rows: a tab
+    // still knows its real place in its window, so a drag lands correctly. Lowercasing every tab's
+    // title and URL is not something to redo on each render — and a drag makes for a great many.
+    val matchingTabs = useMemo(openTabs, tabQuery) {
+        val filter = tabQuery.trim().lowercase()
+        if (filter.isBlank()) {
+            openTabs
+        } else {
+            openTabs.filter { filter in it.title.lowercase() || filter in it.url.lowercase() }
+        }
+    }
+
+    // One group per browser window, this page's window first ("This window"), the rest numbered in the
+    // browser's own order. Numbering comes from every window, not just the matching ones, so a search
+    // cannot renumber the windows under the user.
+    val windowIds = useMemo(openTabs, currentWindowId) {
+        openTabs.map { it.windowId }.distinct().sortedWith(compareBy({ it != currentWindowId }, { it }))
+    }
+    val tabsByWindow = useMemo(matchingTabs) {
+        matchingTabs.groupBy { it.windowId }.mapValues { (_, tabs) -> tabs.sortedBy { it.index } }
+    }
 
     // The section whose PIN screen stands in the content area: the one whose header was clicked, or —
     // when the selected collection turns out to be behind a lock, which is what the idle timer does to
@@ -332,6 +496,13 @@ val App = FC<AppProps> { props ->
             pendingUnlockId?.takeIf { id -> id in lockedSectionIds }
                 ?: collections.firstOrNull { c -> c.id == selectedId }?.sectionId?.takeIf { id -> id in lockedSectionIds }
             )
+    }
+
+    // The collection anything saved from outside the content area lands in: the selected one, as long
+    // as it takes edits at all — not one inside a locked section, not a read-only one. Null means there
+    // is nowhere to put a page right now, and every control that would save one is simply not offered.
+    val targetCollection = collections.firstOrNull {
+        it.id == selectedId && it.id !in hiddenCollectionIds && !it.readOnly
     }
 
     // The right sidebar exists where the host gives access to the browser at all, and shows the pane
@@ -345,15 +516,27 @@ val App = FC<AppProps> { props ->
 
     useEffectOnce {
         scope.launch {
-            val s = openStramusStore()
+            // The seed is only ever used by a database that has never held anything (see `StoreSeed`),
+            // and it is in the language the user arrived with — the one the browser asked for, since
+            // nobody has chosen one yet on the install this actually happens on.
+            val s = openStramusStore(seed = t.seed)
             // Before the first card is drawn, so a cached icon is there from the very first paint.
             initFaviconCache(s.favicons)
+            // Before the first keystroke, so the very first search is already ranked by what the user
+            // uses — and an empty box already offers their top sites.
+            initUsageIndex(s.usage)
+            usageVersion += 1
             val secs = s.sections.all()
             val cols = s.collections.all()
             store = s
             sections = secs
             collections = cols
             selectedId = cols.firstOrNull()?.id
+
+            // Files saved before previews existed have none, and their bytes are no longer part of a
+            // card: make each one a preview, once. Behind the first paint — it reads whole files, and
+            // nothing on screen is waiting for it.
+            if (backfillThumbs(s)) thumbsVersion += 1
         }
     }
 
@@ -371,7 +554,7 @@ val App = FC<AppProps> { props ->
     // there is nothing in the page for a devtools poke at the React tree to find. A collection inside
     // one shows the PIN screen instead, and entering the PIN (which changes `unlockedSections`) runs
     // this again — as does the idle timer locking it back up, which drops the cards from the page.
-    useEffect(store, selectedId, unlockedSections) {
+    useEffect(store, selectedId, unlockedSections, thumbsVersion) {
         val s = store ?: return@useEffect
         val sel = selectedId
         if (sel == null || sel in hiddenCollectionIds) {
@@ -403,11 +586,36 @@ val App = FC<AppProps> { props ->
         }
     }
 
-    useEffect(store, query) {
+    // The slow half of the search: every card in the database, and every page the browser remembers.
+    // Neither is asked on every keystroke — React cancels this effect when the query moves on, and a
+    // cancelled coroutine never reaches either of them. That also settles which answer wins: the one
+    // still being typed towards, not whichever query happened to finish last.
+    //
+    // The fast half — the open tabs, the collections, the user's own top sites — is ranked from memory
+    // and needs no effect at all; it is in the list before this one comes back.
+    useEffect(store, historyAccess, query) {
         val s = store ?: return@useEffect
         val q = query.trim()
-        if (q.isBlank()) searchResults = emptyList() else scope.launch { searchResults = s.cards.search(q) }
+        if (q.isBlank()) {
+            searchResults = emptyList()
+            searchHistory = emptyList()
+            return@useEffect
+        }
+        kotlinx.coroutines.delay(SEARCH_DEBOUNCE_MS)
+        searchResults = s.cards.search(q)
+        searchHistory = historyAccess?.search(q, HISTORY_HITS).orEmpty()
     }
+
+    // Whether the browser has a model to ask at all. Asked once: the answer is about the machine, not
+    // about anything the user does here.
+    useEffect(ai) {
+        val assistant = ai ?: return@useEffect
+        aiState = assistant.availability()
+    }
+
+    // A model that has to be downloaded first is still a model to offer: the first question starts the
+    // download, and the panel shows it happening rather than pretending to think.
+    val aiAvailable = aiState != null && aiState != AiAvailability.UNAVAILABLE
 
     // The extension provides tab access: load the open tabs and keep the list live via tab events —
     // opening, closing, navigating, reordering and moving a tab between windows all land here.
@@ -451,6 +659,39 @@ val App = FC<AppProps> { props ->
         scope.launch {
             cards = s.cards.byCollection(sel)
             cardSections = s.cardSections.byCollection(sel)
+        }
+    }
+
+    // The open tabs, reachable from a callback without being one of its dependencies: [onCardOpen] is
+    // a prop of every memoized card tile, and a tab opening or navigating anywhere in the browser must
+    // not rebuild that callback — and with it redraw the whole grid.
+    val openTabsRef = useRef(openTabs)
+    openTabsRef.current = openTabs
+
+    /**
+     * Open a page — or, if it is already open somewhere, go to the tab that has it. A page the user is
+     * already looking at is not something to open a second copy of, and this is the only way out of
+     * stramus, so the rule holds wherever a link is followed from: a card in the grid, a row of the
+     * search box, an entry of the history.
+     *
+     * Counting the page happens either way: going back to something is using it as much as opening it
+     * is, and the search box ranks by what the user uses.
+     */
+    fun openPage(url: String, title: String) {
+        recordUse(url, title)
+        usageVersion += 1
+
+        val tc = tabCapture
+        val key = normalizeUrl(url)
+        val alreadyOpen = if (tc == null || key.isBlank()) {
+            null
+        } else {
+            openTabsRef.current.orEmpty().firstOrNull { normalizeUrl(it.url) == key }
+        }
+        if (tc != null && alreadyOpen != null) {
+            scope.launch { tc.activateTab(alreadyOpen.id, alreadyOpen.windowId) }
+        } else {
+            openUrl(url)
         }
     }
 
@@ -528,22 +769,46 @@ val App = FC<AppProps> { props ->
         }
     }
 
+    /**
+     * Save [tabs] into [collectionId] as cards, ungrouped — the ⤓ on a window's header, and the one in
+     * the collection's toolbar, are both this: the drag done to a whole window at once. They land under
+     * no card section for the same reason a tab dropped on the content area does: which section they
+     * belong to is the user's to say afterwards, by dragging them.
+     *
+     * Whether the browser keeps the tabs is the user's standing answer (`closeSavedTabs`, the setting);
+     * a tab dragged into a collection one at a time is always closed, that drag being a move.
+     *
+     * It is asked first, and the question says which way the setting has it: a whole window at once is
+     * a great many cards, and — where the tabs are closed with it — a great many windows' worth of work
+     * that nothing here can put back. (The deletions have their undo; the browser's tabs have none.)
+     *
+     * The stramus page itself is never in this list — [TabCapture] lists only http(s) pages — so
+     * closing a window's tabs cannot close the page doing the closing.
+     */
+    fun saveTabs(tabs: List<CapturedTab>, collection: Collection) {
+        val s = store ?: return
+        val tc = tabCapture ?: return
+        if (tabs.isEmpty()) return
+        if (!browserConfirm(t.confirmSaveTabs(tabs.size, collection.title, closeSavedTabs))) return
+        scope.launch {
+            tabs.forEach { tab ->
+                s.cards.add(
+                    collection.id,
+                    tab.title.ifBlank { hostOf(tab.url) },
+                    tab.url,
+                    tab.favicon ?: faviconFor(tab.url),
+                )
+            }
+            if (closeSavedTabs) tabs.forEach { tc.closeTab(it.id) }
+            reloadCards(collection.id)
+            openTabs = tc.currentTabs()
+        }
+    }
+
     // ---- The user's browser tabs, driven from the right sidebar (extension only) ----
 
     // Every one of these refreshes the list itself rather than waiting for the tab event to come
     // back, so the sidebar redraws the moment the tab does.
-    fun goToTab(tab: CapturedTab) {
-        val tc = tabCapture ?: return
-        scope.launch { tc.activateTab(tab.id, tab.windowId) }
-    }
-
-    fun closeTab(tab: CapturedTab) {
-        val tc = tabCapture ?: return
-        scope.launch {
-            tc.closeTab(tab.id)
-            openTabs = tc.currentTabs()
-        }
-    }
 
     // Drop the dragged tab into [windowId] at [index] — a reorder, or a move to another window, which
     // to the browser is the same thing. [index] is a slot in that window's own tab strip; -1 appends.
@@ -569,19 +834,69 @@ val App = FC<AppProps> { props ->
         moveTabTo(target.windowId, target.index)
     }
 
+    // Sort one window's tabs — where a drag moves one tab, this puts the whole strip in order, in the
+    // browser itself and not merely in this list. Every tab of the window goes into the sort, not just
+    // the ones a search has left on screen: the strip is the user's, and half of it quietly reshuffled
+    // to fit a query they typed here would be no kind of sort at all.
+    fun sortTabs(windowId: Int, by: TabSort) {
+        val tc = tabCapture ?: return
+        scope.launch {
+            tc.reorderTabs(windowId, by.apply(openTabs.filter { it.windowId == windowId }).map { it.id })
+            openTabs = tc.currentTabs()
+        }
+    }
+
     // Only one drop target may be lit at a time: a drag entering the tabs sidebar takes the highlight
     // from whatever the content area was showing, and [leaveTabsSidebar] hands it back.
-    fun hoverTabs(windowId: Int, tabId: Int?) {
-        if (dropTabWindowId != windowId) dropTabWindowId = windowId
-        if (dropTabId != tabId) dropTabId = tabId
-        if (dropGroup != null) dropGroup = null
-        if (contentDropActive) contentDropActive = false
+    //
+    // Written unconditionally, though this runs on every dragover: React drops an update that sets the
+    // state it is already in, so re-assigning the same target — which is what nearly every one of
+    // these events does — costs a comparison and no render. Guarding it here instead would mean
+    // reading state, and this is reached from a callback that outlives the render that made it.
+    val hoverTabs = useCallback { windowId: Int, tabId: Int? ->
+        dropTabWindowId = windowId
+        dropTabId = tabId
+        dropGroup = null
+        contentDropActive = false
     }
 
     fun leaveTabsSidebar() {
         if (dropTabWindowId != null) dropTabWindowId = null
         if (dropTabId != null) dropTabId = null
     }
+
+    // ---- What a tab row does, held steady across renders. See the card callbacks above. ----
+
+    val onTabGoTo = useCallback(tabCapture, usageVersion) { tab: CapturedTab ->
+        val tc = tabCapture ?: return@useCallback
+        // Going back to a tab is using the page as much as opening it is: it counts the same.
+        recordUse(tab.url, tab.title)
+        usageVersion += 1
+        scope.launch { tc.activateTab(tab.id, tab.windowId) }
+    }
+
+    val onTabClose = useCallback(tabCapture) { tab: CapturedTab ->
+        val tc = tabCapture ?: return@useCallback
+        scope.launch {
+            tc.closeTab(tab.id)
+            openTabs = tc.currentTabs()
+        }
+    }
+
+    val onTabStartDrag = useCallback { tab: CapturedTab -> draggingTab = tab }
+
+    val onTabEndDrag = useCallback {
+        draggingTab = null
+        dropCollectionId = null
+        dropGroup = null
+        contentDropActive = false
+        dropTabWindowId = null
+        dropTabId = null
+    }
+
+    val onTabOver = useCallback(hoverTabs) { tab: CapturedTab -> hoverTabs(tab.windowId, tab.id) }
+
+    val onTabDropHere = useCallback(tabCapture, draggingTab) { target: CapturedTab -> dropOnTab(target) }
 
     // ---- The user's browsing history, driven from the right sidebar's other pane (extension only) ----
 
@@ -640,23 +955,206 @@ val App = FC<AppProps> { props ->
         dropSectionId = null
     }
 
-    // Open a card by its kind: links navigate, notes open the markdown editor, files open the viewer.
-    fun openCard(card: Card) {
+    // A card, a tab or a history entry is dropped on a *group* — the ungrouped area or one card
+    // section — of [collectionId] and lands in it. [index] is its place among that group's cards;
+    // Int.MAX_VALUE appends.
+    fun dropOnGroup(collectionId: Uuid, cardSectionId: Uuid?, index: Int) {
+        val dragged = draggingCardId
+        val tab = draggingTab
+        val visit = draggingHistory
+        when {
+            dragged != null -> moveCard(dragged, collectionId, cardSectionId, index)
+            tab != null -> saveTab(tab, collectionId, cardSectionId)
+            visit != null -> saveHistoryEntry(visit, collectionId, cardSectionId)
+        }
+        draggingCardId = null
+        draggingTab = null
+        draggingHistory = null
+        dropGroup = null
+        contentDropActive = false
+    }
+
+    // ---- What a card tile does, held steady across renders ----
+    //
+    // These are the props of a memoized [CardTile], so what matters as much as what they do is that
+    // they are the *same functions* as on the last render: rebuilt each time, they would defeat the
+    // memo and every dragover — several a second — would redraw every card on screen. Each is
+    // therefore tied to the state it actually reads, and changes only when that does.
+
+    // Open a card by its kind: a link goes to its page — or to the tab already showing it, see
+    // [openPage] — notes open the markdown editor, files open the viewer.
+    val onCardOpen = useCallback(usageVersion, tabCapture) { card: Card ->
         when (card.kind) {
-            CardKind.LINK -> openUrl(card.url)
+            CardKind.LINK -> openPage(card.url, card.title)
             CardKind.NOTE -> noteModal = NoteModal(card.collectionId, card.cardSectionId, card)
             CardKind.FILE -> fileModal = FileModal(card.collectionId, card.cardSectionId, card)
         }
     }
 
-    fun renameCard(card: Card, title: String) {
-        val s = store ?: return
+    val onCardRename = useCallback(store, hiddenCollectionIds) { card: Card, title: String ->
+        val s = store ?: return@useCallback
         scope.launch { s.cards.rename(card.id, title); reloadCards(card.collectionId) }
     }
 
-    fun deleteCard(card: Card) {
-        val s = store ?: return
+    val onCardDelete = useCallback(store, hiddenCollectionIds) { card: Card ->
+        val s = store ?: return@useCallback
         scope.launch { s.cards.delete(card.id); reloadCards(card.collectionId) }
+    }
+
+    val onCardStartDrag = useCallback { card: Card -> draggingCardId = card.id }
+
+    val onCardEndDrag = useCallback {
+        draggingCardId = null
+        dropGroup = null
+    }
+
+    // Dropping a card on a tile puts it in that tile's group, right before it. Under a sort other than
+    // MANUAL the order on screen is the sort's to decide, so there the position would be invisible:
+    // the card just joins the group.
+    val onDropOnTile = useCallback(
+        store,
+        cards,
+        sortMode,
+        selectedId,
+        draggingCardId,
+        draggingTab,
+        draggingHistory,
+        hiddenCollectionIds,
+    ) { target: Card ->
+        val collectionId = selectedId ?: return@useCallback
+        val dragged = draggingCardId
+        if (dragged == target.id) return@useCallback
+        val index = if (dragged != null && sortMode == SortMode.MANUAL) {
+            // The dragged card is spliced into an order it is no longer part of, so its own slot must
+            // not count towards the target's index.
+            cards.filter { it.cardSectionId == target.cardSectionId && it.id != dragged }
+                .indexOfFirst { it.id == target.id }
+                .coerceAtLeast(0)
+        } else {
+            Int.MAX_VALUE
+        }
+        dropOnGroup(collectionId, target.cardSectionId, index)
+    }
+
+    // A card renamed or deleted among the search results is a card of some collection: the results on
+    // screen and the collection it lives in are both re-read, or one of the two would be stale.
+    val onResultRename = useCallback(store, query, selectedId, hiddenCollectionIds) { card: Card, title: String ->
+        val s = store ?: return@useCallback
+        scope.launch {
+            s.cards.rename(card.id, title)
+            searchResults = s.cards.search(query.trim())
+            reloadCards(selectedId)
+        }
+    }
+
+    val onResultDelete = useCallback(store, query, selectedId, hiddenCollectionIds) { card: Card ->
+        val s = store ?: return@useCallback
+        scope.launch {
+            s.cards.delete(card.id)
+            searchResults = s.cards.search(query.trim())
+            reloadCards(selectedId)
+        }
+    }
+
+    // ---- The search box ----
+
+    // Everything the box offers, ranked. The tabs, the collections and the top sites are ranked here,
+    // out of state already in hand, so they are in the list on the keystroke itself; the cards and the
+    // visited pages arrive from the debounced effect above and re-rank it a moment later.
+    //
+    // A locked section is left out of both halves, as it is everywhere else: the search must not be
+    // the way around a PIN.
+    val collectionTitles = useMemo(collections) { collections.associate { it.id.toString() to it.title } }
+    val hitGroups = useMemo(
+        query,
+        openTabs,
+        searchResults,
+        searchHistory,
+        collections,
+        hiddenCollectionIds,
+        aiAvailable,
+        usageVersion,
+        lang,
+    ) {
+        buildHits(
+            query = query,
+            tabs = openTabs,
+            cards = searchResults.filter { it.collectionId !in hiddenCollectionIds },
+            history = searchHistory,
+            collections = collections.filter { it.id !in hiddenCollectionIds },
+            collectionTitles = collectionTitles,
+            aiAvailable = aiAvailable,
+            strings = t,
+        )
+    }
+
+    /** Done searching: the field empties and the collection comes back. */
+    fun clearSearch() {
+        query = ""
+        showAllResults = false
+    }
+
+    /**
+     * A row of the dropdown was taken. Each kind of row does the one thing it stands for — the tab is
+     * switched to rather than opened again, the collection is selected rather than navigated to, the
+     * question goes to the model rather than to Google — and every one of them that ends in a page
+     * being opened counts towards the ranking that put it there.
+     */
+    fun activateHit(hit: Hit) {
+        when (hit) {
+            is TabHit -> {
+                onTabGoTo(hit.tab)
+                clearSearch()
+            }
+            is CardHit -> {
+                onCardOpen(hit.card)
+                clearSearch()
+            }
+            is HistoryHit -> {
+                openPage(hit.entry.url, hit.entry.title)
+                clearSearch()
+            }
+            // A top site's URL is the normalised one (no scheme) — it is a key, not a link.
+            is SiteHit -> {
+                openPage(asUrl(hit.stat.url), hit.stat.title)
+                clearSearch()
+            }
+            is OpenUrlHit -> {
+                openPage(hit.target, hostOf(hit.target))
+                clearSearch()
+            }
+            // The user's own search engine, not one this app chose for them — and it answers *here*,
+            // in the tab the question was typed in, exactly as the address bar would. Where the
+            // browser will not say which engine that is (the web app), Google stands in.
+            is WebSearchHit -> {
+                val browserSearch = webSearch
+                if (browserSearch != null) {
+                    scope.launch { browserSearch.search(hit.query) }
+                } else {
+                    navigateTo(webSearchUrl(hit.query))
+                }
+                clearSearch()
+            }
+            is CollectionHit -> {
+                selectedId = hit.collection.id
+                pendingUnlockId = null
+                unlockError = null
+                clearSearch()
+            }
+            // The box becomes the question box; the answer takes over the content area. The field is
+            // emptied for the follow-up.
+            is AiHit -> {
+                aiMode = true
+                aiQuestion = hit.query
+                query = ""
+                showAllResults = false
+            }
+        }
+    }
+
+    fun exitAi() {
+        aiMode = false
+        aiQuestion = ""
     }
 
     fun cancelPendingCollapse() {
@@ -689,6 +1187,15 @@ val App = FC<AppProps> { props ->
         renamingId = null
     }
 
+    fun renameCollection(collection: Collection, title: String) {
+        val s = store ?: return
+        scope.launch {
+            s.collections.rename(collection.id, title)
+            collections = s.collections.all()
+        }
+        renamingId = null
+    }
+
     fun renameCardSection(cs: CardSection, title: String) {
         val s = store ?: return
         scope.launch {
@@ -696,6 +1203,83 @@ val App = FC<AppProps> { props ->
             reloadCards(selectedId)
         }
         renamingId = null
+    }
+
+    // ---- Deleting, and the way back ----
+    //
+    // Deleting something that holds anything is asked about once, and can be taken back for half a
+    // minute afterwards; deleting an empty one is neither. The deletion is real either way — the rows
+    // leave the database — and the undo re-inserts exactly what left it, ids, order and file bytes
+    // included, so what comes back is the same section and not a fresh one wearing its name.
+
+    // The countdown on the offer to undo. Restarted by every new deletion (the effect's dependency
+    // changes with it), and cancelled when the offer is taken or the page goes away.
+    useEffect(undo) {
+        if (undo == null) return@useEffect
+        kotlinx.coroutines.delay(UNDO_MS.toLong())
+        undo = null
+    }
+
+    fun undoDelete() {
+        val u = undo ?: return
+        undo = null
+        scope.launch { u.restore() }
+    }
+
+    fun deleteSection(section: Section) {
+        val s = store ?: return
+        scope.launch {
+            // What the warning counts is cards, not collections: a section is born with a collection
+            // of its own name, so counting those would put a question in front of every deletion.
+            val held = collections.filter { it.sectionId == section.id }
+            val cardCount = held.sumOf { s.cards.count(it.id) }
+            if (cardCount > 0 && !browserConfirm(t.confirmDeleteSection(section.title, cardCount))) return@launch
+
+            val deleted = s.sections.delete(section.id) ?: return@launch
+            sections = s.sections.all()
+            val remaining = s.collections.all()
+            collections = remaining
+            // The open collection may have gone down with the section.
+            if (remaining.none { it.id == selectedId }) selectedId = remaining.firstOrNull()?.id
+            undo = Undo(t.deletedSection(section.title)) {
+                s.sections.restore(deleted)
+                sections = s.sections.all()
+                collections = s.collections.all()
+            }
+        }
+    }
+
+    fun deleteCollection(collection: Collection) {
+        val s = store ?: return
+        scope.launch {
+            val cardCount = s.cards.count(collection.id)
+            if (cardCount > 0 && !browserConfirm(t.confirmDeleteCollection(collection.title, cardCount))) return@launch
+
+            val deleted = s.collections.delete(collection.id) ?: return@launch
+            val remaining = s.collections.all()
+            collections = remaining
+            if (selectedId == collection.id) selectedId = remaining.firstOrNull()?.id
+            undo = Undo(t.deletedCollection(collection.title)) {
+                s.collections.restore(deleted)
+                collections = s.collections.all()
+                selectedId = collection.id // put the user back where they were, looking at it
+            }
+        }
+    }
+
+    fun deleteCardSection(cs: CardSection, collectionId: Uuid) {
+        val s = store ?: return
+        val cardCount = cardsByGroup[cs.id]?.size ?: 0
+        scope.launch {
+            if (cardCount > 0 && !browserConfirm(t.confirmDeleteCardSection(cs.title, cardCount))) return@launch
+
+            val deleted = s.cardSections.delete(cs.id) ?: return@launch
+            reloadCards(collectionId)
+            undo = Undo(t.deletedCardSection(cs.title)) {
+                s.cardSections.restore(deleted)
+                reloadCards(collectionId)
+            }
+        }
     }
 
     div {
@@ -707,13 +1291,13 @@ val App = FC<AppProps> { props ->
                 className = ClassName("sidebar collapsed")
                 button {
                     className = ClassName("rail-toggle")
-                    title = t.expandSidebar
+                    hint(t.expandSidebar)
                     onClick = { leftCollapsed = false; prefSet("leftCollapsed", "0") }
                     +"»"
                 }
                 button {
                     className = ClassName("rail-toggle settings-rail")
-                    title = t.settings
+                    hint(t.settings)
                     onClick = { settingsOpen = true }
                     +"⚙"
                 }
@@ -726,20 +1310,26 @@ val App = FC<AppProps> { props ->
                     span { +"stramus" }
                     button {
                         className = ClassName("icon collapse-btn")
-                        title = t.collapseSidebar
+                        hint(t.collapseSidebar)
                         onClick = { leftCollapsed = true; prefSet("leftCollapsed", "1") }
                         +"«"
                     }
                 }
                 button {
                     className = ClassName("btn new-section")
+                    hint(t.newSectionHint)
                     onClick = {
-                        val t = browserPrompt(t.sectionNamePrompt, t.sectionNameDefault)
+                        val name = browserPrompt(t.sectionNamePrompt, t.sectionNameDefault)
                         val s = store
-                        if (s != null && !t.isNullOrBlank()) {
+                        if (s != null && !name.isNullOrBlank()) {
                             scope.launch {
-                                s.sections.create(t.trim())
+                                val created = s.sections.create(name.trim())
                                 sections = s.sections.all()
+                                // The section comes with a collection of its own name (see
+                                // `SectionRepository.create`); it is what the user is now looking at.
+                                val cols = s.collections.all()
+                                collections = cols
+                                cols.firstOrNull { it.sectionId == created.id }?.let { selectedId = it.id }
                             }
                         }
                     }
@@ -775,7 +1365,7 @@ val App = FC<AppProps> { props ->
                             // the section is locked the title does one thing only: ask for the PIN.
                             span {
                                 className = ClassName("section-title")
-                                title = if (isLocked) t.lockedSection else t.renameHint
+                                hint(if (isLocked) t.lockedSection else t.renameHint)
                                 onClick = {
                                     if (isLocked) {
                                         pendingUnlockId = section.id
@@ -812,7 +1402,7 @@ val App = FC<AppProps> { props ->
                                 // one (necessarily unlocked to be seen) the menu of what to do with it.
                                 button {
                                     className = ClassName("icon lock")
-                                    title = if (section.locked) t.unlockedSection else t.protectSection
+                                    hint(if (section.locked) t.unlockedSection else t.protectSection)
                                     onClick = { e ->
                                         e.stopPropagation()
                                         if (section.locked) lockMenuId = section.id
@@ -822,6 +1412,7 @@ val App = FC<AppProps> { props ->
                                 }
                                 button {
                                     className = ClassName("icon add")
+                                    hint(t.addCollectionHint)
                                     onClick = { e ->
                                         e.stopPropagation()
                                         val name = browserPrompt(t.collectionNamePrompt, t.collectionNameDefault)
@@ -839,16 +1430,10 @@ val App = FC<AppProps> { props ->
                                 if (section.deletable) {
                                     button {
                                         className = ClassName("icon del")
+                                        hint(t.deleteSectionHint)
                                         onClick = { e ->
                                             e.stopPropagation()
-                                            val s = store
-                                            if (s != null) {
-                                                scope.launch {
-                                                    s.sections.delete(section.id)
-                                                    sections = s.sections.all()
-                                                    collections = s.collections.all()
-                                                }
-                                            }
+                                            deleteSection(section)
                                         }
                                         +"×"
                                     }
@@ -872,7 +1457,9 @@ val App = FC<AppProps> { props ->
                                                 if (c.id == dropCollectionId) append(" drop-target")
                                             },
                                         )
-                                        draggable = true
+                                        // A collection being renamed is not a collection to drag: the
+                                        // pointer belongs to the text field standing in its title.
+                                        draggable = renamingId != c.id
                                         onClick = { selectedId = c.id; pendingUnlockId = null; unlockError = null }
                                         onDragStart = { e ->
                                             e.dataTransfer.setData("text/plain", c.id.toString())
@@ -936,12 +1523,24 @@ val App = FC<AppProps> { props ->
                                         }
                                         span {
                                             className = ClassName("col-title")
-                                            +c.title
+                                            // A read-only collection is not renamed either: the name
+                                            // is as much part of it as the cards are.
+                                            hint(if (takesContent) t.renameCollectionHint else t.readOnlyHint)
+                                            onDoubleClick = { if (takesContent) onTitleDoubleClick(c.id) }
+                                            if (renamingId == c.id && takesContent) {
+                                                InlineEdit {
+                                                    initial = c.title
+                                                    onCommit = { name -> renameCollection(c, name) }
+                                                    onCancel = { renamingId = null }
+                                                }
+                                            } else {
+                                                +c.title
+                                            }
                                         }
                                         if (c.readOnly) {
                                             span {
                                                 className = ClassName("col-lock")
-                                                title = t.readOnlyHint
+                                                hint(t.readOnlyHint)
                                                 +"🔒"
                                             }
                                         }
@@ -950,17 +1549,10 @@ val App = FC<AppProps> { props ->
                                         if (takesContent) {
                                             button {
                                                 className = ClassName("icon del")
+                                                hint(t.deleteCollectionHint)
                                                 onClick = { e ->
                                                     e.stopPropagation()
-                                                    val s = store
-                                                    if (s != null) {
-                                                        scope.launch {
-                                                            s.collections.delete(c.id)
-                                                            val cols = s.collections.all()
-                                                            collections = cols
-                                                            if (selectedId == c.id) selectedId = cols.firstOrNull()?.id
-                                                        }
-                                                    }
+                                                    deleteCollection(c)
                                                 }
                                                 +"×"
                                             }
@@ -994,9 +1586,7 @@ val App = FC<AppProps> { props ->
             // ungrouped into the selected collection. Anything dropped on a group is that group's.
             // What is on the content area has to be a collection that takes edits at all — not a PIN
             // screen (locked section), not a read-only collection, not a page of search results.
-            val droppableCollection = collections.firstOrNull {
-                it.id == selectedId && it.id !in hiddenCollectionIds && !it.readOnly
-            }?.takeIf { query.isBlank() }
+            val droppableCollection = targetCollection?.takeIf { !showAllResults && !aiMode }
             val takesPage = droppableCollection != null && (draggingTab != null || draggingHistory != null)
 
             onDragEnter = { e -> if (takesPage) e.preventDefault() }
@@ -1028,20 +1618,32 @@ val App = FC<AppProps> { props ->
 
             div {
                 className = ClassName("topbar")
-                input {
-                    className = ClassName("search")
-                    placeholder = t.searchPlaceholder
-                    value = query
+                SearchBox {
+                    strings = t
+                    this.query = query
+                    groups = hitGroups
+                    this.aiMode = aiMode
                     // Searching is leaving the PIN screen a clicked-on section header put up; the
                     // section stays locked, its cards simply are not among the results.
-                    onChange = { e -> query = e.target.value; pendingUnlockId = null }
+                    onQueryChange = { value ->
+                        query = value
+                        pendingUnlockId = null
+                        if (value.isBlank()) showAllResults = false
+                    }
+                    onActivate = ::activateHit
+                    onShowAll = { if (query.isNotBlank()) showAllResults = true }
+                    onExitAi = ::exitAi
+                    onForget = { hit ->
+                        forgetUse(hit.stat.url)
+                        usageVersion += 1
+                    }
                 }
                 div {
                     className = ClassName("toolbar")
                     if (hasRightSidebar && rightCollapsed) {
                         button {
                             className = ClassName("btn")
-                            title = t.showTabs
+                            hint(t.showTabs)
                             onClick = { rightCollapsed = false; prefSet("rightCollapsed", "0") }
                             +t.tabsButton
                         }
@@ -1049,7 +1651,41 @@ val App = FC<AppProps> { props ->
                 }
             }
 
-            if (query.isNotBlank()) {
+            val aiAssistant = ai
+            if (aiMode && aiAssistant != null) {
+                // The answer stands where the collection was; the box above it is still the box, and
+                // Escape (or "back to search") brings the collection back.
+                val target = targetCollection
+                AiPanel {
+                    strings = t
+                    assistant = aiAssistant
+                    question = aiQuestion
+                    // What the model is told before the first question: what it is, and — so that "what
+                    // did I save about X" has an answer — what is in the collection the user is looking at.
+                    systemPrompt = buildString {
+                        append(t.aiSystemPrompt)
+                        if (target != null && cards.isNotEmpty()) {
+                            append("\n\n\"${target.title}\":\n")
+                            cards.take(AI_CONTEXT_CARDS).forEach { card ->
+                                append("- ${card.title}")
+                                if (card.url.isNotBlank()) append(" — ${card.url}")
+                                append("\n")
+                            }
+                        }
+                    }
+                    canSave = target != null
+                    onSaveNote = { title, content ->
+                        val s = store
+                        if (s != null && target != null) {
+                            scope.launch {
+                                s.cards.addNote(target.id, title, content)
+                                reloadCards(target.id)
+                            }
+                        }
+                    }
+                    onClose = ::exitAi
+                }
+            } else if (showAllResults && query.isNotBlank()) {
                 // The search runs over every card in the database, so it is here that a locked section
                 // would otherwise hand its cards to anyone who typed the right word.
                 val visibleResults = searchResults.filter { it.collectionId !in hiddenCollectionIds }
@@ -1061,27 +1697,25 @@ val App = FC<AppProps> { props ->
                     div {
                         className = ClassName("grid")
                         sortMode.apply(visibleResults).forEach { card ->
-                            cardTile(
-                                strings = t,
-                                card = card,
-                                isDraggable = false,
+                            CardTile {
+                                key = key(card.id)
+                                strings = t
+                                this.card = card
+                                isDraggable = false
                                 // A card found by a search is still a card of its collection: if that
                                 // one is read-only, the result carries no rename or delete either.
-                                readOnly = card.collectionId in readOnlyCollections,
-                                onOpen = { openCard(card) },
-                                onRename = { name ->
-                                    val s = store
-                                    if (s != null) scope.launch {
-                                        s.cards.rename(card.id, name)
-                                        searchResults = s.cards.search(query.trim())
-                                        reloadCards(selectedId)
-                                    }
-                                },
-                                onDelete = {
-                                    val s = store
-                                    if (s != null) scope.launch { s.cards.delete(card.id); searchResults = s.cards.search(query.trim()); reloadCards(selectedId) }
-                                },
-                            )
+                                readOnly = card.collectionId in readOnlyCollections
+                                isDragging = false
+                                acceptsDrop = false
+                                onOpen = onCardOpen
+                                // A result edited from here is edited in two places at once: the
+                                // results on screen, and the collection the card actually lives in.
+                                onRename = onResultRename
+                                onDelete = onResultDelete
+                                onStartDrag = onCardStartDrag
+                                onEndDrag = onCardEndDrag
+                                onDropHere = onDropOnTile
+                            }
                         }
                     }
                 }
@@ -1109,7 +1743,7 @@ val App = FC<AppProps> { props ->
                             if (!editable) {
                                 span {
                                     className = ClassName("ro-badge")
-                                    title = t.readOnlyHint
+                                    hint(t.readOnlyHint)
                                     +t.readOnlyBadge
                                 }
                             }
@@ -1120,7 +1754,7 @@ val App = FC<AppProps> { props ->
                             // another order, it does not move them, so it stays even when read-only.
                             select {
                                 className = ClassName("control")
-                                title = t.sortLinks
+                                hint(t.sortLinks)
                                 value = sortMode.id
                                 onChange = { e ->
                                     sortMode = SortMode.from(e.target.value)
@@ -1139,6 +1773,7 @@ val App = FC<AppProps> { props ->
                             if (editable) {
                                 button {
                                     className = ClassName("btn")
+                                    hint(t.addCardSectionHint)
                                     onClick = {
                                         val t = browserPrompt(t.sectionNamePrompt, t.sectionNameDefault)
                                         val s = store
@@ -1152,30 +1787,15 @@ val App = FC<AppProps> { props ->
                                     +t.addCardSection
                                 }
                             }
-                            if (editable) tabCapture?.let { tc ->
+                            // This window's tabs only: the sidebar lists every window, and each has its
+                            // own ⤓, but this button is about the one in front.
+                            if (editable && tabCapture != null) {
+                                val wid = currentWindowId
+                                val thisWindowTabs = openTabs.filter { wid == null || it.windowId == wid }
                                 button {
                                     className = ClassName("btn")
-                                    onClick = {
-                                        val s = store
-                                        if (s != null) {
-                                            scope.launch {
-                                                // This window's tabs only: the sidebar lists every
-                                                // window, but the button is about the one in front.
-                                                val wid = currentWindowId
-                                                tc.currentTabs()
-                                                    .filter { wid == null || it.windowId == wid }
-                                                    .forEach { tab ->
-                                                        s.cards.add(
-                                                            current.id,
-                                                            tab.title.ifBlank { hostOf(tab.url) },
-                                                            tab.url,
-                                                            tab.favicon ?: faviconFor(tab.url),
-                                                        )
-                                                    }
-                                                reloadCards(current.id)
-                                            }
-                                        }
-                                    }
+                                    hint(t.saveTabsHint(thisWindowTabs.size, closeSavedTabs))
+                                    onClick = { saveTabs(thisWindowTabs, current) }
                                     +t.saveOpenTabs
                                 }
                             }
@@ -1185,6 +1805,7 @@ val App = FC<AppProps> { props ->
                                 className = ClassName("add-menu")
                                 button {
                                     className = ClassName("btn add-card")
+                                    hint(t.addCardHint)
                                     onClick = {
                                         val url = browserPrompt(t.pasteUrl)
                                         val s = store
@@ -1230,56 +1851,19 @@ val App = FC<AppProps> { props ->
                         }
                     }
 
-                    val ungrouped = sortMode.apply(cards.filter { it.cardSectionId == null })
-                    val hasSections = cardSections.isNotEmpty()
+                    val ungrouped = cardsByGroup[null] ?: emptyList()
 
-                    if (cards.isEmpty() && !hasSections) {
-                        div { className = ClassName("empty"); +t.noLinksYet }
-                    } else {
-                        // A card, a tab or a history entry is dropped on a *group* — the ungrouped area
-                        // or one card section — and lands in it. [index] is its place among that
-                        // group's cards; Int.MAX_VALUE appends.
-                        fun dropOnGroup(cardSectionId: Uuid?, index: Int) {
-                            val dragged = draggingCardId
-                            val tab = draggingTab
-                            val visit = draggingHistory
-                            when {
-                                dragged != null -> moveCard(dragged, current.id, cardSectionId, index)
-                                tab != null -> saveTab(tab, current.id, cardSectionId)
-                                visit != null -> saveHistoryEntry(visit, current.id, cardSectionId)
-                            }
-                            draggingCardId = null
-                            draggingTab = null
-                            draggingHistory = null
-                            dropGroup = null
-                            contentDropActive = false
-                        }
-
-                        // Dropping a card on a tile puts it in that tile's group, right before it.
-                        // Under a sort other than MANUAL the order on screen is the sort's to decide,
-                        // so there the position would be invisible: the card just joins the group.
-                        fun dropOnTile(target: Card) {
-                            val dragged = draggingCardId ?: return
-                            if (dragged == target.id) return
-                            val index = if (sortMode == SortMode.MANUAL) {
-                                // The dragged card is spliced into an order it is no longer part of,
-                                // so its own slot must not count towards the target's index.
-                                cards.filter { it.cardSectionId == target.cardSectionId && it.id != dragged }
-                                    .indexOfFirst { it.id == target.id }
-                                    .coerceAtLeast(0)
-                            } else {
-                                Int.MAX_VALUE
-                            }
-                            dropOnGroup(target.cardSectionId, index)
-                        }
-
+                    run {
                         // Cards, tabs and history entries can all be dropped into a group; collections
                         // cannot, and a read-only collection takes none of the three.
                         val groupAccepts = editable &&
                             (draggingCardId != null || draggingTab != null || draggingHistory != null)
 
-                        // The ungrouped area. With sections around it gets a header of its own —
-                        // dropping a card there is how it is taken back out of a section.
+                        // The ungrouped area, always drawn and always named: it is where a card lands
+                        // when it belongs to no section — including a brand new collection's first one
+                        // — and dropping a card on it is how a card is taken back out of a section.
+                        // Drawing it only once a section existed left a collection's cards sitting
+                        // under no heading at all, in a group with no name to drop anything onto.
                         cardGroup(
                             accepts = groupAccepts,
                             active = dropGroup == DropGroup(null),
@@ -1287,12 +1871,14 @@ val App = FC<AppProps> { props ->
                                 if (dropGroup != DropGroup(null)) dropGroup = DropGroup(null)
                                 leaveTabsSidebar()
                             },
-                            onDropHere = { dropOnGroup(null, Int.MAX_VALUE) },
+                            onDropHere = { dropOnGroup(current.id, null, Int.MAX_VALUE) },
                         ) {
-                            if (hasSections) {
-                                div {
-                                    className = ClassName("card-section-head")
-                                    span { className = ClassName("card-section-title"); +t.ungrouped }
+                            div {
+                                className = ClassName("card-section-head")
+                                span {
+                                    className = ClassName("card-section-title")
+                                    +t.ungrouped
+                                    span { className = ClassName("count"); +" ${ungrouped.size}" }
                                 }
                             }
                             if (ungrouped.isNotEmpty()) {
@@ -1301,20 +1887,23 @@ val App = FC<AppProps> { props ->
                                     cards = ungrouped,
                                     draggingCardId = draggingCardId,
                                     readOnly = !editable,
-                                    onOpen = ::openCard,
-                                    onRename = ::renameCard,
-                                    onDelete = ::deleteCard,
-                                    onStartDrag = { draggingCardId = it.id },
-                                    onEndDrag = { draggingCardId = null; dropGroup = null },
-                                    onDropOnTile = ::dropOnTile,
+                                    onOpen = onCardOpen,
+                                    onRename = onCardRename,
+                                    onDelete = onCardDelete,
+                                    onStartDrag = onCardStartDrag,
+                                    onEndDrag = onCardEndDrag,
+                                    onDropOnTile = onDropOnTile,
                                 )
-                            } else if (hasSections) {
-                                div { className = ClassName("empty small"); +t.dragLinksHere }
+                            } else {
+                                // An empty collection says so; an empty area in a collection that has
+                                // cards elsewhere only invites a card into it.
+                                val hint = if (cards.isEmpty()) t.noLinksYet else t.dragLinksHere
+                                div { className = ClassName("empty small"); +hint }
                             }
                         }
 
-                        cardSections.sortedBy { it.position }.forEach { cs ->
-                            val groupCards = sortMode.apply(cards.filter { it.cardSectionId == cs.id })
+                        orderedCardSections.forEach { cs ->
+                            val groupCards = cardsByGroup[cs.id] ?: emptyList()
                             cardGroup(
                                 groupKey = key(cs.id),
                                 accepts = groupAccepts,
@@ -1323,14 +1912,14 @@ val App = FC<AppProps> { props ->
                                     if (dropGroup != DropGroup(cs.id)) dropGroup = DropGroup(cs.id)
                                     leaveTabsSidebar()
                                 },
-                                onDropHere = { dropOnGroup(cs.id, Int.MAX_VALUE) },
+                                onDropHere = { dropOnGroup(current.id, cs.id, Int.MAX_VALUE) },
                             ) {
                                 div {
                                     className = ClassName("card-section-head")
                                     span {
                                         className = ClassName("card-section-title")
                                         // Collapsing is not editing — it stays. Renaming does not.
-                                        title = if (editable) t.renameHint else ""
+                                        hint(if (editable) t.renameHint else "")
                                         onClick = {
                                             onTitleClick {
                                                 val s = store
@@ -1357,7 +1946,7 @@ val App = FC<AppProps> { props ->
                                         className = ClassName("card-section-tools")
                                         button {
                                             className = ClassName("icon edit")
-                                            title = t.editDescription
+                                            hint(t.editDescription)
                                             onClick = { e ->
                                                 e.stopPropagation()
                                                 descModal = DescModal(cs.id, cs.title, cs.description ?: "")
@@ -1366,10 +1955,10 @@ val App = FC<AppProps> { props ->
                                         }
                                         button {
                                             className = ClassName("icon del")
+                                            hint(t.deleteCardSectionHint)
                                             onClick = { e ->
                                                 e.stopPropagation()
-                                                val s = store
-                                                if (s != null) scope.launch { s.cardSections.delete(cs.id); reloadCards(current.id) }
+                                                deleteCardSection(cs, current.id)
                                             }
                                             +"×"
                                         }
@@ -1389,12 +1978,12 @@ val App = FC<AppProps> { props ->
                                             cards = groupCards,
                                             draggingCardId = draggingCardId,
                                             readOnly = !editable,
-                                            onOpen = ::openCard,
-                                            onRename = ::renameCard,
-                                            onDelete = ::deleteCard,
-                                            onStartDrag = { draggingCardId = it.id },
-                                            onEndDrag = { draggingCardId = null; dropGroup = null },
-                                            onDropOnTile = ::dropOnTile,
+                                            onOpen = onCardOpen,
+                                            onRename = onCardRename,
+                                            onDelete = onCardDelete,
+                                            onStartDrag = onCardStartDrag,
+                                            onEndDrag = onCardEndDrag,
+                                            onDropOnTile = onDropOnTile,
                                         )
                                     }
                                 }
@@ -1415,7 +2004,7 @@ val App = FC<AppProps> { props ->
                     className = ClassName("tabs collapsed")
                     button {
                         className = ClassName("rail-toggle")
-                        title = t.showTabs
+                        hint(t.showTabs)
                         onClick = { rightCollapsed = false; prefSet("rightCollapsed", "0") }
                         +"«"
                     }
@@ -1456,32 +2045,13 @@ val App = FC<AppProps> { props ->
                         }
                         button {
                             className = ClassName("icon collapse-btn")
-                            title = t.hideTabs
+                            hint(t.hideTabs)
                             onClick = { rightCollapsed = true; prefSet("rightCollapsed", "1") }
                             +"»"
                         }
                     }
 
                     if (pane == RightPane.TABS) {
-                        // Tabs matching the sidebar's own search box (title or URL). The search only
-                        // hides rows: a tab still knows its real place in its window, so a drag lands
-                        // correctly.
-                        val tabFilter = tabQuery.trim().lowercase()
-                        val matchingTabs = if (tabFilter.isBlank()) {
-                            openTabs
-                        } else {
-                            openTabs.filter {
-                                tabFilter in it.title.lowercase() || tabFilter in it.url.lowercase()
-                            }
-                        }
-                        // One group per browser window, this page's window first ("This window"), the
-                        // rest numbered in the browser's own order. Numbering comes from every window,
-                        // not just the matching ones, so a search cannot renumber the windows under
-                        // the user.
-                        val windowIds = openTabs.map { it.windowId }
-                            .distinct()
-                            .sortedWith(compareBy({ it != currentWindowId }, { it }))
-
                         if (openTabs.isNotEmpty()) {
                             input {
                                 className = ClassName("tab-search")
@@ -1496,12 +2066,15 @@ val App = FC<AppProps> { props ->
                             else -> div {
                                 className = ClassName("tabs-body")
                                 windowIds.forEachIndexed { i, windowId ->
-                                    val windowTabs = matchingTabs
-                                        .filter { it.windowId == windowId }
-                                        .sortedBy { it.index }
+                                    val windowTabs = tabsByWindow[windowId] ?: emptyList()
                                     // A window whose tabs the search filtered out drops out of the list.
                                     if (windowTabs.isEmpty()) return@forEachIndexed
+                                    // Every tab of the window, not just the ones a search has left on
+                                    // screen — as with the sort, the window is the window. Which is
+                                    // also what the ⤓ says it will save, and then asks about.
+                                    val allWindowTabs = openTabs.filter { it.windowId == windowId }
                                     tabWindow(
+                                        strings = t,
                                         groupKey = windowId.toString().unsafeCast<Key>(),
                                         label = if (windowId == currentWindowId) t.thisWindow else t.windowLabel(i + 1),
                                         count = windowTabs.size,
@@ -1509,33 +2082,36 @@ val App = FC<AppProps> { props ->
                                         // and visited pages have no place in the browser's tab strip.
                                         accepts = draggingTab != null,
                                         active = dropTabWindowId == windowId && dropTabId == null,
+                                        // Nowhere to save them to (no collection selected, a read-only
+                                        // one, one behind a PIN): no ⤓ on the window either.
+                                        saveHint = targetCollection?.let {
+                                            t.saveTabsHint(allWindowTabs.size, closeSavedTabs)
+                                        },
                                         onOver = { hoverTabs(windowId, null) },
                                         // Dropped on the window but on none of its tabs: append (-1).
                                         onDropHere = { moveTabTo(windowId, -1) },
+                                        onSave = {
+                                            targetCollection?.let { target -> saveTabs(allWindowTabs, target) }
+                                        },
+                                        onSort = { by -> sortTabs(windowId, by) },
                                     ) {
                                         ul {
                                             className = ClassName("tab-list")
                                             windowTabs.forEach { tab ->
-                                                tabRow(
-                                                    strings = t,
-                                                    tab = tab,
-                                                    isDragging = draggingTab?.id == tab.id,
-                                                    acceptsDrop = draggingTab != null && draggingTab?.id != tab.id,
-                                                    isDropTarget = dropTabId == tab.id,
-                                                    onGoTo = { goToTab(tab) },
-                                                    onClose = { closeTab(tab) },
-                                                    onStartDrag = { draggingTab = tab },
-                                                    onEndDrag = {
-                                                        draggingTab = null
-                                                        dropCollectionId = null
-                                                        dropGroup = null
-                                                        contentDropActive = false
-                                                        dropTabWindowId = null
-                                                        dropTabId = null
-                                                    },
-                                                    onOver = { hoverTabs(tab.windowId, tab.id) },
-                                                    onDropHere = { dropOnTab(tab) },
-                                                )
+                                                TabRow {
+                                                    key = tab.id.toString().unsafeCast<Key>()
+                                                    strings = t
+                                                    this.tab = tab
+                                                    isDragging = draggingTab?.id == tab.id
+                                                    acceptsDrop = draggingTab != null && draggingTab?.id != tab.id
+                                                    isDropTarget = dropTabId == tab.id
+                                                    onGoTo = onTabGoTo
+                                                    onClose = onTabClose
+                                                    onStartDrag = onTabStartDrag
+                                                    onEndDrag = onTabEndDrag
+                                                    onOver = onTabOver
+                                                    onDropHere = onTabDropHere
+                                                }
                                             }
                                         }
                                     }
@@ -1557,7 +2133,7 @@ val App = FC<AppProps> { props ->
                                 locale = lang.id,
                                 entries = historyEntries,
                                 draggingUrl = draggingHistory?.url,
-                                onOpen = { entry -> openUrl(entry.url) },
+                                onOpen = { entry -> openPage(entry.url, entry.title) },
                                 onDelete = ::deleteHistoryEntry,
                                 onStartDrag = { entry -> draggingHistory = entry },
                                 onEndDrag = {
@@ -1603,11 +2179,15 @@ val App = FC<AppProps> { props ->
             FileViewer {
                 strings = t
                 existing = m.existing
+                // `this.` — plain `cards` would find this component's own card list, not the prop.
+                this.cards = store?.cards
                 onClose = { fileModal = null }
                 onSave = { name, mimeType, data ->
                     val s = store
                     if (s != null) scope.launch {
-                        s.cards.addFile(m.collectionId, name, data, mimeType, m.cardSectionId)
+                        // The card keeps a small preview; the bytes themselves go to the blob store
+                        // and are not read again until the file is opened.
+                        s.cards.addFile(m.collectionId, name, data, mimeType, makeThumb(data, mimeType), m.cardSectionId)
                         reloadCards(m.collectionId)
                     }
                     fileModal = null
@@ -1647,6 +2227,16 @@ val App = FC<AppProps> { props ->
                     autoLockMinutes = minutes
                     prefSet("autoLock", minutes.toString())
                 }
+                // Only where there are tabs at all: the web app has no ⤓ for this to settle.
+                hasTabs = tabCapture != null
+                this.closeSavedTabs = closeSavedTabs
+                onCloseSavedTabsChange = { close ->
+                    closeSavedTabs = close
+                    prefSet("closeSavedTabs", if (close) "1" else "0")
+                }
+                // Which model is answering, if any — and if none, why not.
+                aiName = ai?.name
+                this.aiState = aiState
                 // An export is a file the user can open anywhere, so a section whose PIN has not been
                 // entered stays out of it — otherwise it would be the way around the lock.
                 onExportCsv = { store?.let { s -> scope.launch { exportCsv(s, lockedSectionIds) } } }
@@ -1670,6 +2260,31 @@ val App = FC<AppProps> { props ->
                         reloadCards(selectedId)
                     }
                     descModal = null
+                }
+            }
+        }
+
+        // Every tooltip in the app, drawn here rather than inside the controls they belong to: the
+        // panels all scroll, and a scroll box clips what leaves it. See [HintLayer].
+        HintLayer()
+
+        // What was just deleted, and the way back from it — for [UNDO_MS], then it fades of its own
+        // accord. It stands over the page rather than in it: a deletion is undone from wherever the
+        // user now is, and nothing they do in the meantime takes the offer away.
+        undo?.let { u ->
+            div {
+                className = ClassName("undo-toast")
+                span { className = ClassName("undo-msg"); +u.message }
+                button {
+                    className = ClassName("btn undo-btn")
+                    onClick = { undoDelete() }
+                    +t.undo
+                }
+                button {
+                    className = ClassName("icon del undo-dismiss")
+                    hint(t.close)
+                    onClick = { undo = null }
+                    +"×"
                 }
             }
         }

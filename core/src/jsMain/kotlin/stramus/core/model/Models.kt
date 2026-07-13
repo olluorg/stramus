@@ -7,7 +7,8 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 /**
- * A top-level group of collections in the sidebar. The default "Главный" section is not deletable.
+ * A top-level group of collections in the sidebar. The default section — the one a first install is
+ * given, named in the user's language — is not deletable.
  *
  * [locked] means a PIN stands between the user and everything in this section — not just the cards,
  * but the names of the collections holding them. The PIN, and its hash, never leave the repository:
@@ -63,11 +64,13 @@ enum class CardKind(val id: String) {
 /**
  * One item inside a [Collection] — the Toby "card". [cardSectionId] null = ungrouped.
  *
- * The [kind] decides how [content] is used:
+ * The [kind] decides what carries the card's payload:
  *  - [CardKind.LINK]: [url] is the bookmark, [content] is null.
  *  - [CardKind.NOTE]: [content] is the markdown body, [url] is empty.
- *  - [CardKind.FILE]: [content] is a `data:` URI of the file bytes, [mime] its type, [title] the
- *    file name.
+ *  - [CardKind.FILE]: [mime] is its type and [title] the file name, but the bytes are *not* here —
+ *    a card is read whenever its collection is drawn, and file bytes have no upper bound. They are
+ *    fetched on demand with `CardRepository.blob`; what the grid draws is [thumb], a downscaled
+ *    preview of an image file (null for anything else, which shows a glyph instead).
  */
 data class Card(
     val id: Uuid,
@@ -78,6 +81,7 @@ data class Card(
     val url: String,
     val favicon: String?,
     val content: String?,
+    val thumb: String?,
     val mime: String?,
     val position: Int,
     val createdAt: Instant,

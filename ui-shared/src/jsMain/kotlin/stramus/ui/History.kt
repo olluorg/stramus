@@ -104,9 +104,9 @@ internal fun ChildrenBuilder.historyPane(
                             li {
                                 key = entry.url.unsafeCast<Key>()
                                 className = ClassName(
-                                    if (draggingUrl == entry.url) "tab history dragging" else "tab history",
+                                    if (draggingUrl == entry.url) "tab history dragging hint" else "tab history hint",
                                 )
-                                title = entry.url
+                                hint(entry.url)
                                 draggable = true
                                 onClick = { onOpen(entry) }
                                 onDragStart = { e ->
@@ -129,7 +129,7 @@ internal fun ChildrenBuilder.historyPane(
                                 }
                                 button {
                                     className = ClassName("icon del")
-                                    title = strings.removeFromHistory
+                                    hint(strings.removeFromHistory)
                                     onClick = { e ->
                                         e.stopPropagation() // forgetting the page is not opening it
                                         onDelete(entry)

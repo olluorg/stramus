@@ -1,5 +1,7 @@
 package stramus.ui
 
+import stramus.core.db.StoreSeed
+
 /** A UI language. [id] is what gets persisted in localStorage and stamped on `<html lang>`. */
 enum class Lang(val id: String, val label: String) {
     EN("en", "English"),
@@ -42,8 +44,92 @@ interface Strings {
     /** Tooltip on a section title, which collapses on a click and renames on a double click. */
     val renameHint: String
 
-    // Content area
+    /** Tooltip on a collection title, which is selected on a click and renamed on a double click. */
+    val renameCollectionHint: String
+
+    /**
+     * Tooltips on the buttons that add and remove. A `+` or a `×` says what will happen but not to
+     * what — and the two `+`s (a collection, a card section) are the same glyph for different things.
+     * The deletions say what goes with the thing deleted, since that is what the click is really about.
+     */
+    val newSectionHint: String
+    val addCollectionHint: String
+    val deleteSectionHint: String
+    val deleteCollectionHint: String
+    val addCardSectionHint: String
+    val deleteCardSectionHint: String
+    val addCardHint: String
+    val deleteCardHint: String
+
+    // Deleting, and the way back from it. Only what holds something is asked about — deleting an
+    // empty section is nothing to stop the user over — but everything deleted can be undone.
+    fun confirmDeleteSection(title: String, cards: Int): String
+    fun confirmDeleteCollection(title: String, cards: Int): String
+    fun confirmDeleteCardSection(title: String, cards: Int): String
+    fun deletedSection(title: String): String
+    fun deletedCollection(title: String): String
+    fun deletedCardSection(title: String): String
+
+    /** The button on the toast that puts the deleted thing back. */
+    val undo: String
+
+    // The search box: the dropdown's group headings, its rows, and the hint line under them
     val searchPlaceholder: String
+
+    /** Group headings, in the order they can appear. */
+    val hitsTopSites: String
+    val hitsTabs: String
+    val hitsCards: String
+    val hitsHistory: String
+    val hitsSites: String
+    val hitsCollections: String
+
+    /** The badge on a row: what Enter on it will do, where that is not obvious. */
+    val hitSwitchToTab: String
+    val hitOpenCollection: String
+    val hitAskAi: String
+
+    /** The action rows themselves. */
+    fun hitWebSearch(query: String): String
+    fun hitOpenUrl(query: String): String
+    fun hitAskAiRow(query: String): String
+
+    /** The × on a top site: stop counting this page among the ones the user lives in. */
+    val forgetSite: String
+
+    /** The keys, spelled out under the list. */
+    val searchHints: String
+
+    // The built-in model (Chrome's on-device AI)
+    val aiChip: String
+    val aiChipHint: String
+    val aiPlaceholder: String
+    val aiHeading: String
+    val aiThinking: String
+    val aiCopy: String
+    val aiSaveNote: String
+    val aiClose: String
+    val aiUnavailable: String
+    val aiFailed: String
+
+    /** The model itself is downloaded on first use — a few hundred megabytes, once. */
+    fun aiDownloading(percent: Int): String
+
+    /** What the model is told before the first question: where it is, and how to answer. */
+    val aiSystemPrompt: String
+
+    // Settings: which model answers, and — when none does — why not
+    val aiSection: String
+    val aiModel: String
+    val aiModelReadyHint: String
+    val aiModelDownloadableHint: String
+    val aiModelDownloadingHint: String
+    val aiModelNone: String
+    val aiModelNoneHint: String
+    fun aiModelUnsupported(name: String): String
+    val aiModelUnsupportedHint: String
+
+    // Content area
     fun resultsFor(query: String): String
     val noMatchingLinks: String
     val createCollectionToStart: String
@@ -111,6 +197,24 @@ interface Strings {
     fun windowLabel(number: Int): String
     val goToTab: String
     val closeTab: String
+    /** The ⇅ menu in a window's header, which rearranges that window's tabs in the browser itself. */
+    val sortTabs: String
+    /**
+     * The two ⤓ — the one in a window's header, the one in the collection's toolbar — say the same
+     * thing: how many tabs the click would save, where they land, and whether the browser keeps them.
+     * [closing] is the "after saving tabs" setting, so the tooltip is the answer the user chose.
+     */
+    fun saveTabsHint(count: Int, closing: Boolean): String
+
+    /** ...and the same, asked before it happens: a whole window's worth of tabs is not one click's work. */
+    fun confirmSaveTabs(count: Int, collection: String, closing: Boolean): String
+
+    /** Settings: what saving a whole window's tabs does to the tabs themselves. */
+    val tabsSection: String
+    val closeSavedTabs: String
+    val closeSavedTabsHint: String
+    val closeSavedTabsClose: String
+    val closeSavedTabsKeep: String
 
     /** The two panes of the right sidebar, as the switch above it labels them. */
     val paneTabs: String
@@ -168,12 +272,21 @@ interface Strings {
     val exportCsv: String
     val exportBookmarks: String
 
-    // Sort modes
+    // Sort modes. Cards take all of them; a window's tabs are sorted by title, domain or URL.
     val sortManual: String
     val sortTitle: String
     val sortUrl: String
+    val sortDomain: String
     val sortNewest: String
     val sortOldest: String
+
+    /**
+     * What a first install is given to open: the default section, a collection in it, and a note in
+     * that collection about what the app does. Written here rather than in the database because it is
+     * text like any other on screen, and because the language it is written in is the one the user
+     * arrived with — the app's, not SQLite's. See `StoreSeed`.
+     */
+    val seed: StoreSeed
 }
 
 private object EnStrings : Strings {
@@ -190,8 +303,77 @@ private object EnStrings : Strings {
     override val collectionNamePrompt = "Collection name"
     override val collectionNameDefault = "New collection"
     override val renameHint = "Click to collapse, double-click to rename"
+    override val renameCollectionHint = "Double-click to rename"
 
-    override val searchPlaceholder = "Search all links…"
+    override val newSectionHint = "Add a section to the sidebar"
+    override val addCollectionHint = "Add a collection to this section"
+    override val deleteSectionHint = "Delete this section and the collections in it"
+    override val deleteCollectionHint = "Delete this collection and its cards"
+    override val addCardSectionHint = "Add a section to this collection"
+    override val deleteCardSectionHint = "Delete this section — its cards stay in the collection, ungrouped"
+    override val addCardHint = "Add a link — or, from the menu, a note or a file"
+    override val deleteCardHint = "Delete this card"
+
+    override fun confirmDeleteSection(title: String, cards: Int) =
+        "“$title” and its collections hold $cards saved items. Delete the section?"
+    override fun confirmDeleteCollection(title: String, cards: Int) =
+        "“$title” holds $cards saved items. Delete the collection?"
+    override fun confirmDeleteCardSection(title: String, cards: Int) =
+        "“$title” holds $cards cards. Delete the section? The cards stay, ungrouped."
+    override fun deletedSection(title: String) = "Section “$title” deleted"
+    override fun deletedCollection(title: String) = "Collection “$title” deleted"
+    override fun deletedCardSection(title: String) = "Section “$title” deleted"
+    override val undo = "Undo"
+
+    override val searchPlaceholder = "Search, enter an address, or ask…"
+
+    override val hitsTopSites = "Frequently opened"
+    override val hitsTabs = "Open tabs"
+    override val hitsCards = "Saved"
+    override val hitsHistory = "History"
+    override val hitsSites = "Sites"
+    override val hitsCollections = "Collections"
+
+    override val hitSwitchToTab = "Switch"
+    override val hitOpenCollection = "Open"
+    override val hitAskAi = "Ask"
+
+    // The engine is the browser's own — whichever the user set — so it is not named here.
+    override fun hitWebSearch(query: String) = "Search the web for “$query”"
+    override fun hitOpenUrl(query: String) = "Open $query"
+    override fun hitAskAiRow(query: String) = "Ask the AI: “$query”"
+
+    override val forgetSite = "Stop suggesting this page"
+    override val searchHints = "↑↓ choose · Enter open · Alt+Enter search the web · ⌘/Ctrl+Enter all results · Esc close"
+
+    override val aiChip = "AI"
+    override val aiChipHint = "Asking the browser's built-in model — Esc to go back to search"
+    override val aiPlaceholder = "Ask a follow-up…"
+    override val aiHeading = "Answer"
+    override val aiThinking = "Thinking…"
+    override val aiCopy = "Copy"
+    override val aiSaveNote = "Save as note"
+    override val aiClose = "Back to search"
+    override val aiUnavailable = "This browser has no built-in model available."
+    override val aiFailed = "The model could not answer."
+    override fun aiDownloading(percent: Int) = "Downloading the model — $percent%. This happens once."
+    override val aiSystemPrompt = "You are the assistant inside stramus, a bookmark and tab manager. " +
+        "Answer briefly and to the point, in the language the question is asked in. Markdown is welcome."
+
+    override val aiSection = "AI"
+    override val aiModel = "Model"
+    override val aiModelReadyHint = "The browser's built-in model. Runs on this machine — no key, and nothing leaves it."
+    override val aiModelDownloadableHint = "The browser will download it on the first question — a few hundred megabytes, once."
+    override val aiModelDownloadingHint = "The browser is downloading it right now."
+    override val aiModelNone = "Not available"
+    override val aiModelNoneHint =
+        "This browser gives the page no built-in model, so the search box does not offer to ask one. " +
+            "In Chrome it is available to the extension; a plain web page needs the flags for it."
+    override fun aiModelUnsupported(name: String) = "$name — unavailable"
+    override val aiModelUnsupportedHint =
+        "The browser has the model but cannot run it here: it needs ~22 GB free on the drive holding " +
+            "the Chrome profile, and a GPU with more than 4 GB of memory."
+
     override fun resultsFor(query: String) = "Results for “$query”"
     override val noMatchingLinks = "No matching links."
     override val createCollectionToStart = "Create a collection to start saving links."
@@ -251,6 +433,21 @@ private object EnStrings : Strings {
     override fun windowLabel(number: Int) = "Window $number"
     override val goToTab = "Go to this tab"
     override val closeTab = "Close tab"
+    override val sortTabs = "Sort this window's tabs"
+    override fun saveTabsHint(count: Int, closing: Boolean) =
+        "Save this window's tabs ($count) into the open collection, ungrouped — " +
+            if (closing) "and close them" else "and leave them open"
+
+    override fun confirmSaveTabs(count: Int, collection: String, closing: Boolean) =
+        if (closing) "Save this window's tabs ($count) into “$collection” and close them?"
+        else "Save this window's tabs ($count) into “$collection”?"
+
+    override val tabsSection = "Tabs"
+    override val closeSavedTabs = "After saving tabs"
+    override val closeSavedTabsHint =
+        "What happens to a window's tabs once they are saved into a collection."
+    override val closeSavedTabsClose = "Close them"
+    override val closeSavedTabsKeep = "Keep them open"
 
     override val paneTabs = "Tabs"
     override val paneHistory = "History"
@@ -306,8 +503,39 @@ private object EnStrings : Strings {
     override val sortManual = "Manual"
     override val sortTitle = "Title A–Z"
     override val sortUrl = "URL"
+    override val sortDomain = "Domain"
     override val sortNewest = "Newest first"
     override val sortOldest = "Oldest first"
+
+    override val seed = StoreSeed(
+        sectionTitle = "Main",
+        collectionTitle = "Getting started",
+        noteTitle = "How to use stramus",
+        // Each bullet is one line: the markdown here is the one `Markdown.kt` reads, and a wrapped
+        // line there ends the list rather than continuing it.
+        noteBody = """
+            # Welcome to stramus
+
+            The sidebar on the left holds **sections**, a section holds **collections**, and a collection holds cards — links, files, and notes like this one.
+
+            ## Saving a page
+            - Drag a tab from the right sidebar onto a collection, or use **⤓ Save open tabs** for a whole window at once.
+            - **+ Add link** takes a pasted address, a note, or a file.
+            - **+ Section** splits a large collection into groups — drop a card on one to move it in.
+
+            ## Finding a page
+            - The search box at the top looks through all of it at once: what you saved, the tabs you have open, and where you have been.
+            - Type an address to open it, or a question to ask the browser's built-in model.
+            - ↑↓ to choose, Enter to open, Esc to close.
+
+            ## Keeping it in order
+            - **Protect with a PIN**: a locked section does not even name its collections, and locks itself again when you step away.
+            - **🔒 Read-only** guards a collection you are done with against a slip of the hand.
+            - Settings hold the theme, the language, and an export of everything to CSV or bookmarks.
+
+            Rename this collection, or delete this note — all of it is yours now.
+        """.trimIndent(),
+    )
 }
 
 private object RuStrings : Strings {
@@ -324,8 +552,77 @@ private object RuStrings : Strings {
     override val collectionNamePrompt = "Название коллекции"
     override val collectionNameDefault = "Новая коллекция"
     override val renameHint = "Клик — свернуть, двойной клик — переименовать"
+    override val renameCollectionHint = "Двойной клик — переименовать"
 
-    override val searchPlaceholder = "Поиск по всем ссылкам…"
+    override val newSectionHint = "Создать раздел в боковой панели"
+    override val addCollectionHint = "Добавить коллекцию в этот раздел"
+    override val deleteSectionHint = "Удалить раздел вместе с его коллекциями"
+    override val deleteCollectionHint = "Удалить коллекцию вместе с её карточками"
+    override val addCardSectionHint = "Добавить раздел в эту коллекцию"
+    override val deleteCardSectionHint = "Удалить раздел — его карточки останутся в коллекции, без раздела"
+    override val addCardHint = "Добавить ссылку — или, из меню, заметку либо файл"
+    override val deleteCardHint = "Удалить карточку"
+
+    override fun confirmDeleteSection(title: String, cards: Int) =
+        "В разделе «$title» и его коллекциях сохранено элементов: $cards. Удалить раздел?"
+    override fun confirmDeleteCollection(title: String, cards: Int) =
+        "В коллекции «$title» сохранено элементов: $cards. Удалить коллекцию?"
+    override fun confirmDeleteCardSection(title: String, cards: Int) =
+        "В секции «$title» карточек: $cards. Удалить секцию? Карточки останутся — без секции."
+    override fun deletedSection(title: String) = "Раздел «$title» удалён"
+    override fun deletedCollection(title: String) = "Коллекция «$title» удалена"
+    override fun deletedCardSection(title: String) = "Секция «$title» удалена"
+    override val undo = "Вернуть"
+
+    override val searchPlaceholder = "Поиск, адрес или вопрос…"
+
+    override val hitsTopSites = "Часто открываемые"
+    override val hitsTabs = "Открытые вкладки"
+    override val hitsCards = "Сохранённое"
+    override val hitsHistory = "История"
+    override val hitsSites = "Сайты"
+    override val hitsCollections = "Коллекции"
+
+    override val hitSwitchToTab = "Перейти"
+    override val hitOpenCollection = "Открыть"
+    override val hitAskAi = "Спросить"
+
+    // Поисковик — тот, что выбран в браузере, поэтому здесь он не назван.
+    override fun hitWebSearch(query: String) = "Искать в вебе: «$query»"
+    override fun hitOpenUrl(query: String) = "Открыть $query"
+    override fun hitAskAiRow(query: String) = "Спросить ИИ: «$query»"
+
+    override val forgetSite = "Больше не предлагать эту страницу"
+    override val searchHints = "↑↓ выбрать · Enter открыть · Alt+Enter — поиск в вебе · ⌘/Ctrl+Enter — все результаты · Esc закрыть"
+
+    override val aiChip = "ИИ"
+    override val aiChipHint = "Вопрос встроенной модели браузера — Esc, чтобы вернуться к поиску"
+    override val aiPlaceholder = "Спросить ещё…"
+    override val aiHeading = "Ответ"
+    override val aiThinking = "Думает…"
+    override val aiCopy = "Скопировать"
+    override val aiSaveNote = "Сохранить заметкой"
+    override val aiClose = "Вернуться к поиску"
+    override val aiUnavailable = "В этом браузере встроенная модель недоступна."
+    override val aiFailed = "Модель не смогла ответить."
+    override fun aiDownloading(percent: Int) = "Модель скачивается — $percent%. Это происходит один раз."
+    override val aiSystemPrompt = "Ты — помощник внутри stramus, менеджера закладок и вкладок. " +
+        "Отвечай кратко и по делу, на языке вопроса. Markdown приветствуется."
+
+    override val aiSection = "ИИ"
+    override val aiModel = "Модель"
+    override val aiModelReadyHint = "Встроенная модель браузера. Работает на этой машине — без ключей, ничего наружу не уходит."
+    override val aiModelDownloadableHint = "Браузер скачает её при первом вопросе — несколько сотен мегабайт, один раз."
+    override val aiModelDownloadingHint = "Браузер скачивает её прямо сейчас."
+    override val aiModelNone = "Недоступна"
+    override val aiModelNoneHint =
+        "Этот браузер не даёт странице встроенную модель, поэтому поиск и не предлагает её спросить. " +
+            "В Chrome она есть у расширения; обычной странице нужны флаги."
+    override fun aiModelUnsupported(name: String) = "$name — недоступна"
+    override val aiModelUnsupportedHint =
+        "Модель у браузера есть, но запустить её здесь он не может: нужно ~22 ГБ свободного места на " +
+            "диске с профилем Chrome и видеопамять больше 4 ГБ."
+
     override fun resultsFor(query: String) = "Результаты по запросу «$query»"
     override val noMatchingLinks = "Ничего не найдено."
     override val createCollectionToStart = "Создайте коллекцию, чтобы сохранять ссылки."
@@ -384,6 +681,21 @@ private object RuStrings : Strings {
     override fun windowLabel(number: Int) = "Окно $number"
     override val goToTab = "Перейти к вкладке"
     override val closeTab = "Закрыть вкладку"
+    override val sortTabs = "Отсортировать вкладки этого окна"
+    override fun saveTabsHint(count: Int, closing: Boolean) =
+        "Сохранить вкладки этого окна ($count) в открытую коллекцию, без раздела — " +
+            if (closing) "и закрыть их" else "и оставить их открытыми"
+
+    override fun confirmSaveTabs(count: Int, collection: String, closing: Boolean) =
+        if (closing) "Сохранить вкладки этого окна ($count) в «$collection» и закрыть их?"
+        else "Сохранить вкладки этого окна ($count) в «$collection»?"
+
+    override val tabsSection = "Вкладки"
+    override val closeSavedTabs = "После сохранения вкладок"
+    override val closeSavedTabsHint =
+        "Что делать с вкладками окна после того, как они сохранены в коллекцию."
+    override val closeSavedTabsClose = "Закрывать"
+    override val closeSavedTabsKeep = "Оставлять открытыми"
 
     override val paneTabs = "Вкладки"
     override val paneHistory = "История"
@@ -439,7 +751,38 @@ private object RuStrings : Strings {
     override val sortManual = "Вручную"
     override val sortTitle = "По названию"
     override val sortUrl = "По адресу"
+    override val sortDomain = "По домену"
     override val sortNewest = "Сначала новые"
     override val sortOldest = "Сначала старые"
+
+    override val seed = StoreSeed(
+        sectionTitle = "Главный",
+        collectionTitle = "Начало работы",
+        noteTitle = "Как пользоваться stramus",
+        // Каждый пункт списка — одна строка: этот markdown читает `Markdown.kt`, и перенос строки
+        // внутри пункта не продолжает список, а заканчивает его.
+        noteBody = """
+            # Добро пожаловать в stramus
+
+            Слева — **разделы**, в разделе — **коллекции**, в коллекции — карточки: ссылки, файлы и заметки вроде этой.
+
+            ## Как сохранить страницу
+            - Перетащите вкладку из правой панели в коллекцию или нажмите **⤓ Сохранить вкладки**, чтобы убрать целое окно разом.
+            - **+ Добавить ссылку** — вставленный адрес, заметка или файл.
+            - **+ Раздел** делит большую коллекцию на группы: перетащите карточку на раздел, и она окажется в нём.
+
+            ## Как найти страницу
+            - Поиск сверху ищет сразу везде: в сохранённом, в открытых вкладках и в истории.
+            - Введите адрес, чтобы открыть его, или вопрос — чтобы спросить встроенную модель браузера.
+            - ↑↓ — выбрать, Enter — открыть, Esc — закрыть.
+
+            ## Как навести порядок
+            - **Защитить PIN-кодом**: закрытый раздел не показывает даже названия коллекций и запирается снова, когда вы отходите.
+            - **🔒 Только чтение** бережёт законченную коллекцию от случайного движения руки.
+            - В настройках — тема, язык и экспорт всего сохранённого в CSV или закладки.
+
+            Переименуйте коллекцию или удалите эту заметку — теперь здесь всё ваше.
+        """.trimIndent(),
+    )
 }
 

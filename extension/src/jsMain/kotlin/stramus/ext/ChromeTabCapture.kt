@@ -48,6 +48,27 @@ object ChromeTabCapture : TabCapture {
         chrome.tabs.move(id, json("windowId" to windowId, "index" to index)).await()
     }
 
+    override suspend fun reorderTabs(windowId: Int, ids: List<Int>) {
+        // The window is read again rather than sorted from the caller's own indices: what a move needs
+        // is the slots these tabs hold *now*, and the browser is the one that knows.
+        val windowTabs = chrome.tabs.query(json("windowId" to windowId)).await().toList()
+        // A pinned tab cannot be moved out of the pinned run at the head of the strip — the browser
+        // would only clamp the index back — so it is not sorted, it is left exactly where it is.
+        val movable = ids.filter { id -> windowTabs.any { it.id == id && it.pinned != true } }
+        // The slots the sorted tabs land in are the ones they already occupy between them. Whatever
+        // sits in the gaps — a pinned tab, a chrome:// page, this page — is not in the list and so is
+        // never assigned a slot: it keeps its place while the tabs around it are rearranged.
+        val slots = windowTabs
+            .mapNotNull { tab -> tab.id?.let { id -> tab.index.takeIf { id in movable } } }
+            .sorted()
+        // Left to right, one slot at a time. `index` in chrome.tabs.move is where the tab ends up, so
+        // each call plants one tab for good; the ones still to be placed are all further right and
+        // simply shift along, which is why an earlier move cannot disturb a later one.
+        movable.forEachIndexed { i, id ->
+            chrome.tabs.move(id, json("windowId" to windowId, "index" to slots[i])).await()
+        }
+    }
+
     override fun onTabsChanged(listener: () -> Unit): () -> Unit {
         val callback: (Any?) -> Unit = { listener() }
         val events = with(chrome.tabs) {

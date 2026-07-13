@@ -14,10 +14,12 @@ import react.dom.html.ReactHTML.img
 import react.dom.html.ReactHTML.input
 import react.dom.html.ReactHTML.label
 import react.dom.html.ReactHTML.video
+import react.useEffect
 import react.useEffectOnce
 import react.useRef
 import react.useState
 import stramus.core.model.Card
+import stramus.core.repo.CardRepository
 import web.cssom.ClassName
 import web.html.HTMLDivElement
 import web.html.InputType
@@ -94,10 +96,10 @@ val NoteEditor = FC<NoteEditorProps> { props ->
 
     // Toolbar buttons must not steal focus (which would drop the editor's selection); preventing the
     // default mousedown keeps the caret/selection in the contenteditable so execCommand applies.
-    fun ChildrenBuilder.toolButton(label: String, hint: String, action: () -> Unit) {
+    fun ChildrenBuilder.toolButton(label: String, tooltip: String, action: () -> Unit) {
         button {
             className = ClassName("tool")
-            title = hint
+            hint(tooltip)
             onMouseDown = { it.preventDefault() }
             onClick = { action() }
             +label
@@ -155,18 +157,32 @@ external interface FileViewerProps : Props {
     var strings: Strings
     /** Non-null = view an existing file card; null = pick a new file to add. */
     var existing: Card?
+
+    /** Where an existing card's bytes are read from — they are not carried on the card itself. */
+    var cards: CardRepository?
     var onSave: (name: String, mime: String, dataUri: String) -> Unit
     var onClose: () -> Unit
 }
 
-/** Views an existing file card (image/media preview) or picks + previews a new file to save. */
+/**
+ * Views an existing file card (image/media preview) or picks + previews a new file to save.
+ *
+ * Opening the file is the moment its bytes are read: the card carries only a small preview, so this
+ * is where the whole thing is loaded — for exactly as long as the modal is up.
+ */
 val FileViewer = FC<FileViewerProps> { props ->
     val existing = props.existing
     // Avoid `name` — it collides with the `name` HTML-attribute extension property in builder scopes.
     var fileName by useState(existing?.title ?: "")
     var mime by useState(existing?.mime ?: "")
-    var dataUri by useState(existing?.content ?: "")
+    var dataUri by useState("")
     val s = props.strings
+
+    useEffect(existing?.id) {
+        val card = existing ?: return@useEffect
+        val repo = props.cards ?: return@useEffect
+        dataUri = repo.blob(card.id) ?: ""
+    }
 
     modalShell(props.onClose, "modal file-modal") {
         div {

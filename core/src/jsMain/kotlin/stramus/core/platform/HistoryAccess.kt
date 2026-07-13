@@ -6,11 +6,18 @@ package stramus.core.platform
  * [lastVisit] is epoch milliseconds — the moment the page was last opened; it is what the UI groups
  * the entries by (one group per day) and orders them with. The browser keeps no icon URL with a
  * visit, so there is none here: the favicon cache resolves the icon from the host instead.
+ *
+ * [visitCount] and [typedCount] are how often the page was opened at all, and how often its address
+ * was typed out by hand — the browser's own measure of what the user uses. The search ranks with
+ * them, alongside stramus's own count of what has been opened from here; a host with no such history
+ * (the web app, where there is no history at all) simply reports zero.
  */
 data class HistoryEntry(
     val url: String,
     val title: String,
     val lastVisit: Double,
+    val visitCount: Int = 0,
+    val typedCount: Int = 0,
 )
 
 /**

@@ -13,6 +13,8 @@ internal external interface ChromeTab {
     val windowId: Int
     val index: Int
     val active: Boolean?
+    /** Pinned tabs are held at the head of the strip by the browser; a sort has to leave them there. */
+    val pinned: Boolean?
     val title: String?
     val url: String?
     val favIconUrl: String?
@@ -22,11 +24,17 @@ internal external interface ChromeWindow {
     val id: Int?
 }
 
-/** One visited page. `lastVisitTime` is epoch millis, as a JS number. */
+/**
+ * One visited page. `lastVisitTime` is epoch millis, as a JS number; `visitCount` and `typedCount`
+ * are the browser's own tally of how much the page is used — how often it was opened, and how often
+ * its address was typed out rather than clicked.
+ */
 internal external interface ChromeHistoryItem {
     val url: String?
     val title: String?
     val lastVisitTime: Double?
+    val visitCount: Int?
+    val typedCount: Int?
 }
 
 internal external interface ChromeEvent {
@@ -60,10 +68,19 @@ internal external interface ChromeHistory {
     val onVisitRemoved: ChromeEvent
 }
 
+/**
+ * `chrome.search` — a query put to the browser's *default* search engine, the one the user set. The
+ * disposition says where the answer lands; "CURRENT_TAB" replaces this page, as the address bar does.
+ */
+internal external interface ChromeSearch {
+    fun query(queryInfo: Json): Promise<Unit>
+}
+
 internal external interface Chrome {
     val tabs: ChromeTabs
     val windows: ChromeWindows
     val history: ChromeHistory
+    val search: ChromeSearch
 }
 
 internal external val chrome: Chrome

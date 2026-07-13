@@ -88,6 +88,9 @@
         .section-head { display: flex; align-items: center; gap: 4px; padding: 6px 8px 2px; }
         .section-title { flex: 1; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .section-head .icon { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px; }
+        /* The tools of a section — add a collection, delete it — stay out of the way until it is hovered. */
+        .section-head .icon.add { opacity: 0; }
+        .section-head:hover .icon.add { opacity: 1; }
         .section-head .icon:hover { color: var(--accent); }
         .section-head .icon.del:hover { color: var(--danger); }
         .collections { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -108,6 +111,8 @@
             cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px; opacity: 0;
         }
         .col:hover .icon.del, .card:hover .icon.del { opacity: 1; }
+        /* The section's own × lives in its header, which is not a .col — without this it stays invisible. */
+        .section-head:hover .icon.del { opacity: 1; }
         .icon.del:hover { color: var(--danger); }
 
         .content { flex: 1; padding: 24px 28px; overflow-y: auto; }
@@ -121,7 +126,10 @@
             grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
             gap: 12px;
         }
+        /* --card-accent is the card's own colour: the kinds that carry one (see .card.kind-*) override
+           it, so the stripe and the hover highlight of a note are yellow where a link's stay blue. */
         .card {
+            --card-accent: var(--accent);
             position: relative;
             display: flex; align-items: center; gap: 10px;
             background: var(--panel);
@@ -131,7 +139,7 @@
             cursor: pointer;
             transition: border-color .12s, transform .12s;
         }
-        .card:hover { border-color: var(--accent); transform: translateY(-1px); }
+        .card:hover { border-color: var(--card-accent); transform: translateY(-1px); }
         .fav { width: 24px; height: 24px; flex: 0 0 24px; border-radius: 5px; background: var(--bg); }
         .card-body { min-width: 0; flex: 1; }
         .card-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 40px; }
@@ -154,6 +162,53 @@
         .tab-window.drop-active { outline-color: var(--accent); background: var(--accent-soft); }
         .tab-window-head { display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 6px 6px 4px; }
         .tab-window-head .count { font-weight: 500; }
+        .tab-window-tools { display: flex; align-items: center; gap: 6px; }
+        /* The app's own tooltip, and the only kind the app has: the browser's `title` waits about a
+           second and comes in the system's colours, not ours. The controls carry the words (data-hint,
+           set by `hint()` in Browser.kt); this is the one element that shows them, drawn at the root of
+           the page by `HintLayer` and placed against the viewport.
+
+           That is why it is `fixed` and lives outside the panels: a tooltip drawn inside the control it
+           belongs to is drawn inside whatever scrolls that control — the tabs list, the sidebar, the
+           content area — and a scroll box clips whatever leaves it, however high the z-index. The
+           layer's own placement (which side of the control, above it or below) comes from HintLayer;
+           everything the tooltip *looks* like is here. */
+        .hint-pop {
+            position: fixed; z-index: 300;
+            max-width: 280px; width: max-content;
+            padding: 6px 8px; border-radius: 8px;
+            background: var(--text); color: var(--panel);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, .22);
+            /* Its own voice: the headers it may stand over are uppercase and letter-spaced, a sentence
+               is not. A URL (the history's rows carry one) has nowhere to break, so it breaks anywhere. */
+            font-size: 12px; font-weight: 400; line-height: 1.35;
+            text-transform: none; letter-spacing: normal; text-align: left;
+            white-space: normal; overflow-wrap: anywhere;
+            pointer-events: none; /* it is a label, not a thing to hit */
+        }
+
+        /* The ⇅ menu that sorts the window's tabs, and the ⤓ that saves them into the open collection.
+           The select is stripped of its own chrome so that only the glyph shows, and both — like the ×
+           on a tab — stay out of the way until the window is hovered or the control itself is focused.
+
+           Both are pinned to a square: left to itself a select is as wide as its widest option, which
+           here would be a sentence ("Sort by date added") behind a one-glyph button. The glyph is then
+           centred in that square — text-align-last is what a select listens to, the button takes the
+           plain one. */
+        .tab-sort, .tab-save {
+            appearance: none; -webkit-appearance: none;
+            box-sizing: border-box; width: 20px; height: 20px;
+            border: 1px solid transparent; background: transparent; color: var(--muted);
+            border-radius: 6px; padding: 0; font-size: 12px; line-height: 1;
+            text-align: center; text-align-last: center;
+            cursor: pointer; opacity: 0; transition: opacity .12s, color .12s;
+        }
+        .tab-window:hover .tab-sort, .tab-window:hover .tab-save,
+        .tab-sort:focus, .tab-save:focus { opacity: 1; }
+        /* ...but the menu that drops out of it is a list of sentences, and reads from the left. */
+        .tab-sort option { text-align: left; text-align-last: left; }
+        .tab-sort:hover, .tab-save:hover { color: var(--accent); border-color: var(--border); }
+        .tab-sort:focus, .tab-save:focus { outline: none; border-color: var(--accent); }
         .tab-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
         .tab {
             display: flex; align-items: center; gap: 8px;
@@ -201,10 +256,51 @@
         .inline-edit-sizer { visibility: hidden; white-space: pre; padding-right: 1px; }
         .inline-edit-input { width: 100%; min-width: 0; font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--text); background: transparent; border: none; outline: none; padding: 0; margin: 0; cursor: text; user-select: text; box-shadow: 0 1px 0 var(--accent); }
 
-        /* Top toolbar: search + theme/sort/export controls */
+        /* Top toolbar: the search box + the tabs toggle */
         .topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-        .search { flex: 1; border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 8px; padding: 8px 12px; font-size: 14px; }
-        .search:focus { outline: none; border-color: var(--accent); }
+
+        /* The search box is one field over a dropdown of what it found: tabs, cards, history, the web,
+           the model. The wrapper is the positioning context for the dropdown, which hangs over the
+           content below rather than pushing it down. */
+        .searchbox { position: relative; flex: 1; }
+        .search-field { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--panel); border-radius: 8px; padding: 0 10px; }
+        .search-field:focus-within { border-color: var(--accent); }
+        .search { flex: 1; min-width: 0; border: none; background: transparent; color: var(--text); padding: 8px 2px; font-size: 14px; }
+        .search:focus { outline: none; }
+
+        /* The chip that says the box is now a question to the model, not a search. */
+        .ai-chip { flex: 0 0 auto; font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 2px 6px; }
+
+        .search-drop { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; right: 0; padding: 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 14px 34px rgba(0, 0, 0, .18); max-height: 70vh; overflow: auto; }
+        .hit-group-label { padding: 6px 8px 4px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+        .hit-list { list-style: none; margin: 0; padding: 0; }
+        .hit { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; cursor: pointer; }
+        .hit.selected { background: var(--accent-soft); }
+        .hit-icon, .hit-glyph { flex: 0 0 18px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+        .hit-text { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
+        .hit-title { flex: 0 1 auto; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .hit-sub { flex: 0 1 auto; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .hit-action { flex: 0 0 auto; color: var(--muted); font-size: 11px; border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; }
+        .hit-forget { opacity: 0; }
+        .hit:hover .hit-forget, .hit.selected .hit-forget { opacity: 1; }
+        .hit-hints { margin-top: 6px; padding: 6px 8px 2px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
+
+        /* Settings: the model that answers, named. */
+        .ai-model { font-weight: 700; font-size: 13px; white-space: nowrap; }
+
+        /* The model's answer, where the collection would be. */
+        .ai-panel { display: flex; flex-direction: column; gap: 12px; }
+        .ai-panel .content-head h2 { display: flex; align-items: center; gap: 8px; }
+        .ai-badge { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 2px 6px; }
+        .ai-download { padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); font-size: 13px; }
+        .ai-turn { padding: 12px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; }
+        .ai-question { margin-bottom: 8px; font-weight: 700; }
+        .ai-thinking { color: var(--muted); }
+        .ai-answer { line-height: 1.55; }
+        .ai-answer p { margin: 0 0 8px; }
+        .ai-answer pre { overflow-x: auto; }
+        .ai-turn-actions { display: flex; gap: 8px; margin-top: 10px; }
+
         .toolbar { display: flex; align-items: center; gap: 8px; }
         .control { border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 8px; padding: 7px 8px; font-size: 13px; cursor: pointer; }
         .control:hover { border-color: var(--accent); }
@@ -232,8 +328,9 @@
         /* Card kinds: note/file glyphs + image thumbnails */
         .glyph { width: 24px; height: 24px; flex: 0 0 24px; display: flex; align-items: center; justify-content: center; font-size: 18px; border-radius: 5px; background: var(--bg); }
         .fav.thumb { object-fit: cover; }
-        .card.kind-note { border-left: 3px solid #f5c451; }
-        .card.kind-file { border-left: 3px solid #7c9cf5; }
+        .card.kind-note { --card-accent: #f5c451; border-left: 3px solid var(--card-accent); }
+        .card.kind-file { --card-accent: #7c9cf5; border-left: 3px solid var(--card-accent); }
+        .card:hover .icon.edit:hover { color: var(--card-accent); }
 
         /* "Add link" hover menu */
         .add-menu { position: relative; display: inline-block; }
@@ -315,7 +412,7 @@
            locked section, and the modal where its PIN is set. A locked section shows its name and its
            padlock and nothing else — no collections, no controls. */
         .section-head .icon.lock { opacity: 0; font-size: 13px; }
-        .section:hover .icon.lock { opacity: 1; }
+        .section-head:hover .icon.lock { opacity: 1; }
         .section.locked .section-title { cursor: pointer; color: var(--muted); }
         .section.locked .chevron { font-size: 12px; }
         /* The collection's read-only badge, next to its name in the header. */
@@ -333,6 +430,19 @@
         .pin-error { color: var(--danger); font-size: 13px; min-height: 18px; }
         .pin-modal { max-width: 420px; }
         .pin-body { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px; }
+
+        /* The undo toast: what was just deleted, and the way back from it, over the page for 30 seconds. */
+        .undo-toast {
+            position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 200;
+            display: flex; align-items: center; gap: 12px;
+            background: var(--panel); color: var(--text);
+            border: 1px solid var(--border); border-radius: 10px;
+            box-shadow: 0 12px 32px rgba(0,0,0,.35); padding: 10px 12px 10px 16px;
+        }
+        .undo-msg { font-size: 13px; }
+        .btn.undo-btn { padding: 5px 10px; font-size: 13px; color: var(--accent); border-color: var(--accent); }
+        .icon.del.undo-dismiss { opacity: .7; position: static; }
+        .icon.del.undo-dismiss:hover { opacity: 1; }
 
         /* Settings modal */
         .settings-modal { max-width: 560px; }

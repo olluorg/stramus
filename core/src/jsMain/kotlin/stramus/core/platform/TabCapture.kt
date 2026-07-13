@@ -44,6 +44,16 @@ interface TabCapture {
      */
     suspend fun moveTab(id: Int, windowId: Int, index: Int)
 
+    /**
+     * Rearrange the tabs [ids] within [windowId] so they sit in that order — sorting a window, as
+     * opposed to the one-tab-at-a-time [moveTab] a drag makes.
+     *
+     * They are put back into the slots they already occupy between them, so a tab that is not in
+     * [ids] keeps its place in the strip: the pinned ones, the pages the sidebar never lists
+     * (chrome://, this very page), all stay where the user left them.
+     */
+    suspend fun reorderTabs(windowId: Int, ids: List<Int>)
+
     /** Subscribe to tab open/close/move/navigate changes so the list stays live; returns an unsubscribe. */
     fun onTabsChanged(listener: () -> Unit): () -> Unit
 }

@@ -10,6 +10,7 @@ import react.dom.html.ReactHTML.option
 import react.dom.html.ReactHTML.p
 import react.dom.html.ReactHTML.select
 import react.dom.html.ReactHTML.span
+import stramus.core.platform.AiAvailability
 import web.cssom.ClassName
 
 /** The idle timeouts offered for auto-locking a section; 0 = never lock on its own. */
@@ -29,9 +30,32 @@ external interface SettingsModalProps : Props {
     /** Minutes of inactivity before unlocked sections lock again; 0 = never. */
     var autoLockMinutes: Int
     var onAutoLockChange: (Int) -> Unit
+
+    /** Whether the host gives access to the browser's tabs at all — the web app has none to settle. */
+    var hasTabs: Boolean
+
+    /** Whether saving a whole window's tabs into a collection also closes them in the browser. */
+    var closeSavedTabs: Boolean
+    var onCloseSavedTabsChange: (Boolean) -> Unit
+
+    /** The model answering questions from the search box, named — or null where there is none. */
+    var aiName: String?
+
+    /** Its state, so "no AI here" can say *why*: no such browser API, or a machine that cannot run it. */
+    var aiState: AiAvailability?
+
     var onExportCsv: () -> Unit
     var onExportBookmarks: () -> Unit
     var onClose: () -> Unit
+}
+
+/** What the settings page says about the model: which one, and whether it can actually answer. */
+private fun aiStatusOf(name: String?, state: AiAvailability?, s: Strings): Pair<String, String> = when {
+    name == null -> s.aiModelNone to s.aiModelNoneHint
+    state == AiAvailability.UNAVAILABLE || state == null -> s.aiModelUnsupported(name) to s.aiModelUnsupportedHint
+    state == AiAvailability.DOWNLOADABLE -> name to s.aiModelDownloadableHint
+    state == AiAvailability.DOWNLOADING -> name to s.aiModelDownloadingHint
+    else -> name to s.aiModelReadyHint
 }
 
 /**
@@ -98,6 +122,39 @@ val SettingsModal = FC<SettingsModalProps> { props ->
                 }
             }
 
+            // ---- Tabs: what saving a window's worth of them leaves behind ----
+            //
+            // Only where there are tabs to save: the web app cannot see the browser's, and the ⤓ that
+            // this settles is not on its screen.
+            if (props.hasTabs) {
+                div {
+                    className = ClassName("settings-section")
+                    h4 { +s.tabsSection }
+                    div {
+                        className = ClassName("settings-row")
+                        div {
+                            className = ClassName("settings-label")
+                            span { className = ClassName("settings-title"); +s.closeSavedTabs }
+                            span { className = ClassName("settings-hint"); +s.closeSavedTabsHint }
+                        }
+                        div {
+                            // The same segmented control as the theme picker: two ways, one chosen.
+                            className = ClassName("theme-toggle")
+                            listOf(true to s.closeSavedTabsClose, false to s.closeSavedTabsKeep)
+                                .forEach { (close, label) ->
+                                    button {
+                                        className = ClassName(
+                                            if (props.closeSavedTabs == close) "theme-opt active" else "theme-opt",
+                                        )
+                                        onClick = { props.onCloseSavedTabsChange(close) }
+                                        +label
+                                    }
+                                }
+                        }
+                    }
+                }
+            }
+
             // ---- Security: how long an unlocked section stays open ----
             div {
                 className = ClassName("settings-section")
@@ -120,6 +177,25 @@ val SettingsModal = FC<SettingsModalProps> { props ->
                             }
                         }
                     }
+                }
+            }
+
+            // ---- The model behind the search box's "ask the AI" ----
+            //
+            // It is nobody's business but the user's what is answering them, so this says which model
+            // it is, where it runs, and — when it cannot answer at all — why not.
+            div {
+                className = ClassName("settings-section")
+                h4 { +s.aiSection }
+                val (title, hint) = aiStatusOf(props.aiName, props.aiState, s)
+                div {
+                    className = ClassName("settings-row")
+                    div {
+                        className = ClassName("settings-label")
+                        span { className = ClassName("settings-title"); +s.aiModel }
+                        span { className = ClassName("settings-hint"); +hint }
+                    }
+                    span { className = ClassName("ai-model"); +title }
                 }
             }
 

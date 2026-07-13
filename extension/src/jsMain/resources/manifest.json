@@ -3,7 +3,8 @@
   "name": "stramus",
   "version": "0.1.0",
   "description": "Save and organize your open tabs into collections.",
-  "permissions": ["tabs", "history"],
+  "permissions": ["tabs", "history", "search"],
+  "minimum_chrome_version": "138",
   "chrome_url_overrides": {
     "newtab": "index.html"
   },
