@@ -132,6 +132,36 @@ class StoreTest {
     }
 
     @Test
+    fun `deleting a card section ungroups its cards instead of taking them with it`() = runTest {
+        val store = openStore()
+        val collection = store.collections.all().single().id
+        val group = store.cardSections.create(collection, "Later", null)
+        val card = store.cards.add(collection, "kept", "https://example.org/kept", null, cardSectionId = group.id)
+
+        store.cardSections.delete(group.id)
+
+        val after = store.cards.byCollection(collection).first { it.id == card.id }
+        assertEquals(null, after.cardSectionId, "the card should have been left ungrouped, not deleted")
+        assertEquals(emptyList(), store.cardSections.byCollection(collection))
+    }
+
+    @Test
+    fun `a PIN can be set, checked and taken off again`() = runTest {
+        val store = openStore()
+        val section = store.sections.all().single().id
+
+        store.sections.setPin(section, "1234")
+        assertTrue(store.sections.all().single().locked)
+        assertTrue(store.sections.verifyPin(section, "1234"))
+        assertTrue(!store.sections.verifyPin(section, "4321"))
+
+        // Clearing writes null over both the salt and the hash — the one thing a patch row cannot say.
+        store.sections.clearPin(section)
+        assertTrue(!store.sections.all().single().locked)
+        assertTrue(store.sections.verifyPin(section, "anything"), "an unlocked section takes any PIN")
+    }
+
+    @Test
     fun `an undone deletion puts the collection back where it was, not at the end`() = runTest {
         val store = openStore()
         val main = store.sections.all().single().id

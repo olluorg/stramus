@@ -3,11 +3,16 @@
 package stramus.core.db
 
 import io.github.kormium.DelicateKormiumApi
+import io.github.kormium.Expression
+import io.github.kormium.Value
 import io.github.kormium.and
 import io.github.kormium.database.SuspendDatabase
 import io.github.kormium.count
 import io.github.kormium.eq
+import io.github.kormium.inList
+import io.github.kormium.isNotNull
 import io.github.kormium.isNull
+import io.github.kormium.none
 import io.github.kormium.like
 import io.github.kormium.or
 import io.github.kormium.suspendAutocommit
@@ -51,6 +56,16 @@ class StramusStore internal constructor(
 
 /** Words past this in one query are dropped: each one is another LIKE over every card. */
 private const val SEARCH_MAX_WORDS = 4
+
+/**
+ * `NULL`, for the expression form of `update`.
+ *
+ * `set` takes the column's own type, and a nullable column's type parameter is the *non-null* one —
+ * nullability is a property of the column, not of the type — so `col set null` does not typecheck. A
+ * bound null value says the same thing, and it is the one thing the entity form of `update` cannot say
+ * at all: to a row, a column left unset and a column set to null look alike.
+ */
+private val NULL: Expression = Value(null)
 
 /**
  * What a first install starts with. An empty sidebar is nothing to hand a new user, so a database
@@ -132,29 +147,42 @@ suspend fun openStramusStore(db: SuspendDatabase<StramusDb>, seed: StoreSeed = S
     }
 
     db.suspendTransaction {
-        // Attach any collections without a section (fresh migration) to the default one.
-        Collections.execSql("""UPDATE "collections" SET "sectionId" = '$defaultId' WHERE "sectionId" IS NULL OR "sectionId" = ''""")
+        // A collection whose section is not there — one written before sections existed, and so given
+        // the empty string by the `ALTER TABLE` above — belongs to the default section.
+        Collections.update {
+            Collections.sectionId set defaultId
+            where { Sections.none { Sections.id eq Collections.sectionId } }
+        }
+
         // Un-group cards pointing at a card section of another collection: earlier builds moved a
         // card between collections without clearing its section, and such a card matched no group
         // and so was drawn nowhere. Ungrouped is the only place it can be shown.
-        Cards.execSql(
-            """
-            UPDATE "cards" SET "cardSectionId" = NULL
-            WHERE "cardSectionId" IS NOT NULL AND "cardSectionId" NOT IN (
-                SELECT "id" FROM "card_sections" WHERE "collectionId" = "cards"."collectionId"
-            )
-            """.trimIndent(),
-        )
+        Cards.update {
+            Cards.cardSectionId set NULL
+            where {
+                CardSections.none {
+                    (CardSections.id eq Cards.cardSectionId) and (CardSections.collectionId eq Cards.collectionId)
+                } and Cards.cardSectionId.isNotNull()
+            }
+        }
+
         // Earlier builds held a file's bytes in cards.content, which put every file of a collection
         // into the page each time it was drawn and into every LIKE the search ran. Move them out;
         // the grid's preview (thumb) is regenerated from the bytes by the UI, once, on next start.
-        Cards.execSql(
-            """
-            INSERT OR IGNORE INTO "card_blobs" ("cardId", "data")
-            SELECT "id", "content" FROM "cards" WHERE "kind" = 'file' AND "content" IS NOT NULL
-            """.trimIndent(),
-        )
-        Cards.execSql("""UPDATE "cards" SET "content" = NULL WHERE "kind" = 'file'""")
+        val inlined = Cards.find { where { (Cards.kind eq CardKind.FILE.id) and Cards.content.isNotNull() } }
+        inlined.forEach { card ->
+            // The bytes may already be where they belong: a previous run of this could have been
+            // interrupted between moving them out and clearing the column.
+            if (CardBlobs.findOne { where { CardBlobs.cardId eq card.id } } == null) {
+                CardBlobs.insert(CardBlobRow().apply { cardId = card.id; data = card.content!! })
+            }
+        }
+        if (inlined.isNotEmpty()) {
+            Cards.update {
+                Cards.content set NULL
+                where { Cards.kind eq CardKind.FILE.id }
+            }
+        }
     }
 
     return StramusStore(
@@ -395,9 +423,10 @@ private suspend fun deleteCollection(db: SuspendDatabase<StramusDb>, id: Uuid): 
     }.toMap()
 
     db.suspendTransaction {
-        CardBlobs.execSql(
-            """DELETE FROM "card_blobs" WHERE "cardId" IN (SELECT "id" FROM "cards" WHERE "collectionId" = '$id')""",
-        )
+        // The cards are already read, so their blobs are named directly rather than by a subquery.
+        if (cards.isNotEmpty()) {
+            CardBlobs.deleteWhere { where { CardBlobs.cardId inList cards.map { it.id } } }
+        }
         Cards.deleteWhere { where { Cards.collectionId eq id } }
         CardSections.deleteWhere { where { CardSections.collectionId eq id } }
         Collections.deleteWhere { where { Collections.id eq id } }
@@ -560,13 +589,15 @@ internal class KormiumSectionRepository(
     }
 
     override suspend fun clearPin(id: Uuid) {
-        // SQL, not an update built from a row: a row cannot carry "set this column back to null" —
-        // an unset column and one assigned null are the same thing to it.
-        val now = Clock.System.now()
+        // The expression form of update, not a row: a row cannot carry "set this column back to null"
+        // — an unset column and one assigned null are the same thing to it.
         db.suspendTransaction {
-            Sections.execSql(
-                """UPDATE "sections" SET "pinSalt" = NULL, "pinHash" = NULL, "updatedAt" = '$now' WHERE "id" = '$id'""",
-            )
+            Sections.update {
+                Sections.pinSalt set NULL
+                Sections.pinHash set NULL
+                Sections.updatedAt set Clock.System.now()
+                where { Sections.id eq id }
+            }
         }
     }
 
@@ -744,12 +775,13 @@ internal class KormiumCardSectionRepository(
                 orderBy ASC Cards.orderKey
             }
         }.map { it.id }
-        val now = Clock.System.now()
         db.suspendTransaction {
             // Detach the section's cards (they become ungrouped) before removing the section.
-            Cards.execSql(
-                """UPDATE "cards" SET "cardSectionId" = NULL, "updatedAt" = '$now' WHERE "cardSectionId" = '$id'""",
-            )
+            Cards.update {
+                Cards.cardSectionId set NULL
+                Cards.updatedAt set Clock.System.now()
+                where { Cards.cardSectionId eq id }
+            }
             CardSections.deleteWhere { where { CardSections.id eq id } }
         }
         return DeletedCardSection(row.toModel(), cardIds)
@@ -919,19 +951,17 @@ internal class KormiumCardRepository(
 
             val key = keyAt(siblings.map { it.orderKey }, newIndex)
 
-            // One row, one write — collection, group and place together. This goes through SQL because
-            // an update built from a row cannot clear cardSectionId: an unset column and one assigned
-            // null look the same to it, and a card dragged out of a group must end up ungrouped.
-            val groupValue = if (group == null) "NULL" else "'$group'"
-            val now = Clock.System.now()
-            Cards.execSql(
-                """
-                UPDATE "cards"
-                SET "collectionId" = '$toCollectionId', "cardSectionId" = $groupValue,
-                    "orderKey" = '$key', "updatedAt" = '$now'
-                WHERE "id" = '$id'
-                """.trimIndent(),
-            )
+            // One row, one write — collection, group and place together. The expression form of update
+            // is what allows `group` to be null here: a card dragged out of a group must end up
+            // ungrouped, and a row cannot say that (an unset column and one assigned null look alike
+            // to it).
+            Cards.update {
+                Cards.collectionId set toCollectionId
+                if (group == null) Cards.cardSectionId set NULL else Cards.cardSectionId set group
+                Cards.orderKey set key
+                Cards.updatedAt set Clock.System.now()
+                where { Cards.id eq id }
+            }
         }
     }
 
