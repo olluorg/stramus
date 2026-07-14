@@ -45,6 +45,10 @@ dependencies {
     implementation("org.slf4j:slf4j-simple:2.0.16")
 
     testImplementation(kotlin("test"))
+    // The client's store and sync engine, exercised against this server over real HTTP: the merge is the
+    // one thing in the system that only exists in the space *between* the two, and that is where it is
+    // tested. (The client is Kotlin/JS in the app; its code is common, so the JVM can run it here.)
+    testImplementation(project(":core"))
     testImplementation("io.ktor:ktor-server-test-host:$ktorVersion")
     testImplementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")

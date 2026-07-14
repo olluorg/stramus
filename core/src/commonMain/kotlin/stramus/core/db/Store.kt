@@ -13,9 +13,12 @@ import io.github.kormium.isNull
 import io.github.kormium.none
 import io.github.kormium.like
 import io.github.kormium.or
+import io.github.kormium.SuspendScope
+import io.github.kormium.lt
 import io.github.kormium.suspendAutocommit
 import io.github.kormium.suspendTransaction
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 import stramus.core.crypto.hashPin
@@ -54,6 +57,19 @@ class StramusStore internal constructor(
 
 /** Words past this in one query are dropped: each one is another LIKE over every card. */
 private const val SEARCH_MAX_WORDS = 4
+
+/** How long a tombstone is kept once the row is gone, so that a device offline for a while still hears. */
+private val TOMBSTONE_RETENTION = 30.days
+
+/**
+ * Whether this database belongs to an account — which decides what a deletion *is*.
+ *
+ * Signed out, a deletion is a deletion: the row goes, as it always has, because a device that never syncs
+ * would otherwise hoard the dead for ever. Signed in, it has to be a *thing that happened* — a tombstone —
+ * or the other device, seeing only that a row is missing, would helpfully put it back.
+ */
+private suspend fun SuspendScope<StramusDb>.syncing(): Boolean =
+    SyncState.findOne { where { SyncState.k eq "userId" } } != null
 
 /**
  * What a first install starts with. An empty sidebar is nothing to hand a new user, so a database
@@ -171,6 +187,8 @@ suspend fun openStramusStore(db: SuspendDatabase<StramusDb>, seed: StoreSeed = S
         }
     }
 
+    purgeTombstones(db)
+
     return StramusStore(
         db,
         sections,
@@ -181,6 +199,32 @@ suspend fun openStramusStore(db: SuspendDatabase<StramusDb>, seed: StoreSeed = S
         KormiumUsageRepository(db),
         KormiumActionUsageRepository(db),
     )
+}
+
+/**
+ * Sweep the dead.
+ *
+ * A tombstone exists to tell the *other* device that a row went. Once it has done that — or if there is no
+ * other device, because this database has no account — it is landfill, and the file bytes behind a deleted
+ * file card are landfill measured in megabytes.
+ *
+ * Signed out, they go at once: a database that never syncs has nobody to tell. Signed in, they are kept
+ * for [TOMBSTONE_RETENTION], which is the length of holiday a device may go on without coming back to find
+ * that the rows it deleted have been helpfully restored by a device that never heard.
+ */
+private suspend fun purgeTombstones(db: SuspendDatabase<StramusDb>) {
+    db.suspendTransaction {
+        val cutoff = if (syncing()) Clock.System.now() - TOMBSTONE_RETENTION else Clock.System.now()
+
+        val dead = Cards.find { where { Cards.deletedAt lt cutoff } }.map { it.id }
+        if (dead.isNotEmpty()) {
+            CardBlobs.deleteWhere { where { CardBlobs.cardId inList dead } }
+        }
+        Cards.deleteWhere { where { Cards.deletedAt lt cutoff } }
+        CardSections.deleteWhere { where { CardSections.deletedAt lt cutoff } }
+        Collections.deleteWhere { where { Collections.deletedAt lt cutoff } }
+        Sections.deleteWhere { where { Sections.deletedAt lt cutoff } }
+    }
 }
 
 /**
@@ -409,13 +453,26 @@ private suspend fun deleteCollection(db: SuspendDatabase<StramusDb>, id: Uuid): 
     }.toMap()
 
     db.suspendTransaction {
-        // The cards are already read, so their blobs are named directly rather than by a subquery.
-        if (cards.isNotEmpty()) {
-            CardBlobs.deleteWhere { where { CardBlobs.cardId inList cards.map { it.id } } }
+        val now = Clock.System.now()
+        if (syncing()) {
+            // Tombstones, all the way down: the other device has these cards, and has to be told they
+            // went. The file bytes stay until the tombstones are swept — an undo has to open them again.
+            Cards.update(CardRow().apply { deletedAt = now; updatedAt = now }) { where { Cards.collectionId eq id } }
+            CardSections.update(
+                CardSectionRow().apply { deletedAt = now; updatedAt = now },
+            ) { where { CardSections.collectionId eq id } }
+            Collections.update(
+                CollectionRow().apply { deletedAt = now; updatedAt = now },
+            ) { where { Collections.id eq id } }
+        } else {
+            // The cards are already read, so their blobs are named directly rather than by a subquery.
+            if (cards.isNotEmpty()) {
+                CardBlobs.deleteWhere { where { CardBlobs.cardId inList cards.map { it.id } } }
+            }
+            Cards.deleteWhere { where { Cards.collectionId eq id } }
+            CardSections.deleteWhere { where { CardSections.collectionId eq id } }
+            Collections.deleteWhere { where { Collections.id eq id } }
         }
-        Cards.deleteWhere { where { Cards.collectionId eq id } }
-        CardSections.deleteWhere { where { CardSections.collectionId eq id } }
-        Collections.deleteWhere { where { Collections.id eq id } }
     }
     return DeletedCollection(collection.toModel(), cardSections.map { it.toModel() }, cards.map { it.toModel() }, blobs)
 }
@@ -423,9 +480,17 @@ private suspend fun deleteCollection(db: SuspendDatabase<StramusDb>, id: Uuid): 
 /** The undo of [deleteCollection]: every row back, with the id and the place it had. */
 private suspend fun restoreCollection(db: SuspendDatabase<StramusDb>, deleted: DeletedCollection) {
     db.suspendTransaction {
+        // The rows may still be there as tombstones (a signed-in database deletes by marking), so each one
+        // is replaced rather than inserted. What comes back is the row that went, with its id and its
+        // place — and a fresh `updatedAt`, which is what makes the undo beat the deletion on the server.
+        Collections.deleteWhere { where { Collections.id eq deleted.collection.id } }
         Collections.insert(deleted.collection.toRow())
-        deleted.cardSections.forEach { CardSections.insert(it.toRow()) }
+        deleted.cardSections.forEach {
+            CardSections.deleteWhere { where { CardSections.id eq it.id } }
+            CardSections.insert(it.toRow())
+        }
         deleted.cards.forEach { card ->
+            Cards.deleteWhere { where { Cards.id eq card.id } }
             Cards.insert(card.toRow())
             deleted.blobs[card.id]?.let { bytes ->
                 CardBlobs.insert(CardBlobRow().apply { this.cardId = card.id; this.data = bytes })
@@ -522,7 +587,14 @@ internal class KormiumSectionRepository(
         }.map { it.id }
         val collections = collectionIds.mapNotNull { deleteCollection(db, it) }
 
-        db.suspendTransaction { Sections.deleteWhere { where { Sections.id eq id } } }
+        db.suspendTransaction {
+            val now = Clock.System.now()
+            if (syncing()) {
+                Sections.update(SectionRow().apply { deletedAt = now; updatedAt = now }) { where { Sections.id eq id } }
+            } else {
+                Sections.deleteWhere { where { Sections.id eq id } }
+            }
+        }
         return DeletedSection(row.toModel(), collections, row.pinSalt, row.pinHash)
     }
 
@@ -538,7 +610,10 @@ internal class KormiumSectionRepository(
             this.pinHash = deleted.pinHash
             this.updatedAt = Clock.System.now()
         }
-        db.suspendTransaction { Sections.insert(row) }
+        db.suspendTransaction {
+            Sections.deleteWhere { where { Sections.id eq row.id } }
+            Sections.insert(row)
+        }
         deleted.collections.forEach { restoreCollection(db, it) }
     }
 
@@ -761,13 +836,22 @@ internal class KormiumCardSectionRepository(
             Cards.update(
                 CardRow().apply { cardSectionId = null; updatedAt = Clock.System.now() },
             ) { where { Cards.cardSectionId eq id } }
-            CardSections.deleteWhere { where { CardSections.id eq id } }
+
+            val now = Clock.System.now()
+            if (syncing()) {
+                CardSections.update(
+                    CardSectionRow().apply { deletedAt = now; updatedAt = now },
+                ) { where { CardSections.id eq id } }
+            } else {
+                CardSections.deleteWhere { where { CardSections.id eq id } }
+            }
         }
         return DeletedCardSection(row.toModel(), cardIds)
     }
 
     override suspend fun restore(deleted: DeletedCardSection) {
         db.suspendTransaction {
+            CardSections.deleteWhere { where { CardSections.id eq deleted.cardSection.id } }
             CardSections.insert(deleted.cardSection.toRow())
             // The cards were left behind, ungrouped; the ones that were in this section rejoin it.
             // Any that the user has since moved elsewhere are simply no longer there to be found.
@@ -903,8 +987,15 @@ internal class KormiumCardRepository(
 
     override suspend fun delete(id: Uuid) {
         db.suspendTransaction {
-            CardBlobs.deleteWhere { where { CardBlobs.cardId eq id } }
-            Cards.deleteWhere { where { Cards.id eq id } }
+            if (syncing()) {
+                // A tombstone, and the bytes left where they are: an undo has to be able to open the file
+                // again, and the sweep below takes both once the deletion is old enough to be everywhere.
+                val now = Clock.System.now()
+                Cards.update(CardRow().apply { deletedAt = now; updatedAt = now }) { where { Cards.id eq id } }
+            } else {
+                CardBlobs.deleteWhere { where { CardBlobs.cardId eq id } }
+                Cards.deleteWhere { where { Cards.id eq id } }
+            }
         }
     }
 

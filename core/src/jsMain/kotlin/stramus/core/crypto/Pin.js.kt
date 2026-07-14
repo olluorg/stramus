@@ -6,8 +6,8 @@ import org.khronos.webgl.Uint8Array
 import org.khronos.webgl.get
 import kotlin.js.Promise
 
-// The browser's SHA-256 and CSPRNG. See the expectations in commonMain for what these are for, and
-// for what the lock they back does and does not promise.
+// The browser's SHA-256 and CSPRNG. See the expectations in commonMain for what these are for, and for
+// what the lock they back does and does not promise.
 
 private external interface WebCrypto {
     val subtle: SubtleCrypto
@@ -32,7 +32,7 @@ private fun Uint8Array.toHex(): String = buildString {
 
 actual fun randomSalt(): String = webCrypto().getRandomValues(Uint8Array(16)).toHex()
 
-actual suspend fun hashPin(pin: String, salt: String): String {
-    val digest = webCrypto().subtle.digest("SHA-256", TextEncoder().encode("$salt:$pin")).await()
+actual suspend fun sha256Hex(input: String): String {
+    val digest = webCrypto().subtle.digest("SHA-256", TextEncoder().encode(input)).await()
     return Uint8Array(digest).toHex()
 }

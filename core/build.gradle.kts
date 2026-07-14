@@ -22,6 +22,8 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
+                // The wire format the sync engine speaks. Shared with the server, which speaks it back.
+                api(project(":protocol"))
                 // Kormium's DSL and the schema are platform-independent; the engine under them is not.
                 api("io.github.kormium:kormium-core:0.11.0")
                 // `api`: the AI assistant streams its answer as a Flow, so the type is part of what
