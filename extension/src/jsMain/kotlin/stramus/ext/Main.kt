@@ -20,6 +20,9 @@ fun main() {
             // The user's own search engine, whichever it is: chrome.search asks the browser rather
             // than hardcoding one.
             webSearch = ChromeWebSearch
+            // The browser's own favicon store, so that no icon service is ever told which hosts the
+            // user keeps here — see [ChromeIcons].
+            iconSources = ChromeIcons
             ai = builtInAi()
         },
     )

@@ -155,6 +155,29 @@ object Usage : Table<StramusDb, UsageRow>("usage", ::UsageRow) {
     init { url; title; host; hits; lastUsedAt }
 }
 
+class ActionUsageRow : Entity() {
+    var kind by ActionUsage.kind
+    var hits by ActionUsage.hits
+    var lastUsedAt by ActionUsage.lastUsedAt
+}
+
+/**
+ * How often, and how recently, the user takes each *kind* of row of the search box — switching to a
+ * tab, following a saved card, asking the model, searching the web. Where [Usage] learns which pages
+ * a user lives in, this learns what they come to the box to do: someone who asks the assistant all
+ * day should find that row above the rest, and someone who never does should not.
+ *
+ * One row per kind (see `HitAction` in the UI), so the whole table is a handful of rows, read once on
+ * start and kept in memory for the session.
+ */
+object ActionUsage : Table<StramusDb, ActionUsageRow>("action_usage", ::ActionUsageRow) {
+    val kind by Column.Text().primaryKey()
+    val hits by Column.Int()
+    val lastUsedAt by Column.Instant()
+
+    init { kind; hits; lastUsedAt }
+}
+
 class FaviconRow : Entity() {
     var host by Favicons.host
     var dataUri by Favicons.dataUri
@@ -251,6 +274,14 @@ internal val schemaDdl: List<String> = listOf(
         "hits" integer NOT NULL,
         "lastUsedAt" text NOT NULL,
         PRIMARY KEY ("url")
+    )
+    """.trimIndent(),
+    """
+    CREATE TABLE IF NOT EXISTS "action_usage" (
+        "kind" text NOT NULL,
+        "hits" integer NOT NULL,
+        "lastUsedAt" text NOT NULL,
+        PRIMARY KEY ("kind")
     )
     """.trimIndent(),
     """CREATE INDEX IF NOT EXISTS "idx_cards_collection" ON "cards" ("collectionId", "position")""",

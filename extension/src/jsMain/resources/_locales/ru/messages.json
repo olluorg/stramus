@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "stramus — коллекции вкладок",
+    "description": "The extension's name, as shown in Chrome and in the Web Store listing."
+  },
+  "extDescription": {
+    "message": "Сохраняйте открытые вкладки в коллекции на странице новой вкладки. Ищите, сортируйте и открывайте их одним нажатием.",
+    "description": "The Web Store's short description. Chrome allows at most 132 characters."
+  },
+  "actionTitle": {
+    "message": "stramus — открыть новую вкладку",
+    "description": "The tooltip on the toolbar button."
+  }
+}

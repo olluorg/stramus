@@ -20,6 +20,9 @@ import kotlin.uuid.ExperimentalUuidApi
 external interface CardTileProps : Props {
     var strings: Strings
     var card: Card
+
+    /** Whether a link card spells its address out under the title. See the `cardUrls` setting. */
+    var showUrl: Boolean
     var isDraggable: Boolean
     var readOnly: Boolean
     var isDragging: Boolean
@@ -29,7 +32,9 @@ external interface CardTileProps : Props {
     // would be a new function on every render, and this component is memoized on its props being the
     // same ones as last time. See `App`, which holds these steady with `useCallback`.
     var onOpen: (Card) -> Unit
-    var onRename: (Card, String) -> Unit
+
+    /** Ask for this card to be renamed — the box it is renamed in is [RenameCardModal], which App opens. */
+    var onRename: (Card) -> Unit
     var onDelete: (Card) -> Unit
     var onStartDrag: (Card) -> Unit
     var onEndDrag: () -> Unit
@@ -58,6 +63,15 @@ val CardTile = memo(
         val card = props.card
         val strings = props.strings
 
+        // The second line of the tile: where a link keeps its URL, a note its first words, a file the
+        // kind of file it is. A link's URL is the one the user can turn off — null then, and the tile
+        // is the title alone.
+        val subtitle = when (card.kind) {
+            CardKind.LINK -> card.url.takeIf { props.showUrl }
+            CardKind.NOTE -> (card.content ?: "").replace("\n", " ").ifBlank { strings.emptyNote }
+            CardKind.FILE -> card.mime ?: strings.fileLabel
+        }
+
         div {
             className = ClassName(
                 buildString {
@@ -65,6 +79,11 @@ val CardTile = memo(
                     if (props.isDragging) append(" dragging")
                 },
             )
+            // The title, whole — the tile cuts it to its width. The line under it (a URL, a note's
+            // first words) is not repeated here: it is the title the user is trying to read. A link
+            // whose address the tile does not show is the exception — then the tooltip is the only
+            // place left to see where the card goes.
+            hint(if (card.kind == CardKind.LINK && !props.showUrl) "${card.title} — ${card.url}" else card.title)
             draggable = props.isDraggable
             onClick = { props.onOpen(card) }
             if (props.isDraggable) {
@@ -116,15 +135,15 @@ val CardTile = memo(
             div {
                 className = ClassName("card-body")
                 div {
-                    className = ClassName("card-title")
+                    // Without a second line the title takes it: two lines of title in the space the
+                    // tile already had, so a long one is readable and the card is the same size.
+                    className = ClassName(if (subtitle == null) "card-title two-line" else "card-title")
                     +card.title
                 }
-                div {
-                    className = ClassName("card-url")
-                    +when (card.kind) {
-                        CardKind.LINK -> card.url
-                        CardKind.NOTE -> (card.content ?: "").replace("\n", " ").ifBlank { strings.emptyNote }
-                        CardKind.FILE -> card.mime ?: strings.fileLabel
+                if (subtitle != null) {
+                    div {
+                        className = ClassName("card-url")
+                        +subtitle
                     }
                 }
             }
@@ -136,8 +155,7 @@ val CardTile = memo(
                         hint(strings.renameCard)
                         onClick = { e ->
                             e.stopPropagation()
-                            val name = browserPrompt(strings.cardNamePrompt, card.title)
-                            if (!name.isNullOrBlank() && name.trim() != card.title) props.onRename(card, name.trim())
+                            props.onRename(card)
                         }
                         +"✎"
                     }

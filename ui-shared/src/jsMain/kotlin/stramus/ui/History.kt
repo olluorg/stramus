@@ -104,9 +104,9 @@ internal fun ChildrenBuilder.historyPane(
                             li {
                                 key = entry.url.unsafeCast<Key>()
                                 className = ClassName(
-                                    if (draggingUrl == entry.url) "tab history dragging hint" else "tab history hint",
+                                    if (draggingUrl == entry.url) "tab history dragging" else "tab history",
                                 )
-                                hint(entry.url)
+                                hint(entry.title.ifBlank { entry.url })
                                 draggable = true
                                 onClick = { onOpen(entry) }
                                 onDragStart = { e ->

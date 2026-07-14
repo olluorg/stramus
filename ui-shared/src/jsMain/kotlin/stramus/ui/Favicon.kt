@@ -66,16 +66,46 @@ internal suspend fun initFaviconCache(repo: FaviconRepository) {
 }
 
 /**
- * Where the icon of [host] can come from, most specific first: the URL saved with the card or tab
- * (the site's own icon), then the two icon services. Only some of these are readable from a page —
- * Google's, for one, sends no CORS headers — so the list is a chain, not a preference: whichever
- * responds with readable bytes wins.
+ * Where a site's icon may be read from, in order of preference. Whichever source responds with
+ * readable bytes first wins, so the list is a chain rather than a choice.
+ *
+ * The two implementations differ in more than speed. The web app has nothing but the public icon
+ * services ([NetworkIcons]), and asking them for an icon tells them which host the user has saved.
+ * The extension has the browser's own favicon store ([stramus.ext.ChromeIcons]) — the icons of the
+ * pages this browser has already visited, on this machine — and so it asks nobody at all.
  */
-private fun sourcesFor(host: String, stored: String?): List<String> = listOfNotNull(
-    stored?.takeIf { it.startsWith("http", ignoreCase = true) },
-    "https://www.google.com/s2/favicons?domain=$host&sz=64",
-    "https://favicone.com/$host?s=64",
-).distinct()
+fun interface IconSources {
+    /** Icon URLs to try for [pageUrl], best first. [stored] is the icon URL saved with the card, if any. */
+    fun sourcesFor(pageUrl: String, stored: String?): List<String>
+}
+
+/**
+ * The icon services, for a page that has no browser behind it to ask: the card's own icon URL first
+ * (the site's own icon, saved with the link), then the two services. Only some of these are readable
+ * from a page — Google's, for one, sends no CORS headers — hence the chain.
+ */
+val NetworkIcons = IconSources { pageUrl, stored ->
+    val host = hostOf(pageUrl)
+    listOfNotNull(
+        stored?.takeIf { it.startsWith("http", ignoreCase = true) },
+        "https://www.google.com/s2/favicons?domain=$host&sz=64",
+        "https://favicone.com/$host?s=64",
+    ).distinct()
+}
+
+private var iconSources: IconSources = NetworkIcons
+
+/**
+ * Hand the icons over to the platform's own source. Called by `App` from its props before anything is
+ * drawn; the web app leaves it alone and keeps [NetworkIcons].
+ */
+internal fun installIconSources(sources: IconSources) {
+    if (sources !== iconSources) {
+        iconSources = sources
+        // What was fetched from the previous source is not what this one would return.
+        failed.clear()
+    }
+}
 
 /**
  * The icon to show for [host]: the cached bytes while they are still fresh, otherwise the bytes a
@@ -86,7 +116,7 @@ private fun sourcesFor(host: String, stored: String?): List<String> = listOfNotN
  * Cards of the same host share one fetch rather than each making their own, and no more than
  * [fetchSlots] of them run at a time.
  */
-private suspend fun iconFor(host: String, stored: String?): String? {
+private suspend fun iconFor(pageUrl: String, host: String, stored: String?): String? {
     val hit = cached[host]
     if (hit != null && Clock.System.now() - hit.updatedAt < ICON_MAX_AGE) return hit.dataUri
     if (host in failed) return hit?.dataUri
@@ -95,7 +125,7 @@ private suspend fun iconFor(host: String, stored: String?): String? {
         faviconScope.async {
             try {
                 fetchSlots.withPermit {
-                    for (source in sourcesFor(host, stored)) {
+                    for (source in iconSources.sourcesFor(pageUrl, stored)) {
                         val data = fetchDataUri(source) ?: continue
                         cached[host] = CachedIcon(data, Clock.System.now())
                         repository?.let { repo -> runCatching { repo.put(host, data) } }
@@ -192,7 +222,7 @@ val Favicon = FC<FaviconProps> { props ->
         // Launched on the shared scope, not this effect's: a fetch belongs to the host, not to the one
         // card that happened to ask for it first, and it outlives that card being scrolled away.
         faviconScope.launch {
-            val fresh = iconFor(host, stored)
+            val fresh = iconFor(props.url, host, stored)
             if (fresh != null) {
                 data = fresh
                 broken = false
@@ -205,7 +235,11 @@ val Favicon = FC<FaviconProps> { props ->
         src = when {
             broken -> placeholderIcon
             data != null -> data!!
-            else -> stored ?: faviconFor(props.url)
+            // Nothing cached yet: draw the best source directly while the fetch that will cache it
+            // runs. It has to be a source of the *platform's* chain — in the extension the icon comes
+            // from the browser's own store, and an `<img>` pointing anywhere else would be the one
+            // request to an icon service the extension is built not to make.
+            else -> iconSources.sourcesFor(props.url, stored).firstOrNull() ?: placeholderIcon
         }
         alt = ""
         draggable = false // let the card or tab row be the drag source, not the image

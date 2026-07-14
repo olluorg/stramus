@@ -44,17 +44,11 @@ external interface SearchBoxProps : Props {
     /** What the box offers for [query], already ranked and grouped — see `buildHits`. */
     var groups: List<HitGroup>
 
-    /** The box is a question to the model, not a search: the chip is up and the dropdown stays down. */
-    var aiMode: Boolean
-
     var onQueryChange: (String) -> Unit
     var onActivate: (Hit) -> Unit
 
     /** Ctrl/Cmd+Enter: show every matching card in the content area, rather than the best few here. */
     var onShowAll: () -> Unit
-
-    /** Escape while the box is a question to the model. */
-    var onExitAi: () -> Unit
 
     /** The × on a top site: stop offering this page. */
     var onForget: (SiteHit) -> Unit
@@ -64,9 +58,8 @@ external interface SearchBoxProps : Props {
  * The search box: one field for everything the user might mean — a tab they left open, a card they
  * saved, a page they visited, an address, a question for the web, a question for the model.
  *
- * It is the page's default focus, because in the extension this *is* the new tab page and the first
- * thing anyone does on a new tab is type. From anywhere else on the page Ctrl/Cmd+K or "/" bring the
- * focus back.
+ * It does not take the focus when the page opens: the caret starts nowhere, and Ctrl/Cmd+K or "/"
+ * put it in the field from anywhere on the page.
  *
  * The keyboard is the whole point:
  *  - ↑ / ↓ walk the rows (wrapping), and the first row is always preselected, so Enter with no
@@ -85,18 +78,15 @@ val SearchBox = FC<SearchBoxProps> { props ->
     var selected by useState(0)
 
     val hits = props.groups.flatMap { it.hits }
-    val open = focused && !props.aiMode && hits.isNotEmpty()
+    val open = focused && hits.isNotEmpty()
 
     // A new query is a new list: the selection goes back to the best row, or it would sit on whatever
     // row happens to hold that index now.
-    useEffect(props.query, props.aiMode) { selected = 0 }
+    useEffect(props.query) { selected = 0 }
 
-    // The new tab page opens with the caret already in the box. Everywhere else on the page, Ctrl/Cmd+K
-    // and "/" bring it back — "/" only when the user is not writing something, where it is a slash.
-    useEffectOnce {
-        inputRef.current?.focus()
-    }
-
+    // The page opens with the caret nowhere: the box is not what most visits are here for, and a
+    // focused field swallows the keystrokes the rest of the page listens for. Ctrl/Cmd+K and "/"
+    // put the caret in it — "/" only when the user is not writing something, where it is a slash.
     useEffectOnce {
         val stopWatching = onKeyStroke { event ->
             val shortcut = (event.metaKey || event.ctrlKey) && event.key.lowercase() == "k"
@@ -131,17 +121,10 @@ val SearchBox = FC<SearchBoxProps> { props ->
 
         div {
             className = ClassName("search-field")
-            if (props.aiMode) {
-                span {
-                    className = ClassName("ai-chip")
-                    hint(s.aiChipHint)
-                    +s.aiChip
-                }
-            }
             input {
                 ref = inputRef
                 className = ClassName("search")
-                placeholder = if (props.aiMode) s.aiPlaceholder else s.searchPlaceholder
+                placeholder = s.searchPlaceholder
                 value = props.query
                 onChange = { e -> props.onQueryChange(e.target.value) }
                 onFocus = { focused = true }
@@ -152,12 +135,6 @@ val SearchBox = FC<SearchBoxProps> { props ->
                     when {
                         e.key == "ArrowDown" -> { e.preventDefault(); focused = true; move(1) }
                         e.key == "ArrowUp" -> { e.preventDefault(); focused = true; move(-1) }
-
-                        // A question to the model is its own conversation: Enter asks the next one.
-                        props.aiMode && e.key == "Enter" -> {
-                            e.preventDefault()
-                            if (props.query.isNotBlank()) props.onActivate(AiHit(props.query.trim()))
-                        }
 
                         e.key == "Enter" && (e.metaKey || e.ctrlKey) -> { e.preventDefault(); props.onShowAll() }
                         // Whatever is selected, this is the way to the web — the row for it may be
@@ -174,7 +151,6 @@ val SearchBox = FC<SearchBoxProps> { props ->
                         e.key == "Escape" -> {
                             e.preventDefault()
                             when {
-                                props.aiMode -> props.onExitAi()
                                 open -> focused = false
                                 props.query.isNotEmpty() -> props.onQueryChange("")
                                 else -> inputRef.current?.blur()
@@ -196,7 +172,9 @@ val SearchBox = FC<SearchBoxProps> { props ->
                 props.groups.forEach { group ->
                     if (group.hits.isEmpty()) return@forEach
                     div {
-                        key = group.label.ifBlank { group.source.name }.unsafeCast<Key>()
+                        // The address row and the web/model rows are both action groups, so the source
+                        // alone does not name a group: the first row does.
+                        key = "${group.source.name}:${group.hits.first().key}".unsafeCast<Key>()
                         className = ClassName("hit-group")
                         if (group.label.isNotBlank()) {
                             div { className = ClassName("hit-group-label"); +group.label }
@@ -229,7 +207,7 @@ val SearchBox = FC<SearchBoxProps> { props ->
                                             className = ClassName("hit-title")
                                             +when (hit) {
                                                 is WebSearchHit -> s.hitWebSearch(hit.query)
-                                                is AiHit -> s.hitAskAiRow(hit.query)
+                                                is AiHit -> s.hitAskAiRow(hit.provider.askName(s), hit.query)
                                                 is OpenUrlHit -> s.hitOpenUrl(hit.query)
                                                 else -> hit.title
                                             }

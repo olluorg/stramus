@@ -1,15 +1,30 @@
 {
   "manifest_version": 3,
-  "name": "stramus",
-  "version": "0.1.0",
-  "description": "Save and organize your open tabs into collections.",
-  "permissions": ["tabs", "history", "search"],
+  "name": "__MSG_extName__",
+  "short_name": "stramus",
+  "description": "__MSG_extDescription__",
+  "version": "1.0.0",
+  "default_locale": "en",
+  "homepage_url": "https://olluorg.github.io/stramus/",
+  "permissions": ["tabs", "history", "search", "favicon"],
   "minimum_chrome_version": "138",
+  "icons": {
+    "16": "logo-16.png",
+    "32": "logo-32.png",
+    "48": "logo-48.png",
+    "128": "logo-128.png"
+  },
   "chrome_url_overrides": {
     "newtab": "index.html"
   },
   "action": {
-    "default_title": "stramus — open new tab"
+    "default_title": "__MSG_actionTitle__",
+    "default_icon": {
+      "16": "logo-16.png",
+      "32": "logo-32.png",
+      "48": "logo-48.png",
+      "128": "logo-128.png"
+    }
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"

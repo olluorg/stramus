@@ -22,6 +22,8 @@ import stramus.core.model.CardKind
 import stramus.core.model.CardSection
 import stramus.core.model.Collection
 import stramus.core.model.Section
+import stramus.core.repo.ActionStat
+import stramus.core.repo.ActionUsageRepository
 import stramus.core.repo.CachedIcon
 import stramus.core.repo.CardRepository
 import stramus.core.repo.CardSectionRepository
@@ -43,6 +45,7 @@ class StramusStore internal constructor(
     val cards: CardRepository,
     val favicons: FaviconRepository,
     val usage: UsageRepository,
+    val actions: ActionUsageRepository,
 )
 
 /** Words past this in one query are dropped: each one is another LIKE over every card. */
@@ -151,6 +154,7 @@ suspend fun openStramusStore(name: String = "stramus", seed: StoreSeed = StoreSe
         cards,
         KormiumFaviconRepository(db),
         KormiumUsageRepository(db),
+        KormiumActionUsageRepository(db),
     )
 }
 
@@ -298,6 +302,17 @@ internal class KormiumSectionRepository(
     override suspend fun setCollapsed(id: Uuid, collapsed: Boolean) {
         db.suspendTransaction {
             Sections.update(SectionRow().apply { this.collapsed = if (collapsed) 1 else 0 }) { where { Sections.id eq id } }
+        }
+    }
+
+    override suspend fun move(id: Uuid, newIndex: Int) {
+        db.suspendTransaction {
+            val order = Sections.find { orderBy ASC Sections.position }.map { it.id }.toMutableList()
+            if (!order.remove(id)) return@suspendTransaction
+            order.add(newIndex.coerceIn(0, order.size), id)
+            order.forEachIndexed { i, sectionId ->
+                Sections.update(SectionRow().apply { position = i }) { where { Sections.id eq sectionId } }
+            }
         }
     }
 
@@ -483,6 +498,21 @@ internal class KormiumCardSectionRepository(
             CardSections.update(
                 CardSectionRow().apply { this.collapsed = if (collapsed) 1 else 0 },
             ) { where { CardSections.id eq id } }
+        }
+    }
+
+    override suspend fun move(id: Uuid, newIndex: Int) {
+        db.suspendTransaction {
+            val moving = CardSections.findOne { where { CardSections.id eq id } } ?: return@suspendTransaction
+            val order = CardSections.find {
+                where { CardSections.collectionId eq moving.collectionId }
+                orderBy ASC CardSections.position
+            }.map { it.id }.toMutableList()
+            if (!order.remove(id)) return@suspendTransaction
+            order.add(newIndex.coerceIn(0, order.size), id)
+            order.forEachIndexed { i, sectionId ->
+                CardSections.update(CardSectionRow().apply { position = i }) { where { CardSections.id eq sectionId } }
+            }
         }
     }
 
@@ -678,6 +708,37 @@ internal class KormiumCardRepository(
         }
     }
 
+    override suspend fun reorder(collectionId: Uuid, cardSectionId: Uuid?, orderedIds: List<Uuid>) {
+        db.suspendTransaction {
+            val groups = CardSections.find {
+                where { CardSections.collectionId eq collectionId }
+                orderBy ASC CardSections.position
+            }.map { it.id }
+            val all = Cards.find {
+                where { Cards.collectionId eq collectionId }
+                orderBy ASC Cards.position
+            }
+
+            // The collection is renumbered as a whole — ungrouped first, then each section in turn —
+            // because positions are one collection-wide sequence (see [move]). Only the named group
+            // changes order: everywhere else the cards are written back in the order they were read.
+            var pos = 0
+            for (g in listOf<Uuid?>(null) + groups) {
+                val members = all.filter { it.cardSectionId == g }.map { it.id }
+                val ids = if (g == cardSectionId) {
+                    val sorted = orderedIds.filter { it in members }
+                    sorted + members.filterNot { it in sorted }
+                } else {
+                    members
+                }
+                for (cid in ids) {
+                    Cards.update(CardRow().apply { position = pos }) { where { Cards.id eq cid } }
+                    pos++
+                }
+            }
+        }
+    }
+
     // Every word has to be there, but not side by side, and not all in the same field: "kotlin flow"
     // finds the card titled "Flow — Kotlin docs", and finds a note that mentions flows on a page of
     // kotlinlang.org. A single LIKE over the whole query would find neither — and the search box is
@@ -755,6 +816,30 @@ internal class KormiumUsageRepository(
     override suspend fun forget(url: String) {
         db.suspendTransaction {
             Usage.deleteWhere { where { Usage.url eq url } }
+        }
+    }
+}
+
+internal class KormiumActionUsageRepository(
+    private val db: SuspendDatabase<StramusDb>,
+) : ActionUsageRepository {
+
+    override suspend fun all(): List<ActionStat> = db.suspendAutocommit {
+        ActionUsage.all().map { ActionStat(it.kind, it.hits, it.lastUsedAt) }
+    }
+
+    override suspend fun record(kind: String) {
+        // Read, add one, write back under one transaction — as with [KormiumUsageRepository.record],
+        // so two rows taken in the same instant cannot both write back the same count plus one.
+        db.suspendTransaction {
+            val existing = ActionUsage.find { where { ActionUsage.kind eq kind } }.firstOrNull()
+            val row = ActionUsageRow().apply {
+                this.kind = kind
+                this.hits = (existing?.hits ?: 0) + 1
+                this.lastUsedAt = Clock.System.now()
+            }
+            ActionUsage.deleteWhere { where { ActionUsage.kind eq kind } }
+            ActionUsage.insert(row)
         }
     }
 }

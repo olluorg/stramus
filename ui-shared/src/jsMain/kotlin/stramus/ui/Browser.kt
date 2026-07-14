@@ -8,6 +8,7 @@ import react.dom.html.HTMLAttributes
 private external interface BrowserWindow {
     fun prompt(message: String, default: String): String?
     fun confirm(message: String): Boolean
+    fun alert(message: String)
     fun open(url: String, target: String)
     fun getSelection(): JsSelection?
     val localStorage: JsStorage
@@ -41,6 +42,7 @@ private external interface JsSelection
 private external interface JsStorage {
     fun getItem(key: String): String?
     fun setItem(key: String, value: String)
+    fun removeItem(key: String)
 }
 
 private external interface JsDocument {
@@ -142,6 +144,15 @@ internal fun browserPrompt(message: String, default: String = ""): String? =
  */
 internal fun browserConfirm(message: String): Boolean = browserWindow().confirm(message)
 
+/**
+ * Said, not asked: what a drop did *not* take in — a file too big for the database, most often — and
+ * why. There is nothing here to decide, and the rest of the drop has landed already.
+ */
+internal fun browserAlert(message: String) {
+    browserWindow().alert(message)
+}
+
+/** Open a page beside the app: a saved card is followed, but the collection it came from stays up. */
 internal fun openUrl(url: String) {
     browserWindow().open(url, "_blank")
 }
@@ -243,10 +254,10 @@ internal fun onHintTarget(delayMs: Int, onTarget: (HintTarget?) -> Unit): () -> 
 }
 
 /**
- * Go to [url] in *this* tab, leaving stramus behind. This is what a search does: the box sits on the
- * new tab page, and a new tab page that opens a second tab to answer a search is not what searching
- * means. A saved card, by contrast, is opened beside the app ([openUrl]) — the app is where the user
- * still is.
+ * Go to [url] in *this* tab, leaving stramus behind. This is what opening anything from the app means:
+ * the app sits on the new tab page, and a new tab page that opens a *second* tab to answer a click is
+ * not what opening a link means — the tab the user is in is the tab they meant. It holds for a search
+ * from the box and for a saved card alike; the app is one back-button away either way.
  */
 internal fun navigateTo(url: String) {
     browserWindow().location.assign(url)
@@ -258,6 +269,11 @@ internal fun prefGet(key: String): String? = runCatching { browserWindow().local
 /** Persist a UI preference to localStorage. */
 internal fun prefSet(key: String, value: String) {
     runCatching { browserWindow().localStorage.setItem(key, value) }
+}
+
+/** Forget a persisted value — a note draft that has been saved or discarded (see `Drafts.kt`). */
+internal fun prefRemove(key: String) {
+    runCatching { browserWindow().localStorage.removeItem(key) }
 }
 
 /** Apply an explicit theme by stamping `data-theme` on <html>; "auto" clears it (OS decides). */
@@ -302,5 +318,11 @@ internal fun hostOf(url: String): String {
     return afterProto.substringBefore('/').substringBefore('?').removePrefix("www.").ifBlank { url }
 }
 
+/**
+ * The icon URL *stored* with a card whose page offered none of its own. It is a stored value, not a
+ * source: what is actually fetched is decided by [IconSources], and the extension's chain never asks
+ * this service. The URL is kept all the same, so that a collection exported from the extension and
+ * opened in the web app — which has nothing but the icon services — still shows its icons.
+ */
 internal fun faviconFor(url: String): String =
     "https://www.google.com/s2/favicons?domain=${hostOf(url)}&sz=64"

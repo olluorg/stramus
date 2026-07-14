@@ -76,11 +76,20 @@ internal external interface ChromeSearch {
     fun query(queryInfo: Json): Promise<Unit>
 }
 
+/**
+ * `chrome.runtime` — here, only for [getURL]: the address of a file inside the extension, on the
+ * extension's own origin (`chrome-extension://<id>/…`), which is not known until it is installed.
+ */
+internal external interface ChromeRuntime {
+    fun getURL(path: String): String
+}
+
 internal external interface Chrome {
     val tabs: ChromeTabs
     val windows: ChromeWindows
     val history: ChromeHistory
     val search: ChromeSearch
+    val runtime: ChromeRuntime
 }
 
 internal external val chrome: Chrome

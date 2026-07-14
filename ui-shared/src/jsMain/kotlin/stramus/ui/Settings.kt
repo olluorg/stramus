@@ -6,6 +6,8 @@ import react.dom.html.ReactHTML.button
 import react.dom.html.ReactHTML.div
 import react.dom.html.ReactHTML.h3
 import react.dom.html.ReactHTML.h4
+import react.dom.html.ReactHTML.input
+import react.dom.html.ReactHTML.label
 import react.dom.html.ReactHTML.option
 import react.dom.html.ReactHTML.p
 import react.dom.html.ReactHTML.select
@@ -27,6 +29,14 @@ external interface SettingsModalProps : Props {
     /** Current language id: "en" | "ru". */
     var lang: String
     var onLangChange: (String) -> Unit
+
+    /** Whether a link card spells its address out under its title. Off by default. */
+    var showCardUrls: Boolean
+    var onShowCardUrlsChange: (Boolean) -> Unit
+
+    /** What the page opens on: "last" | "first". See [StartView]. */
+    var startView: String
+    var onStartViewChange: (String) -> Unit
     /** Minutes of inactivity before unlocked sections lock again; 0 = never. */
     var autoLockMinutes: Int
     var onAutoLockChange: (Int) -> Unit
@@ -38,7 +48,17 @@ external interface SettingsModalProps : Props {
     var closeSavedTabs: Boolean
     var onCloseSavedTabsChange: (Boolean) -> Unit
 
-    /** The model answering questions from the search box, named — or null where there is none. */
+    /** Who answers a question from the search box: "local" | "chatgpt" | "gemini" | "claude". */
+    var aiProvider: String
+    var onAiProviderChange: (String) -> Unit
+
+    /**
+     * Whether the browser's own model can answer at all. Where it cannot, choosing it would be choosing
+     * silence: the option is dead, and the row underneath says why.
+     */
+    var aiLocalAvailable: Boolean
+
+    /** The built-in model, named — or null where the browser has none. Only shown for the local one. */
     var aiName: String?
 
     /** Its state, so "no AI here" can say *why*: no such browser API, or a machine that cannot run it. */
@@ -46,6 +66,12 @@ external interface SettingsModalProps : Props {
 
     var onExportCsv: () -> Unit
     var onExportBookmarks: () -> Unit
+
+    /** A file the user picked to import, by name and contents. See `importFile`. */
+    var onImport: (name: String, text: String) -> Unit
+
+    /** What the last import did, in the user's words — null until one has been done. */
+    var importStatus: String?
     var onClose: () -> Unit
 }
 
@@ -120,6 +146,55 @@ val SettingsModal = FC<SettingsModalProps> { props ->
                         }
                     }
                 }
+
+                // ---- Whether a card says where it goes ----
+                div {
+                    className = ClassName("settings-row")
+                    div {
+                        className = ClassName("settings-label")
+                        span { className = ClassName("settings-title"); +s.cardUrls }
+                        span { className = ClassName("settings-hint"); +s.cardUrlsHint }
+                    }
+                    div {
+                        // The theme picker's segmented control once more: two ways, one chosen.
+                        className = ClassName("theme-toggle")
+                        listOf(false to s.cardUrlsHide, true to s.cardUrlsShow).forEach { (show, label) ->
+                            button {
+                                className = ClassName(
+                                    if (props.showCardUrls == show) "theme-opt active" else "theme-opt",
+                                )
+                                onClick = { props.onShowCardUrlsChange(show) }
+                                +label
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ---- Startup: the collection the page comes back to ----
+            div {
+                className = ClassName("settings-section")
+                h4 { +s.startupSection }
+                div {
+                    className = ClassName("settings-row")
+                    div {
+                        className = ClassName("settings-label")
+                        span { className = ClassName("settings-title"); +s.startView }
+                        span { className = ClassName("settings-hint"); +s.startViewHint }
+                    }
+                    div {
+                        // The theme picker's control again: two ways to open, one chosen.
+                        className = ClassName("theme-toggle")
+                        StartView.entries.forEach { view ->
+                            button {
+                                className =
+                                    ClassName(if (props.startView == view.id) "theme-opt active" else "theme-opt")
+                                onClick = { props.onStartViewChange(view.id) }
+                                +view.label(s)
+                            }
+                        }
+                    }
+                }
             }
 
             // ---- Tabs: what saving a window's worth of them leaves behind ----
@@ -180,22 +255,65 @@ val SettingsModal = FC<SettingsModalProps> { props ->
                 }
             }
 
-            // ---- The model behind the search box's "ask the AI" ----
+            // ---- Who answers the search box's "ask the AI" ----
             //
-            // It is nobody's business but the user's what is answering them, so this says which model
-            // it is, where it runs, and — when it cannot answer at all — why not.
+            // It is nobody's business but the user's what is answering them — and whether it answers
+            // here or somewhere on the web. So this is where that is chosen, and where the built-in
+            // model says which one it is, where it runs, and — when it cannot answer at all — why not.
             div {
                 className = ClassName("settings-section")
                 h4 { +s.aiSection }
-                val (title, hint) = aiStatusOf(props.aiName, props.aiState, s)
+                val provider = AiProvider.from(props.aiProvider)
                 div {
                     className = ClassName("settings-row")
                     div {
                         className = ClassName("settings-label")
-                        span { className = ClassName("settings-title"); +s.aiModel }
-                        span { className = ClassName("settings-hint"); +hint }
+                        span { className = ClassName("settings-title"); +s.aiAssistant }
+                        span { className = ClassName("settings-hint"); +s.aiAssistantHint }
                     }
-                    span { className = ClassName("ai-model"); +title }
+                    div {
+                        // Four options: wider than the theme picker's two, but the same control.
+                        className = ClassName("theme-toggle")
+                        AiProvider.entries.forEach { option ->
+                            // A model this browser cannot run is not a choice to offer — it is greyed
+                            // out, and the row underneath says what is wrong with it.
+                            val dead = option == AiProvider.LOCAL && !props.aiLocalAvailable
+                            button {
+                                className =
+                                    ClassName(if (provider == option) "theme-opt active" else "theme-opt")
+                                disabled = dead
+                                onClick = { props.onAiProviderChange(option.id) }
+                                +option.label(s)
+                            }
+                        }
+                    }
+                }
+
+                // What there is to say about the built-in model: which one it is, and — when it cannot
+                // answer — why not, which is *also* said when it is not the one answering, since that
+                // is the whole reason a web chat is. The web chats themselves have nothing to report:
+                // they are the user's own accounts, and all this app does with them is open one.
+                if (provider == AiProvider.LOCAL || !props.aiLocalAvailable) {
+                    val (title, hint) = aiStatusOf(props.aiName, props.aiState, s)
+                    div {
+                        className = ClassName("settings-row")
+                        div {
+                            className = ClassName("settings-label")
+                            span { className = ClassName("settings-title"); +s.aiModel }
+                            span { className = ClassName("settings-hint"); +hint }
+                        }
+                        span { className = ClassName("ai-model"); +title }
+                    }
+                }
+                if (provider != AiProvider.LOCAL) {
+                    div {
+                        className = ClassName("settings-row")
+                        div {
+                            className = ClassName("settings-label")
+                            span { className = ClassName("settings-title"); +provider.label(s) }
+                            span { className = ClassName("settings-hint"); +s.aiWebChatHint(provider.label(s)) }
+                        }
+                    }
                 }
             }
 
@@ -216,6 +334,34 @@ val SettingsModal = FC<SettingsModalProps> { props ->
                         onClick = { props.onExportBookmarks() }
                         +s.exportBookmarks
                     }
+                }
+            }
+
+            // ---- Data import: the way back in, and the way in from another browser ----
+            //
+            // The button is a <label> over a hidden file input — the only way to open the file dialog
+            // without one, and the reason this reads as a button while the input itself is never seen.
+            div {
+                className = ClassName("settings-section")
+                h4 { +s.import }
+                p { className = ClassName("settings-hint"); +s.importHint }
+                div {
+                    className = ClassName("settings-actions")
+                    label {
+                        className = ClassName("btn")
+                        +s.importFile
+                        input {
+                            type = FILE_INPUT_TYPE
+                            className = ClassName("hidden-file-input")
+                            accept = ".html,.htm,.csv,text/html,text/csv"
+                            onChange = { e ->
+                                readPickedText(e.target) { name, text -> props.onImport(name, text) }
+                            }
+                        }
+                    }
+                }
+                props.importStatus?.let { status ->
+                    p { className = ClassName("settings-hint"); +status }
                 }
             }
         }

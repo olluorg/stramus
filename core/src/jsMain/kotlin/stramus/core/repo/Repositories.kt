@@ -62,6 +62,14 @@ interface SectionRepository {
 
     /** Put a deleted section, and everything that went with it, back where it was. */
     suspend fun restore(deleted: DeletedSection)
+
+    /**
+     * Move [id] to [newIndex] among the sections, in sidebar order, and renumber them all. Powers
+     * dragging a section header up or down the sidebar. The collections under a section are not
+     * touched: they are ordered within their own section, so they follow it wherever it goes.
+     */
+    suspend fun move(id: Uuid, newIndex: Int)
+
     /** Persist whether the section is collapsed (hidden) in the sidebar. */
     suspend fun setCollapsed(id: Uuid, collapsed: Boolean)
     /** The id of the non-deletable default section, creating it if the database has none. */
@@ -120,6 +128,13 @@ interface CardSectionRepository {
     suspend fun update(id: Uuid, title: String, description: String?)
     /** Persist whether the section is collapsed (hidden) inside its collection. */
     suspend fun setCollapsed(id: Uuid, collapsed: Boolean)
+
+    /**
+     * Move [id] to [newIndex] among the sections of its own collection, and renumber them. Powers
+     * dragging a section header up or down the grid. The cards do not move: each one is drawn under
+     * the section it belongs to, so they follow their section to its new place.
+     */
+    suspend fun move(id: Uuid, newIndex: Int)
 
     /**
      * Delete a section; its cards are not deleted with it, they become ungrouped (cardSectionId =
@@ -195,6 +210,14 @@ interface CardRepository {
     suspend fun move(id: Uuid, toCollectionId: Uuid, cardSectionId: Uuid?, newIndex: Int)
 
     /**
+     * Lay the cards of one group — [cardSectionId] of [collectionId], null = ungrouped — out in the
+     * order [orderedIds] names them, and leave the rest of the collection where it is. What a sort
+     * writes: [orderedIds] is the whole group, so a card the caller left out (one saved while the
+     * sort was being chosen) keeps its place at the end rather than being dropped.
+     */
+    suspend fun reorder(collectionId: Uuid, cardSectionId: Uuid?, orderedIds: List<Uuid>)
+
+    /**
      * Cards whose title, URL or note body contain [query] (case-insensitive), across all
      * collections. A file's bytes are not searched — they are not in the table this reads.
      */
@@ -232,6 +255,33 @@ interface UsageRepository {
 
     /** Forget a page entirely — it drops out of the ranking and out of the top sites. */
     suspend fun forget(url: String)
+}
+
+/**
+ * One kind of thing the user does with the search box — [kind] is the id of a `HitAction` in the UI —
+ * done [hits] times in all, the last of them at [lastUsedAt].
+ */
+data class ActionStat(
+    val kind: String,
+    val hits: Int,
+    val lastUsedAt: Instant,
+)
+
+/**
+ * What the user *does* in the search box, as opposed to which pages they open: every row they take is
+ * counted under its kind — a tab switched to, a card followed, a question put to the model, a search
+ * sent to the web. The search ranks by it, so the box comes to lead with whatever the user keeps
+ * coming to it for.
+ *
+ * A handful of rows in all, read once on start and held in memory for the session (see `Usage.kt` in
+ * the UI) — the ranking consults it for every candidate of every keystroke.
+ */
+interface ActionUsageRepository {
+    /** Every kind the user has ever taken. Read once on start into the in-memory index. */
+    suspend fun all(): List<ActionStat>
+
+    /** Count one use of [kind], now. */
+    suspend fun record(kind: String)
 }
 
 /**

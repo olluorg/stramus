@@ -2,9 +2,12 @@ package stramus.ui
 
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
+import stramus.core.repo.ActionStat
+import stramus.core.repo.ActionUsageRepository
 import stramus.core.repo.UsageRepository
 import stramus.core.repo.UsageStat
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
  * What the user actually uses: how often, and how recently, each page has been opened *from stramus*.
@@ -68,13 +71,13 @@ internal fun forgetUse(url: String) {
 }
 
 /**
- * How much a page opened [hits] times, last of them at `lastUsedAt`, is worth now. Recency is what
+ * How much something used [hits] times, last of them at [lastUsedAt], is worth now. Recency is what
  * separates the site someone used every day last year from the one they use every day this week, so
  * it is a multiplier on the count rather than a term beside it: an old habit fades however deep it
  * once was, and a fortnight of daily use outranks it.
  */
-private fun frecency(stat: UsageStat): Double {
-    val days = (Clock.System.now() - stat.lastUsedAt).inWholeDays
+private fun frecency(hits: Int, lastUsedAt: Instant): Double {
+    val days = (Clock.System.now() - lastUsedAt).inWholeDays
     val weight = when {
         days <= 1 -> 1.0
         days <= 3 -> 0.8
@@ -83,8 +86,12 @@ private fun frecency(stat: UsageStat): Double {
         days <= 90 -> 0.2
         else -> 0.1
     }
-    return stat.hits * weight
+    return hits * weight
 }
+
+private fun frecency(stat: UsageStat): Double = frecency(stat.hits, stat.lastUsedAt)
+
+private fun frecency(stat: ActionStat): Double = frecency(stat.hits, stat.lastUsedAt)
 
 private fun hostTotals(): Map<String, Double> = hostTotals ?: stats.values
     .groupBy { it.host }
@@ -107,3 +114,49 @@ internal fun frecencyOf(url: String): Double {
 /** The user's top sites, most-used first: what an empty search box offers. */
 internal fun topSites(limit: Int): List<UsageStat> =
     stats.values.sortedByDescending { frecency(it) }.take(limit)
+
+// ---- What the user does with the box, as opposed to which pages they open ----
+
+/**
+ * How often each kind of row is taken (see [HitAction]). Same idea as [stats], and kept the same way:
+ * read once on start, updated in memory the moment a row is taken, written back in the background.
+ */
+private val actionStats = mutableMapOf<String, ActionStat>()
+
+/** The frecency of every kind added together — the denominator of [habitShareOf]. Dropped on a write. */
+private var actionTotal: Double? = null
+
+private var actionRepository: ActionUsageRepository? = null
+
+/** Load what the user has taken before, so the first keystroke already leads with their habits. */
+internal suspend fun initActionIndex(repo: ActionUsageRepository) {
+    actionRepository = repo
+    runCatching { repo.all().forEach { actionStats[it.kind] = it } }
+    actionTotal = null
+}
+
+/** Count one use of [action] — every row taken from the search box goes through here. */
+internal fun recordAction(action: HitAction) {
+    val existing = actionStats[action.id]
+    actionStats[action.id] = ActionStat(
+        kind = action.id,
+        hits = (existing?.hits ?: 0) + 1,
+        lastUsedAt = Clock.System.now(),
+    )
+    actionTotal = null
+    actionRepository?.let { repo -> usageScope.launch { runCatching { repo.record(action.id) } } }
+}
+
+/**
+ * How much of what the user does in the search box is [action] — 0.0 for a kind of row they never
+ * take, 1.0 for one they always take. A *share*, not a count, because it is added to scores that are
+ * matched on a fixed scale: the ranking has to say "this user asks the model more often than they
+ * open cards", which is a comparison between kinds, and a raw count would instead say "this user has
+ * been here a long time" and lift everything at once.
+ */
+internal fun habitShareOf(action: HitAction): Double {
+    val total = actionTotal ?: actionStats.values.sumOf { frecency(it) }.also { actionTotal = it }
+    if (total <= 0.0) return 0.0
+    val own = actionStats[action.id]?.let { frecency(it) } ?: 0.0
+    return own / total
+}
