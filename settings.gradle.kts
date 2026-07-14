@@ -21,4 +21,4 @@ if (file("../korm").isDirectory) {
     includeBuild("../korm")
 }
 
-include("core", "ui-shared", "webapp", "extension")
+include("core", "ui-shared", "webapp", "extension", "protocol", "server")
