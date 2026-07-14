@@ -23,6 +23,8 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 import stramus.core.crypto.hashPin
 import stramus.core.crypto.randomSalt
+import stramus.core.crypto.sha256HexBytes
+import stramus.core.sync.DataUri
 import stramus.core.model.Card
 import stramus.core.model.CardKind
 import stramus.core.model.CardSection
@@ -124,6 +126,7 @@ suspend fun openStramusStore(db: SuspendDatabase<StramusDb>, seed: StoreSeed = S
         runCatching { Sections.execSql("""ALTER TABLE "sections" ADD COLUMN "pinHash" text""") }
         runCatching { Collections.execSql("""ALTER TABLE "collections" ADD COLUMN "readOnly" integer NOT NULL DEFAULT 0""") }
         runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "thumb" text""") }
+        runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "blobSha" text""") }
     }
 
     migrateToOrderKeys(db)
@@ -346,8 +349,10 @@ private fun <K> keysFor(ids: List<Uuid>, groupOf: (Uuid) -> K): Map<Uuid, String
 private fun SectionRow.toModel() = Section(id, title, orderKey, deletable != 0, collapsed != 0, pinHash != null)
 private fun CollectionRow.toModel() = Collection(id, sectionId, title, orderKey, createdAt, readOnly != 0)
 private fun CardSectionRow.toModel() = CardSection(id, collectionId, title, description, orderKey, collapsed != 0)
-private fun CardRow.toModel() =
-    Card(id, collectionId, cardSectionId, CardKind.from(kind), title, url, favicon, content, thumb, mime, orderKey, createdAt)
+private fun CardRow.toModel() = Card(
+    id, collectionId, cardSectionId, CardKind.from(kind), title, url, favicon, content, thumb, mime, blobSha,
+    orderKey, createdAt,
+)
 
 // The way back from a model to the row it came from — what an undo writes. A restored row keeps its
 // id and its order key, so what comes back is the thing that was deleted, in the place it was deleted
@@ -383,6 +388,7 @@ private fun Card.toRow() = CardRow().apply {
     this.content = this@toRow.content
     this.thumb = this@toRow.thumb
     this.mime = this@toRow.mime
+    this.blobSha = this@toRow.blobSha
     this.orderKey = this@toRow.orderKey
     this.createdAt = this@toRow.createdAt
     this.updatedAt = Clock.System.now()
@@ -910,6 +916,9 @@ internal class KormiumCardRepository(
         mime = mime,
         thumb = thumb,
         blob = dataUri,
+        // Hashed here, once, when the file arrives — not on every sync. It is what the server will store
+        // the bytes under, and what another device will ask for them by.
+        blobSha = DataUri.bytesOf(dataUri)?.let { sha256HexBytes(it) },
     )
 
     private suspend fun insert(
@@ -923,6 +932,7 @@ internal class KormiumCardRepository(
         mime: String?,
         thumb: String? = null,
         blob: String? = null,
+        blobSha: String? = null,
     ): Card {
         val row = CardRow().apply {
             this.id = Uuid.random()
@@ -935,6 +945,7 @@ internal class KormiumCardRepository(
             this.content = content
             this.thumb = thumb
             this.mime = mime
+            this.blobSha = blobSha
             this.orderKey = appendKey(lastKeyOfGroup(db, collectionId, cardSectionId))
             this.createdAt = Clock.System.now()
             this.updatedAt = Clock.System.now()

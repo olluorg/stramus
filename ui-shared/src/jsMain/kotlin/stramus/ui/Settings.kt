@@ -34,6 +34,10 @@ external interface SettingsModalProps : Props {
     var showCardUrls: Boolean
     var onShowCardUrlsChange: (Boolean) -> Unit
 
+    /** Whether the browsing statistics go up to the account with everything else. Off unless asked for. */
+    var syncUsage: Boolean
+    var onSyncUsageChange: (Boolean) -> Unit
+
     /** What the page opens on: "last" | "first". See [StartView]. */
     var startView: String
     var onStartViewChange: (String) -> Unit
@@ -164,6 +168,35 @@ val SettingsModal = FC<SettingsModalProps> { props ->
                                     if (props.showCardUrls == show) "theme-opt active" else "theme-opt",
                                 )
                                 onClick = { props.onShowCardUrlsChange(show) }
+                                +label
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ---- What leaves this machine ----
+            // Collections are things the user chose to keep. The statistics are a trace of what they did —
+            // which pages, how often — and that is a different kind of thing to hand a server. So it is a
+            // question, asked once, answered "no" until they say otherwise.
+            div {
+                className = ClassName("settings-section")
+                h4 { +s.account }
+                div {
+                    className = ClassName("settings-row")
+                    div {
+                        className = ClassName("settings-label")
+                        span { className = ClassName("settings-title"); +s.syncUsage }
+                        span { className = ClassName("settings-hint"); +s.syncUsageHint }
+                    }
+                    div {
+                        className = ClassName("theme-toggle")
+                        listOf(false to s.optionOff, true to s.optionOn).forEach { (on, label) ->
+                            button {
+                                className = ClassName(
+                                    if (props.syncUsage == on) "theme-opt active" else "theme-opt",
+                                )
+                                onClick = { props.onSyncUsageChange(on) }
                                 +label
                             }
                         }

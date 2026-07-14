@@ -102,3 +102,20 @@ data class SyncResponse(
     /** The delta was cut short. Sync again straight away with the new [rev] to get the rest. */
     val hasMore: Boolean = false,
 )
+
+/**
+ * Which of these the server has already, and which it wants.
+ *
+ * A file is addressed by the SHA-256 of its bytes, not by the card that holds it. Two cards with the same
+ * PDF are one blob; a card moved between collections keeps its blob without touching it; and uploading the
+ * same file twice is a no-op the server can answer without reading a byte. The bytes never travel in the
+ * JSON delta — a `data:` URI of a 10 MB file would be a 13 MB row in the middle of a sync.
+ */
+@Serializable
+data class BlobCheckRequest(val shas: List<String>)
+
+@Serializable
+data class BlobCheckResponse(
+    /** The ones the server does not have. Only these need uploading. */
+    val missing: List<String>,
+)

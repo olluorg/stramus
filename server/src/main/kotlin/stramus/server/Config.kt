@@ -33,6 +33,15 @@ data class ServerConfig(
     /** How long a mailed one-time code is good for. */
     val loginCodeTtl: Duration = 10.minutes,
 
+    /** Where the file bytes live. Not in the database: a backup should not have to copy them. */
+    val blobDir: String = "blobs",
+
+    /** The largest single file. A tab manager is not a file host, and someone will try. */
+    val maxBlobBytes: Int = 10 * 1024 * 1024,
+
+    /** The most one account may store. */
+    val quotaBytes: Long = 500L * 1024 * 1024,
+
     /** Browsers refuse a cross-origin request that this does not name. Both clients are cross-origin. */
     val allowedOrigins: List<String> = listOf("http://localhost:8080"),
 
@@ -44,6 +53,7 @@ data class ServerConfig(
             val config = ServerConfig(
                 port = env["PORT"]?.toIntOrNull() ?: 8090,
                 databasePath = env["STRAMUS_DB"] ?: "stramus.db",
+                blobDir = env["STRAMUS_BLOBS"] ?: "blobs",
                 jwtSecret = env["STRAMUS_JWT_SECRET"] ?: "dev-secret-not-for-production",
                 allowedOrigins = env["STRAMUS_ALLOWED_ORIGINS"]
                     ?.split(',')

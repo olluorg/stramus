@@ -90,6 +90,8 @@ data class Card(
     val content: String?,
     val thumb: String?,
     val mime: String?,
+    /** The hash of a file's bytes — how the server names them, and how a card asks for them. */
+    val blobSha: String?,
     val orderKey: String,
     val createdAt: Instant,
 )

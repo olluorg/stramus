@@ -518,6 +518,12 @@ val App = FC<AppProps> { props ->
     var syncUi by useState(SyncUi())
     var accountOpen by useState(false)
 
+    // Off unless the user says otherwise. The collections are things they chose to keep; this is a record
+    // of where they have been, and that is not the same thing to put on a server.
+    var syncUsage by useState(prefGet("syncUsage") == "1")
+    val syncUsageRef = useRef(syncUsage)
+    syncUsageRef.current = syncUsage
+
     var sections by useState<List<Section>>(emptyList())
     var collections by useState<List<Collection>>(emptyList())
     var selectedId by useState<Uuid?>(null)
@@ -708,7 +714,9 @@ val App = FC<AppProps> { props ->
             val secs = s.sections.all()
             val cols = s.collections.all()
             store = s
-            engine = SyncEngine(s.db, api)
+            // The engine asks the ref, not the value it was built with: the user can turn the statistics off
+            // between two runs, and when they do it has to stop at the next one, not at the next reload.
+            engine = SyncEngine(s.db, api, api) { syncUsageRef.current == true }
             sections = secs
             collections = cols
             selectedId = startCollection(cols, secs, startView)
@@ -2716,6 +2724,15 @@ val App = FC<AppProps> { props ->
                 onShowCardUrlsChange = { show ->
                     showCardUrls = show
                     prefSet("showCardUrls", if (show) "1" else "0")
+                }
+                this.syncUsage = syncUsage
+                onSyncUsageChange = { on ->
+                    syncUsage = on
+                    prefSet("syncUsage", if (on) "1" else "0")
+                    // Turning it *on* has to go and fetch what was skipped while it was off: those rows came
+                    // down in the delta, were dropped on the floor, and the cursor moved past them. Only a
+                    // fresh read of the whole account brings them back.
+                    if (on) scope.launch { engine?.refetchEverything(); runSync() }
                 }
                 this.startView = startView.id
                 onStartViewChange = { id ->

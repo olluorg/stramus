@@ -4,6 +4,7 @@ package stramus.server
 
 import io.github.kormium.KormiumException
 import io.github.kormium.database.SuspendDatabase
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
@@ -22,10 +23,13 @@ import io.ktor.server.plugins.di.dependencies
 import io.ktor.server.plugins.di.provide
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.receive
+import io.ktor.server.request.receiveChannel
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondBytes
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
+import io.ktor.server.routing.put
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import kotlinx.serialization.json.Json
@@ -39,6 +43,8 @@ import stramus.protocol.LogoutRequest
 import stramus.protocol.Me
 import stramus.protocol.RefreshRequest
 import stramus.protocol.AccountExport
+import stramus.protocol.BlobCheckRequest
+import stramus.protocol.BlobCheckResponse
 import stramus.protocol.RegisterRequest
 import stramus.protocol.SyncRequest
 
@@ -59,6 +65,7 @@ fun Application.stramusModule(
     val sessions = Sessions(db, config, accessTokens)
     val accounts = Accounts(db, config, sessions, mailer)
     val sync = SyncService(db)
+    val blobs = BlobStore(db, config)
 
     // Ktor's own DI, keyed by the full type: this is what `call.transaction<ServerDb, _> { }` resolves
     // the database out of, so a route never has to be handed one.
@@ -80,6 +87,8 @@ fun Application.stramusModule(
         allowHeader(HttpHeaders.ContentType)
         allowMethod(HttpMethod.Post)
         allowMethod(HttpMethod.Get)
+        allowMethod(HttpMethod.Put)
+        allowMethod(HttpMethod.Delete)
     }
 
     install(Authentication) {
@@ -101,6 +110,9 @@ fun Application.stramusModule(
         }
         exception<AuthException> { call, e ->
             call.respond(HttpStatusCode.Unauthorized, ApiError("auth", e.message ?: "unauthorized"))
+        }
+        exception<QuotaException> { call, e ->
+            call.respond(HttpStatusCode.PayloadTooLarge, ApiError("quota", e.message ?: "too large"))
         }
         exception<KormiumException> { call, e ->
             call.respond(HttpStatusCode.InternalServerError, ApiError("database", e.message ?: "database error"))
@@ -167,6 +179,30 @@ fun Application.stramusModule(
             }
 
             /**
+             * The files. Addressed by the hash of their bytes, so uploading one twice is free, two cards
+             * holding the same PDF are one file, and a card that merely moved does not resend anything.
+             *
+             * The bytes never travel in the sync delta: a 10 MB file as a `data:` URI would be a 13 MB row
+             * in the middle of a JSON body that the app is waiting on.
+             */
+            post("/v1/blobs/check") {
+                val body = call.receive<BlobCheckRequest>()
+                call.respond(BlobCheckResponse(blobs.missing(call.userId(), body.shas)))
+            }
+
+            put("/v1/blobs/{sha}") {
+                val sha = call.parameters["sha"] ?: throw AccountException(400, "no hash")
+                blobs.put(call.userId(), sha, call.receive<ByteArray>())
+                call.respond(HttpStatusCode.NoContent)
+            }
+
+            get("/v1/blobs/{sha}") {
+                val sha = call.parameters["sha"] ?: throw AccountException(400, "no hash")
+                val bytes = blobs.get(call.userId(), sha) ?: throw AccountException(404, "no such file")
+                call.respondBytes(bytes, ContentType.Application.OctetStream)
+            }
+
+            /**
              * Everything the server holds about the caller, in the form it holds it. The right to have a
              * copy of your data, and to take it elsewhere — and the honest test of whether we know what
              * we are storing.
@@ -188,7 +224,11 @@ fun Application.stramusModule(
              * the account goes. Not a flag — nothing is left behind that says this person was ever here.
              */
             delete("/v1/account") {
-                accounts.delete(call.userId())
+                val userId = call.userId()
+                // The bytes first: a row deleted without its file would leave the file behind with nothing
+                // left to say whose it was.
+                blobs.deleteAll(userId)
+                accounts.delete(userId)
                 call.respond(HttpStatusCode.NoContent)
             }
         }

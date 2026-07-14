@@ -36,3 +36,10 @@ actual suspend fun sha256Hex(input: String): String {
     val digest = webCrypto().subtle.digest("SHA-256", TextEncoder().encode(input)).await()
     return Uint8Array(digest).toHex()
 }
+
+actual suspend fun sha256HexBytes(bytes: ByteArray): String {
+    val array = Uint8Array(bytes.size)
+    bytes.forEachIndexed { i, byte -> array.asDynamic()[i] = byte }
+    val digest = webCrypto().subtle.digest("SHA-256", array).await()
+    return Uint8Array(digest).toHex()
+}

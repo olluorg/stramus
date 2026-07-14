@@ -385,6 +385,8 @@ interface Strings {
     val deleteAccountConfirm: String
     val syncUsage: String
     val syncUsageHint: String
+    val optionOn: String
+    val optionOff: String
 
     val seed: StoreSeed
 }
@@ -688,6 +690,8 @@ private object EnStrings : Strings {
     override val deleteAccountConfirm = "Delete the account and everything the server holds? This cannot be undone."
     override val syncUsage = "Sync browsing statistics"
     override val syncUsageHint = "Which pages you open, and how often — what the search ranks by. Off means it stays on this machine."
+    override val optionOn = "On"
+    override val optionOff = "Off"
 
     override val seed = StoreSeed(
         sectionTitle = "Main",
@@ -1019,6 +1023,8 @@ private object RuStrings : Strings {
     override val deleteAccountConfirm = "Удалить аккаунт и всё, что хранит сервер? Это не отменить."
     override val syncUsage = "Синхронизировать статистику посещений"
     override val syncUsageHint = "Какие страницы вы открываете и как часто — то, по чему ранжируется поиск. Выключено — остаётся на этой машине."
+    override val optionOn = "Вкл"
+    override val optionOff = "Выкл"
 
     override val seed = StoreSeed(
         sectionTitle = "Главный",

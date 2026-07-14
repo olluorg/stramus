@@ -7,6 +7,8 @@ import io.github.kormium.SuspendScope
 import io.github.kormium.and
 import io.github.kormium.database.SuspendDatabase
 import io.github.kormium.eq
+import io.github.kormium.isNotNull
+import io.github.kormium.isNull
 import io.github.kormium.suspendTransaction
 import kotlin.time.Clock
 import kotlin.uuid.ExperimentalUuidApi
@@ -14,6 +16,7 @@ import kotlin.uuid.Uuid
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import stramus.core.db.CardBlobRow
 import stramus.core.db.CardBlobs
 import stramus.core.db.CardRow
 import stramus.core.db.CardSections
@@ -26,6 +29,7 @@ import stramus.core.db.SyncMetaRow
 import stramus.core.db.SyncState
 import stramus.core.db.SyncStateRow
 import stramus.core.order.OrderKey
+import stramus.protocol.COUNTER_TABLES
 import stramus.protocol.RowKey
 import stramus.protocol.SyncRequest
 import stramus.protocol.SyncResponse
@@ -34,6 +38,20 @@ import stramus.protocol.SyncRow
 /** What the engine talks to. The app hands it HTTP; a test hands it the server, in process. */
 fun interface SyncApi {
     suspend fun sync(request: SyncRequest): SyncResponse
+}
+
+/**
+ * The files, which do not travel in the delta.
+ *
+ * Addressed by the hash of their bytes: [missing] is the only question worth asking before an upload, and
+ * it makes saving the same file twice — or moving a card, or renaming it — cost nothing at all.
+ */
+interface BlobApi {
+    /** Which of [shas] the server has not got. */
+    suspend fun missing(shas: List<String>): List<String>
+    suspend fun upload(sha: String, bytes: ByteArray)
+    /** The bytes, or null if the server has not got them (a device that has not uploaded them yet). */
+    suspend fun download(sha: String): ByteArray?
 }
 
 /** The keys of [SyncState]. */
@@ -66,6 +84,13 @@ data class SyncResult(
 class SyncEngine(
     private val db: SuspendDatabase<StramusDb>,
     private val api: SyncApi,
+    /** Null in a test that has no interest in files; the app always has one. */
+    private val blobs: BlobApi? = null,
+    /**
+     * Whether the browsing statistics go up with everything else. Asked on every run rather than held,
+     * because the user can turn it off between two of them — and when they do, it must stop at once.
+     */
+    private val syncUsage: () -> Boolean = { false },
 ) {
 
     /**
@@ -105,6 +130,17 @@ class SyncEngine(
     suspend fun signedIn(): Boolean = db.suspendTransaction { getState(KEY_USER) != null }
 
     /**
+     * Ask the server for everything again on the next run.
+     *
+     * What turning the statistics option *on* needs: while it was off, those rows were coming down in the
+     * delta and being dropped, and the cursor moved past them. Nothing but a fresh read of the whole account
+     * will bring them back — and since the base versions are kept, this costs a download and pushes nothing.
+     */
+    suspend fun refetchEverything() {
+        db.suspendTransaction { putState(KEY_REV, "0") }
+    }
+
+    /**
      * One round trip. Returns null if there is no account — in which case this is not an error and not a
      * failure, it is the app doing what it has always done.
      *
@@ -122,7 +158,8 @@ class SyncEngine(
         while (true) {
             // Read outside the write transaction: this reads every row of every synced table, and holding
             // a write lock across a network call would be a way to freeze the app on a slow connection.
-            val local = db.suspendTransaction { readAllForSync() }
+            val withUsage = syncUsage()
+            val local = db.suspendTransaction { readAllForSync(withUsage) }
             val bases = db.suspendTransaction {
                 SyncMeta.all().associate { RowKey(it.tbl, it.rowId) to it }
             }
@@ -159,6 +196,10 @@ class SyncEngine(
                 }
 
                 response.rows.forEach { row ->
+                    // Statistics the user asked us not to sync are not written down here either. They came
+                    // from their own other device, but the option means "this stays on the machine it is
+                    // on", and applying them would quietly undo that.
+                    if (!withUsage && row.tbl in COUNTER_TABLES) return@forEach
                     applyRemote(row)
                     putBase(RowKey(row.tbl, row.id), hashOf(row), row.rev)
                 }
@@ -168,12 +209,73 @@ class SyncEngine(
                 putState(KEY_REV, response.rev.toString())
             }
 
+            // The bytes, after the rows: a card arrives first and its file follows, so a grid that redraws
+            // in between shows a file card with its preview and no bytes — which is what it shows anyway
+            // until the user opens it.
+            reconcileBlobs()
+
             pushed += response.accepted.size
             applied += response.rows.size
             copies += conflictCopies.size
             rev = response.rev
 
             if (!response.hasMore) return SyncResult(pushed, applied, copies, rev)
+        }
+    }
+
+    /**
+     * Send up the files this device has and the server has not; fetch down the files a card names and this
+     * device has not got.
+     *
+     * Nothing here is allowed to fail a sync. A file past the account's quota, a network that dies halfway
+     * through a 9 MB upload — the rows are already in step, and the bytes are tried again on the next run.
+     * A card is not damaged by its file being late: it draws its preview and says its name, and opening it
+     * is the only thing that needs the bytes at all.
+     */
+    private suspend fun reconcileBlobs() {
+        val blobs = blobs ?: return
+
+        val cards = db.suspendTransaction {
+            Cards.find { where { Cards.blobSha.isNotNull() and Cards.deletedAt.isNull() } }
+        }
+        if (cards.isEmpty()) return
+
+        val held = mutableMapOf<String, String>() // sha -> the `data:` URI this device holds for it
+        val wanted = mutableListOf<CardRow>() // cards whose bytes are somewhere else
+
+        db.suspendTransaction {
+            cards.forEach { card ->
+                val sha = card.blobSha ?: return@forEach
+                val local = CardBlobs.findOne { where { CardBlobs.cardId eq card.id } }
+                if (local != null) {
+                    if (sha !in held) held[sha] = local.data
+                } else {
+                    wanted += card
+                }
+            }
+        }
+
+        if (held.isNotEmpty()) {
+            // One question for the lot: which of these have you not got? Everything the server already holds
+            // — every file that was uploaded once, on any device — costs nothing to "sync" ever again.
+            runCatching { blobs.missing(held.keys.toList()) }.getOrNull()?.forEach { sha ->
+                val bytes = held[sha]?.let { DataUri.bytesOf(it) } ?: return@forEach
+                runCatching { blobs.upload(sha, bytes) }
+            }
+        }
+
+        wanted.forEach { card ->
+            val sha = card.blobSha ?: return@forEach
+            val bytes = runCatching { blobs.download(sha) }.getOrNull() ?: return@forEach
+            db.suspendTransaction {
+                CardBlobs.deleteWhere { where { CardBlobs.cardId eq card.id } }
+                CardBlobs.insert(
+                    CardBlobRow().apply {
+                        cardId = card.id
+                        data = DataUri.of(bytes, card.mime)
+                    },
+                )
+            }
         }
     }
 }

@@ -17,3 +17,6 @@ actual fun randomSalt(): String = ByteArray(16).also { random.nextBytes(it) }.to
 
 actual suspend fun sha256Hex(input: String): String =
     MessageDigest.getInstance("SHA-256").digest(input.encodeToByteArray()).toHex()
+
+actual suspend fun sha256HexBytes(bytes: ByteArray): String =
+    MessageDigest.getInstance("SHA-256").digest(bytes).toHex()

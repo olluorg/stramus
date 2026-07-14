@@ -121,6 +121,7 @@ class CardRow : Entity() {
     var content by Cards.content
     var thumb by Cards.thumb
     var mime by Cards.mime
+    var blobSha by Cards.blobSha
     var orderKey by Cards.orderKey
     var createdAt by Cards.createdAt
     var updatedAt by Cards.updatedAt
@@ -139,6 +140,16 @@ object Cards : Table<StramusDb, CardRow>("cards", ::CardRow) {
     val thumb by Column.Text().nullable() // downscaled preview of an image file, a `data:` URI
     val mime by Column.Text().nullable() // file MIME type
 
+    /**
+     * The SHA-256 of a file card's bytes — the name the server stores them under, and the only part of a
+     * file that travels in the sync delta. Null for anything that is not a file.
+     *
+     * It lives on the card rather than beside the bytes because that is where a device that has *not* got
+     * the bytes can see it: a card arriving from another machine says "my file is this one", and the engine
+     * goes and fetches it.
+     */
+    val blobSha by Column.Text().nullable()
+
     // Ordered within its group — the (collection, card section) it hangs under, ungrouped cards being
     // the group whose section is null. Cards of different groups never compare, so the positions of a
     // collection are no longer one sequence that every move has to renumber.
@@ -149,7 +160,7 @@ object Cards : Table<StramusDb, CardRow>("cards", ::CardRow) {
     val deletedAt by Column.Instant().nullable()
 
     init {
-        id; collectionId; cardSectionId; kind; title; url; favicon; content; thumb; mime
+        id; collectionId; cardSectionId; kind; title; url; favicon; content; thumb; mime; blobSha
         orderKey; createdAt; updatedAt; deletedAt
     }
 }
@@ -353,6 +364,7 @@ internal val schemaTableDdl: List<String> = listOf(
         "content" text,
         "thumb" text,
         "mime" text,
+        "blobSha" text,
         "orderKey" text NOT NULL,
         "createdAt" text NOT NULL,
         "updatedAt" text NOT NULL,

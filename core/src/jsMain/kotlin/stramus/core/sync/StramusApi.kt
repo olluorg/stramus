@@ -9,6 +9,7 @@ import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
@@ -22,6 +23,8 @@ import kotlin.uuid.Uuid
 import kotlinx.browser.localStorage
 import kotlinx.serialization.json.Json
 import stramus.protocol.ApiError
+import stramus.protocol.BlobCheckRequest
+import stramus.protocol.BlobCheckResponse
 import stramus.protocol.CodeRequest
 import stramus.protocol.CodeVerifyRequest
 import stramus.protocol.LoginRequest
@@ -65,7 +68,7 @@ class StramusApi(
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         expectSuccess = false
     },
-) : SyncApi {
+) : SyncApi, BlobApi {
 
     private var accessToken: String? = null
 
@@ -138,6 +141,39 @@ class StramusApi(
             setBody(request)
         }
     }.body()
+
+    // ---- files -------------------------------------------------------------------------------------
+
+    override suspend fun missing(shas: List<String>): List<String> = withToken { token ->
+        http.post("$baseUrl/v1/blobs/check") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(BlobCheckRequest(shas))
+        }
+    }.body<BlobCheckResponse>().missing
+
+    override suspend fun upload(sha: String, bytes: ByteArray) {
+        withToken { token ->
+            http.put("$baseUrl/v1/blobs/$sha") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                contentType(ContentType.Application.OctetStream)
+                setBody(bytes)
+            }
+        }
+    }
+
+    override suspend fun download(sha: String): ByteArray? {
+        val response = runCatching {
+            withToken { token ->
+                http.get("$baseUrl/v1/blobs/$sha") { header(HttpHeaders.Authorization, "Bearer $token") }
+            }
+        }.getOrElse {
+            // The other device has the card but has not uploaded its bytes yet — which is an ordinary state
+            // of the world for a minute or two, not an error to report.
+            return null
+        }
+        return response.body()
+    }
 
     private fun signOutLocally() {
         accessToken = null

@@ -117,4 +117,17 @@ val serverMigrations: List<Migration<ServerDb>> = listOf(
         CREATE INDEX "idx_sync_rows_delta" ON "sync_rows" ("userId", "rev");
         """,
     ),
+    Migration(
+        "003-blobs",
+        """
+        CREATE TABLE "blobs" (
+            "sha" text NOT NULL,
+            "userId" text NOT NULL,
+            "size" integer NOT NULL,
+            "createdAt" text NOT NULL,
+            PRIMARY KEY ("sha", "userId")
+        );
+        CREATE INDEX "idx_blobs_user" ON "blobs" ("userId");
+        """,
+    ),
 )

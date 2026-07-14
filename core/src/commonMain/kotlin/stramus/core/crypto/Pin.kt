@@ -26,5 +26,8 @@ expect fun randomSalt(): String
 /** Hex SHA-256 of [input]. What the sync engine hashes a row's canonical form with. */
 expect suspend fun sha256Hex(input: String): String
 
+/** Hex SHA-256 of [bytes] — the name a file is stored and fetched under, on both sides. */
+expect suspend fun sha256HexBytes(bytes: ByteArray): String
+
 /** The stored form of [pin] under [salt]: hex SHA-256 of the two, joined by a colon. */
 suspend fun hashPin(pin: String, salt: String): String = sha256Hex("$salt:$pin")

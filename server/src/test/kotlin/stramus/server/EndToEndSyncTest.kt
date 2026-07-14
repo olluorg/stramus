@@ -7,11 +7,14 @@ import io.github.kormium.database.SuspendDatabase
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.testing.ApplicationTestBuilder
@@ -27,8 +30,12 @@ import stramus.core.db.StramusDb
 import stramus.core.db.StoreSeed
 import stramus.core.db.StramusStore
 import stramus.core.db.openStramusStore
+import stramus.core.sync.BlobApi
+import stramus.core.sync.DataUri
 import stramus.core.sync.SyncApi
 import stramus.core.sync.SyncEngine
+import stramus.protocol.BlobCheckRequest
+import stramus.protocol.BlobCheckResponse
 import stramus.protocol.LoginRequest
 import stramus.protocol.RegisterRequest
 import stramus.protocol.SyncRequest
@@ -161,6 +168,58 @@ class EndToEndSyncTest {
     }
 
     @Test
+    fun `a file saved on one device can be opened on the other`() = twoDevices { laptop, phone ->
+        val collection = laptop.store.collections.all().first().id
+        val bytes = sampleFile(seed = 7)
+        val card = laptop.store.cards.addFile(collection, "diagram.png", bytes, "image/png")
+
+        laptop.engine.syncNow() // pushes the card, then uploads the bytes it names
+        phone.engine.syncNow() // takes the card, then goes and fetches the bytes
+
+        // The card is not enough — a file card whose blob never arrived opens empty, which is the whole
+        // point of the exercise.
+        assertEquals(bytes, phone.store.cards.blob(card.id), "the bytes should have followed the card")
+    }
+
+    @Test
+    fun `the same file on two cards is uploaded once`() = twoDevices { laptop, phone ->
+        val collection = laptop.store.collections.all().first().id
+        val bytes = sampleFile(seed = 3)
+        val first = laptop.store.cards.addFile(collection, "a.png", bytes, "image/png")
+        val second = laptop.store.cards.addFile(collection, "b.png", bytes, "image/png")
+
+        laptop.engine.syncNow()
+        phone.engine.syncNow()
+
+        // Content-addressed: two cards, one file. Both open, and the server stored the bytes once.
+        assertEquals(bytes, phone.store.cards.blob(first.id))
+        assertEquals(bytes, phone.store.cards.blob(second.id))
+    }
+
+    @Test
+    fun `browsing statistics stay on the machine unless the user says otherwise`() = twoDevices { laptop, phone ->
+        laptop.store.usage.record("kotlinlang.org/docs", "Kotlin docs")
+        laptop.engine.syncNow()
+        phone.engine.syncNow()
+
+        // Off by default, and off means off: the pages someone visits are not the same kind of thing as the
+        // collections they chose to keep, and nothing about syncing the one implies consent to sync the other.
+        assertTrue(phone.store.usage.all().isEmpty(), "usage should not have travelled: ${phone.store.usage.all()}")
+    }
+
+    @Test
+    fun `statistics travel once the user turns them on`() = twoDevices(syncUsage = { true }) { laptop, phone ->
+        laptop.store.usage.record("kotlinlang.org/docs", "Kotlin docs")
+        laptop.store.usage.record("kotlinlang.org/docs", "Kotlin docs")
+        laptop.engine.syncNow()
+        phone.engine.syncNow()
+
+        val onThePhone = phone.store.usage.all()
+        assertEquals(1, onThePhone.size, "usage should have travelled: $onThePhone")
+        assertEquals(2, onThePhone.single().hits)
+    }
+
+    @Test
     fun `nothing is pushed twice — a second sync with no changes sends nothing`() = twoDevices { laptop, _ ->
         val collection = laptop.store.collections.all().first().id
         laptop.store.cards.add(collection, "Kotlin", "https://kotlinlang.org", null)
@@ -180,11 +239,17 @@ class EndToEndSyncTest {
 
 private class Device(val store: StramusStore, val engine: SyncEngine)
 
+/** A tiny PNG, as the app would hold it: bytes wrapped in a `data:` URI. */
+private fun sampleFile(seed: Byte): String {
+    val bytes = ByteArray(64) { (it + seed).toByte() }
+    return DataUri.of(bytes, "image/png")
+}
+
 /**
  * One account, two devices, one server. The phone joins an account that already exists, so it starts by
  * throwing away what a fresh install seeded itself — otherwise the user would end up with two "Main"s.
  */
-private fun twoDevices(block: suspend (Device, Device) -> Unit) = testApplication {
+private fun twoDevices(syncUsage: () -> Boolean = { false }, block: suspend (Device, Device) -> Unit) = testApplication {
     val config = ServerConfig(databasePath = tempPath("server"))
     application { stramusModule(config, openServerDatabase(config)) }
 
@@ -205,8 +270,8 @@ private fun twoDevices(block: suspend (Device, Device) -> Unit) = testApplicatio
 
     val userId = Uuid.random() // the client only needs *an* id to mark the database as signed in
 
-    val laptop = device(http, registered.accessToken, userId, laptopId, discardLocal = false)
-    val phone = device(http, phoneTokens.accessToken, userId, phoneId, discardLocal = true)
+    val laptop = device(http, registered.accessToken, userId, laptopId, discardLocal = false, syncUsage = syncUsage)
+    val phone = device(http, phoneTokens.accessToken, userId, phoneId, discardLocal = true, syncUsage = syncUsage)
 
     block(laptop, phone)
 }
@@ -217,6 +282,7 @@ private suspend fun device(
     userId: Uuid,
     deviceId: Uuid,
     discardLocal: Boolean,
+    syncUsage: () -> Boolean = { false },
 ): Device {
     val db: SuspendDatabase<StramusDb> = createSqliteDatabase(tempPath("client-$deviceId"))
     val store = openStramusStore(db, StoreSeed("Main", "Getting started", "How to use", "Drag a link here."))
@@ -231,7 +297,32 @@ private suspend fun device(
         }.body()
     }
 
-    val engine = SyncEngine(db, api)
+    // The files travel by their own road — the same one the browser uses.
+    val blobs = object : BlobApi {
+        override suspend fun missing(shas: List<String>): List<String> =
+            http.post("/v1/blobs/check") {
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+                contentType(ContentType.Application.Json)
+                setBody(BlobCheckRequest(shas))
+            }.body<BlobCheckResponse>().missing
+
+        override suspend fun upload(sha: String, bytes: ByteArray) {
+            http.put("/v1/blobs/$sha") {
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+                contentType(ContentType.Application.OctetStream)
+                setBody(bytes)
+            }
+        }
+
+        override suspend fun download(sha: String): ByteArray? {
+            val response = http.get("/v1/blobs/$sha") {
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+            }
+            return if (response.status == HttpStatusCode.OK) response.body() else null
+        }
+    }
+
+    val engine = SyncEngine(db, api, blobs, syncUsage)
     engine.signIn(userId, deviceId, discardLocal)
     return Device(store, engine)
 }
