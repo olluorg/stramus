@@ -127,6 +127,7 @@ suspend fun openStramusStore(db: SuspendDatabase<StramusDb>, seed: StoreSeed = S
         runCatching { Collections.execSql("""ALTER TABLE "collections" ADD COLUMN "readOnly" integer NOT NULL DEFAULT 0""") }
         runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "thumb" text""") }
         runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "blobSha" text""") }
+        runCatching { Usage.execSql("""ALTER TABLE "usage" ADD COLUMN "deletedAt" text""") }
     }
 
     migrateToOrderKeys(db)
@@ -227,6 +228,7 @@ private suspend fun purgeTombstones(db: SuspendDatabase<StramusDb>) {
         CardSections.deleteWhere { where { CardSections.deletedAt lt cutoff } }
         Collections.deleteWhere { where { Collections.deletedAt lt cutoff } }
         Sections.deleteWhere { where { Sections.deletedAt lt cutoff } }
+        Usage.deleteWhere { where { Usage.deletedAt lt cutoff } }
     }
 }
 
@@ -1146,7 +1148,8 @@ internal class KormiumUsageRepository(
 ) : UsageRepository {
 
     override suspend fun all(): List<UsageStat> = db.suspendAutocommit {
-        Usage.all().map { UsageStat(it.url, it.title, it.host, it.hits, it.lastUsedAt) }
+        Usage.find { where { Usage.deletedAt.isNull() } }
+            .map { UsageStat(it.url, it.title, it.host, it.hits, it.lastUsedAt) }
     }
 
     override suspend fun record(url: String, title: String) {
@@ -1154,14 +1157,19 @@ internal class KormiumUsageRepository(
         // cannot both read the same count and each write it back plus one.
         db.suspendTransaction {
             val existing = Usage.find { where { Usage.url eq url } }.firstOrNull()
+            // A page that was forgotten and is now open again starts over. The old count is not what the
+            // user asked to be rid of — the *suggestion* was — but bringing back the fifty visits they told
+            // us to forget would put the page straight back at the top of the box, which is the same thing.
+            val forgotten = existing?.deletedAt != null
             val row = UsageRow().apply {
                 this.url = url
                 // A page whose title is not known this time keeps the one it had: a card renamed to
                 // nothing, or a tab still loading, should not blank out a name the user recognises.
                 this.title = title.ifBlank { existing?.title ?: url }
                 this.host = url.substringBefore('/')
-                this.hits = (existing?.hits ?: 0) + 1
+                this.hits = if (forgotten) 1 else (existing?.hits ?: 0) + 1
                 this.lastUsedAt = Clock.System.now()
+                this.deletedAt = null
             }
             Usage.deleteWhere { where { Usage.url eq url } }
             Usage.insert(row)
@@ -1170,7 +1178,13 @@ internal class KormiumUsageRepository(
 
     override suspend fun forget(url: String) {
         db.suspendTransaction {
-            Usage.deleteWhere { where { Usage.url eq url } }
+            if (syncing()) {
+                // A tombstone, like any other deletion: without it the other device — which still has the
+                // page — would push it back up, and the suggestion the user just dismissed would return.
+                Usage.update(UsageRow().apply { deletedAt = Clock.System.now() }) { where { Usage.url eq url } }
+            } else {
+                Usage.deleteWhere { where { Usage.url eq url } }
+            }
         }
     }
 }

@@ -14,6 +14,7 @@
             --text: #1c2024;
             --muted: #6b7280;
             --accent: #2563eb;
+            --warn: #b45309;
         }
 
         @media (prefers-color-scheme: dark) {
@@ -24,6 +25,7 @@
                 --text: #e7e9ee;
                 --muted: #9aa4b2;
                 --accent: #6ea8fe;
+                --warn: #e3a008;
             }
         }
 
@@ -60,6 +62,13 @@
             margin: 24px 0 0;
         }
 
+        /* The one thing on this page a reader must not skim past. */
+        .warn {
+            border-left: 3px solid var(--warn);
+            padding-left: 16px;
+            margin: 20px 0;
+        }
+
         hr { border: 0; border-top: 1px solid var(--border); margin: 48px 0; }
 
         ul { padding-left: 22px; }
@@ -80,15 +89,16 @@
     <p class="updated">Last updated: 14 July 2026</p>
 
     <p class="lede">
-        stramus collects nothing. It has no accounts, no servers, no analytics and no telemetry. Your
-        collections, links, files and settings are stored in your own browser, on your own machine, and
-        the extension sends them nowhere — not to us, not to anyone else.
+        stramus works without an account, and without one it sends nothing anywhere: your collections,
+        links, files and settings live in your own browser, on your own machine. An account is optional,
+        and it exists for one reason — to have the same collections on your other browser. This page says
+        exactly what an account changes, including the parts that are not flattering.
     </p>
 
-    <h2>What stramus stores, and where</h2>
+    <h2>Without an account</h2>
     <p>
-        Everything stramus knows lives in a database inside your browser's local storage for this
-        extension (SQLite on the browser's own file system). That is:
+        Everything stramus knows lives in a database inside your browser's own storage (SQLite, on the
+        browser's file system). That is:
     </p>
     <ul>
         <li>the collections, sections and cards you create — their titles, links, notes and order;</li>
@@ -99,31 +109,100 @@
         <li>your settings: theme, language, sort order, the assistant you chose, and any section PINs.</li>
     </ul>
     <p>
-        None of it is uploaded anywhere. There is nowhere for it to go: stramus has no backend. You can
-        take it with you at any time — Settings offers an export to CSV and to a bookmarks file — and
-        removing the extension removes the database with it.
+        None of it is uploaded anywhere. There is nowhere for it to go: with no account, stramus talks to
+        no server of ours at all. You can take it with you at any time — Settings offers an export to CSV
+        and to a bookmarks file — and removing the extension removes the database with it.
     </p>
 
-    <h2>The permissions it asks for</h2>
+    <h2>With an account</h2>
+    <p>
+        Signing in turns on synchronisation. From then on, the following is copied to our server so that
+        your other browser can have it:
+    </p>
+    <ul>
+        <li>your sections, collections, card groups and cards — titles, links, note text, the order you put
+            them in, and when each was created and last changed;</li>
+        <li>the bytes of files saved into cards, and the small previews shown in the grid;</li>
+        <li>your email address, which is what the account is;</li>
+        <li>an identifier for each browser you sign in on, so that signing out of one does not sign out of
+            the others.</li>
+    </ul>
+
+    <div class="warn">
+        <h3>A PIN on a section does not hide it from us</h3>
+        <p>
+            A section PIN keeps a section off your screen — its collections are not even named in the
+            sidebar until the PIN is entered, and its cards stay out of search and out of export. It is a
+            lock against someone at your machine. It is <strong>not</strong> encryption: the cards inside a
+            locked section are stored on your machine, and synced to our server, in plain text, exactly like
+            any other card. If you have things you would not want on someone else's computer, a section PIN
+            is not what will keep them off it.
+        </p>
+    </div>
+
+    <h3>Your browsing statistics are not synced unless you ask</h3>
+    <p>
+        stramus counts which pages you open from it, and how often — that is what ranks your search box. It
+        is a record of where you have been, which is a different kind of thing from the collections you
+        chose to keep, so it is treated differently: <strong>it stays on your machine unless you turn
+        "Sync browsing statistics" on in Settings</strong>. It is off by default, and while it is off those
+        rows are neither sent to the server nor accepted from your other devices.
+    </p>
+    <p>
+        Asking stramus to stop suggesting a page removes it here and on your other browsers, and it does not
+        come back — the count starts from nothing if you ever open the page again.
+    </p>
+
+    <h3>What the server does not do</h3>
+    <ul>
+        <li>No analytics, no telemetry, no tracking, no advertising, no profiling.</li>
+        <li>Nothing is sold, and nothing is shared with anyone. There is no third party in this.</li>
+        <li>The contents of your cards are not read, indexed or looked at. Searching and sorting happen in
+            your browser; to the server a card is an opaque blob it stores and hands back.</li>
+        <li>Your browsing history (the browser's own) is never uploaded, with or without an account.</li>
+    </ul>
+
+    <h3>How long things are kept</h3>
+    <p>
+        For as long as the account exists. A deletion syncs as a deletion and is swept for good after
+        30 days — the time your other browser has to hear about it. Sign-in codes die in ten minutes;
+        sign-in sessions expire, and can be ended from any browser you are signed in on.
+    </p>
+
+    <h3>Your rights over this</h3>
+    <ul>
+        <li><strong>A copy of everything.</strong> The account dialog exports every row the server holds
+            about you, in the same form it holds it.</li>
+        <li><strong>Deletion.</strong> Deleting the account erases it — the rows, the files, the devices,
+            the sessions, the account itself. It is not a flag; nothing is kept back. What is on your
+            machine stays on your machine.</li>
+        <li><strong>Signing out.</strong> Leaves your data exactly where it was: it was yours before there
+            was an account, and it still is.</li>
+    </ul>
+    <p>
+        The legal basis for storing your collections is performing the service you asked for
+        (synchronisation); for the browsing statistics it is your consent, which is why that one is a switch
+        you turn on and can turn off.
+    </p>
+
+    <h2>The permissions the extension asks for</h2>
     <ul>
         <li><strong>tabs</strong> — to list the tabs you have open, so you can save them into a collection,
             reorder them, and close them from the tab pane. Tab titles and URLs are read while stramus is
             open and are written down only for the tabs you choose to save.</li>
         <li><strong>history</strong> — to power the history pane and to let a page you visited turn up in
             the search box. The browsing history is read from the browser as you search it; stramus keeps
-            no copy of it.</li>
+            no copy of it and never uploads it.</li>
         <li><strong>search</strong> — to send a query from the search box to <em>your</em> default search
             engine, whichever one you have set, exactly as the address bar would.</li>
         <li><strong>favicon</strong> — to read site icons from the browser's own favicon store, so that
             drawing your saved links does not require asking any icon service on the internet who they
             belong to.</li>
+        <li><strong>access to the stramus server</strong> — used only when you have an account, and only to
+            sync what this page describes.</li>
     </ul>
 
-    <h2>What leaves your machine, and only because you asked</h2>
-    <p>
-        The extension makes no network requests of its own. Three things send something outward, each of
-        them a thing you did on purpose:
-    </p>
+    <h2>What else leaves your machine, and only because you asked</h2>
     <ul>
         <li><strong>Opening a saved link or a tab</strong> goes to that site, as clicking any link does.</li>
         <li><strong>Searching the web</strong> from the search box hands your query to your default search
@@ -139,8 +218,7 @@
     <h2>The web app at olluorg.github.io/stramus</h2>
     <p>
         The same app also runs as a plain web page, without a browser extension around it. It stores your
-        data in that page's local storage in exactly the same way, and it is subject to two differences
-        worth naming:
+        data in the same way and syncs in the same way, and it differs in two respects worth naming:
     </p>
     <ul>
         <li>Having no browser to ask for site icons, it fetches them from public icon services
@@ -153,7 +231,7 @@
     </ul>
 
     <h2>Children</h2>
-    <p>stramus collects no personal data from anyone, of any age.</p>
+    <p>stramus is not directed at children, and asks for no personal data beyond an email address.</p>
 
     <h2>Changes</h2>
     <p>
@@ -174,15 +252,16 @@
 
     <div lang="ru">
         <p class="lede">
-            stramus ничего не собирает. Здесь нет ни аккаунтов, ни серверов, ни аналитики, ни телеметрии.
-            Коллекции, ссылки, файлы и настройки хранятся в вашем браузере, на вашем компьютере, и
-            расширение никуда их не отправляет — ни нам, ни кому-либо ещё.
+            stramus работает без аккаунта, и без аккаунта не отправляет никуда ничего: коллекции, ссылки,
+            файлы и настройки лежат в вашем браузере, на вашем компьютере. Аккаунт — дело добровольное, и
+            нужен он ровно для одного: чтобы те же коллекции были во втором браузере. Ниже — что именно
+            меняет аккаунт, включая то, что нас не красит.
         </p>
 
-        <h2>Что хранится и где</h2>
+        <h2>Без аккаунта</h2>
         <p>
-            Всё, что известно stramus, лежит в базе данных внутри локального хранилища браузера (SQLite на
-            собственной файловой системе браузера). А именно:
+            Всё, что известно stramus, лежит в базе данных внутри хранилища браузера (SQLite на его
+            собственной файловой системе). А именно:
         </p>
         <ul>
             <li>коллекции, разделы и карточки, которые вы создали, — их названия, ссылки, заметки и порядок;</li>
@@ -193,9 +272,80 @@
             <li>настройки: тема, язык, порядок сортировки, выбранный ассистент и PIN-коды разделов.</li>
         </ul>
         <p>
-            Ничего из этого никуда не выгружается — и выгружать некуда: у stramus нет серверной части. Забрать
-            свои данные можно в любой момент (в настройках есть экспорт в CSV и в файл закладок), а удаление
-            расширения удаляет базу вместе с ним.
+            Ничего из этого никуда не выгружается — и выгружать некуда: без аккаунта stramus вообще не
+            разговаривает с нашим сервером. Забрать свои данные можно в любой момент (в настройках есть
+            экспорт в CSV и в файл закладок), а удаление расширения удаляет базу вместе с ним.
+        </p>
+
+        <h2>С аккаунтом</h2>
+        <p>
+            Вход включает синхронизацию. С этого момента на наш сервер уезжает следующее — чтобы второй
+            браузер мог это получить:
+        </p>
+        <ul>
+            <li>разделы, коллекции, группы и карточки — названия, ссылки, тексты заметок, порядок, который вы
+                им задали, и даты создания и последнего изменения;</li>
+            <li>байты файлов, сохранённых в карточки, и их маленькие превью для сетки;</li>
+            <li>адрес электронной почты — он и есть аккаунт;</li>
+            <li>идентификатор каждого браузера, в котором вы вошли, — чтобы выход в одном не выкидывал вас из
+                остальных.</li>
+        </ul>
+
+        <div class="warn">
+            <h3>PIN на разделе не прячет его от нас</h3>
+            <p>
+                PIN убирает раздел с экрана: пока код не введён, его коллекции даже не названы в боковой
+                панели, а карточки не попадают ни в поиск, ни в экспорт. Это замок от человека, стоящего рядом
+                с вашим компьютером. Но это <strong>не шифрование</strong>: карточки внутри запертого раздела
+                лежат и на вашей машине, и на нашем сервере в открытом виде — ровно как любые другие. Если есть
+                вещи, которых вы не хотели бы видеть на чужом компьютере, PIN на разделе — не то, что их туда
+                не пустит.
+            </p>
+        </div>
+
+        <h3>Статистика посещений не синхронизируется, пока вы этого не попросите</h3>
+        <p>
+            stramus считает, какие страницы вы из него открываете и как часто, — этим ранжируется строка
+            поиска. Это след того, где вы были, и это другая по чувствительности вещь, чем коллекции, которые
+            вы решили сохранить. Поэтому и обращение с ней другое: <strong>она остаётся на вашей машине, пока
+            вы не включите «Синхронизировать статистику посещений» в настройках</strong>. По умолчанию —
+            выключено, и пока выключено, эти строки не отправляются на сервер и не принимаются с других
+            устройств.
+        </p>
+        <p>
+            Если попросить stramus больше не предлагать страницу, она исчезнет и здесь, и на других ваших
+            браузерах, и обратно не вернётся — а если вы когда-нибудь откроете её снова, счёт начнётся с нуля.
+        </p>
+
+        <h3>Чего сервер не делает</h3>
+        <ul>
+            <li>Никакой аналитики, телеметрии, трекинга, рекламы и профилирования.</li>
+            <li>Ничего не продаётся и ни с кем не делится. Третьей стороны здесь нет.</li>
+            <li>Содержимое карточек не читается и не индексируется: поиск и сортировка живут в вашем браузере,
+                а для сервера карточка — непрозрачный блоб, который он хранит и отдаёт обратно.</li>
+            <li>История браузера не выгружается никогда — ни с аккаунтом, ни без него.</li>
+        </ul>
+
+        <h3>Сколько всё это хранится</h3>
+        <p>
+            Пока существует аккаунт. Удаление синхронизируется как удаление и окончательно вычищается через
+            30 дней — это срок, за который второй браузер должен о нём узнать. Коды входа живут десять минут;
+            сессии истекают и могут быть прекращены из любого браузера, где вы вошли.
+        </p>
+
+        <h3>Ваши права на всё это</h3>
+        <ul>
+            <li><strong>Копия всего.</strong> В окне аккаунта есть экспорт: сервер отдаёт всё, что о вас
+                хранит, в том же виде, в котором хранит.</li>
+            <li><strong>Удаление.</strong> Удаление аккаунта стирает его — строки, файлы, устройства, сессии,
+                сам аккаунт. Это не флажок; ничего не остаётся. То, что лежит на вашей машине, остаётся у вас.</li>
+            <li><strong>Выход.</strong> Оставляет ваши данные ровно там, где они были: они были вашими до
+                аккаунта и остаются вашими после.</li>
+        </ul>
+        <p>
+            Правовое основание хранения коллекций — исполнение услуги, о которой вы попросили
+            (синхронизация); для статистики посещений — ваше согласие, поэтому она и сделана переключателем,
+            который можно выключить.
         </p>
 
         <h2>Запрашиваемые разрешения</h2>
@@ -204,15 +354,16 @@
                 переупорядочить и закрыть. Заголовки и адреса вкладок читаются, пока stramus открыт, и
                 записываются только для тех вкладок, которые вы сохранили.</li>
             <li><strong>history</strong> — панель истории и поиск по посещённым страницам. История читается у
-                браузера в момент поиска; stramus её копию не хранит.</li>
+                браузера в момент поиска; stramus её копию не хранит и никуда не отправляет.</li>
             <li><strong>search</strong> — отправить запрос из строки поиска в <em>ваш</em> поисковик по
                 умолчанию, тот, который вы выбрали, — ровно как это делает адресная строка.</li>
             <li><strong>favicon</strong> — читать иконки сайтов из собственного хранилища браузера, чтобы для
                 отрисовки ваших ссылок не приходилось спрашивать о них внешние сервисы иконок.</li>
+            <li><strong>доступ к серверу stramus</strong> — используется только при наличии аккаунта и только
+                для синхронизации того, что описано на этой странице.</li>
         </ul>
 
-        <h2>Что уходит наружу — и только по вашей воле</h2>
-        <p>Расширение не делает собственных сетевых запросов. Наружу уходит только то, что вы сами запросили:</p>
+        <h2>Что ещё уходит наружу — и только по вашей воле</h2>
         <ul>
             <li><strong>Открытие сохранённой ссылки или вкладки</strong> — обращение к самому сайту, как при
                 любом клике по ссылке.</li>
@@ -227,8 +378,8 @@
 
         <h2>Веб-версия на olluorg.github.io/stramus</h2>
         <p>
-            То же приложение работает и как обычная веб-страница, без расширения вокруг. Данные оно хранит так
-            же — локально, — но отличается в двух вещах:
+            То же приложение работает и как обычная веб-страница, без расширения вокруг. Данные оно хранит и
+            синхронизирует так же, но отличается в двух вещах:
         </p>
         <ul>
             <li>браузер о иконках сайтов ему спросить нечего, поэтому иконки запрашиваются у публичных сервисов
@@ -240,7 +391,9 @@
         </ul>
 
         <h2>Дети</h2>
-        <p>stramus не собирает персональные данные ни у кого, независимо от возраста.</p>
+        <p>
+            stramus не адресован детям и не запрашивает персональных данных сверх адреса электронной почты.
+        </p>
 
         <h2>Изменения</h2>
         <p>

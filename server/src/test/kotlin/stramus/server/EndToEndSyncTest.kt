@@ -220,6 +220,48 @@ class EndToEndSyncTest {
     }
 
     @Test
+    fun `forgetting a page travels, and the page does not come back`() = twoDevices(syncUsage = { true }) { laptop, phone ->
+        laptop.store.usage.record("kotlinlang.org/docs", "Kotlin docs")
+        laptop.engine.syncNow()
+        phone.engine.syncNow()
+        assertEquals(1, phone.store.usage.all().size)
+
+        laptop.store.usage.forget("kotlinlang.org/docs")
+        laptop.engine.syncNow()
+        phone.engine.syncNow()
+
+        assertTrue(phone.store.usage.all().isEmpty(), "the page should be gone from the phone as well")
+
+        // And it stays gone. Without a tombstone the phone — which still held the tally when it last looked
+        // — would push it straight back, and the page the user dismissed would be at the top of the box
+        // again on both machines.
+        phone.engine.syncNow()
+        laptop.engine.syncNow()
+        assertTrue(laptop.store.usage.all().isEmpty(), "forgotten on the laptop: ${laptop.store.usage.all()}")
+        assertTrue(phone.store.usage.all().isEmpty(), "forgotten on the phone: ${phone.store.usage.all()}")
+    }
+
+    @Test
+    fun `opening a forgotten page again brings it back, counting from nothing`() = twoDevices(syncUsage = { true }) { laptop, phone ->
+        repeat(5) { laptop.store.usage.record("kotlinlang.org/docs", "Kotlin docs") }
+        laptop.store.usage.forget("kotlinlang.org/docs")
+        laptop.engine.syncNow()
+        phone.engine.syncNow()
+        assertTrue(phone.store.usage.all().isEmpty())
+
+        // The user changes their mind by doing the only thing that could mean it: they open the page.
+        phone.store.usage.record("kotlinlang.org/docs", "Kotlin docs")
+        phone.engine.syncNow()
+        laptop.engine.syncNow()
+
+        val back = laptop.store.usage.all()
+        assertEquals(1, back.size, "the page should be back: $back")
+        // From one, not from six. The five visits went with the instruction to forget them — bringing them
+        // back would put the page at the top of the box again, which is what the user asked us not to do.
+        assertEquals(1, back.single().hits)
+    }
+
+    @Test
     fun `nothing is pushed twice — a second sync with no changes sends nothing`() = twoDevices { laptop, _ ->
         val collection = laptop.store.collections.all().first().id
         laptop.store.cards.add(collection, "Kotlin", "https://kotlinlang.org", null)

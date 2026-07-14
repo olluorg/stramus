@@ -89,10 +89,13 @@ class SyncService(private val db: SuspendDatabase<ServerDb>) {
                 }
 
                 if (row.tbl in COUNTER_TABLES) {
-                    // A tally, not a value: take the larger of each field rather than the later row.
-                    val merged = mergeCounters(existing, incoming)
-                    write(userId, deviceId, merged, newRev)
-                    accepted += RowKey(row.tbl, row.id)
+                    // A tally, not a value — and one that can also be *forgotten*, which is not a smaller
+                    // tally but a different kind of thing. See [mergeCounter].
+                    val merged = mergeCounter(existing, incoming)
+                    if (merged != null) {
+                        write(userId, deviceId, merged, newRev)
+                        accepted += RowKey(row.tbl, row.id)
+                    }
                     continue
                 }
 
@@ -191,13 +194,44 @@ private fun SyncRow.clamped(now: Instant): SyncRow {
 }
 
 /**
- * The merge for a counter: the larger tally, the later use. Neither device's openings are thrown away,
- * which is what taking the whole row of whoever wrote last would do.
+ * The merge for a counter — and for the one thing that can happen to a counter that is not counting.
  *
- * It is not a true distributed counter — two devices that each count five openings while apart end up
- * with five, not ten. Making that exact means a per-device tally and a table many times the size, to
- * sharpen a number whose only job is to sort a search box.
+ * Two tallies merge by taking the larger of each field: neither device's openings are thrown away, which is
+ * what taking the whole row of whoever wrote last would do. (It is not a true distributed counter — two
+ * devices that each count five openings while apart end up with five, not ten. Making that exact means a
+ * per-device tally and a table many times the size, to sharpen a number whose only job is to sort a search
+ * box.)
+ *
+ * **Forgetting is different, and it is the case that matters.** "Stop suggesting this page" is not a smaller
+ * count; it is an instruction, and merging it by maximum would ignore it entirely — the other device still
+ * has the tally, pushes it back, and the page the user dismissed is at the top of the box again. So a
+ * tombstone beats any count *made before it*, and only a use made *after* it brings the page back — which is
+ * exactly right, because opening a page again is the user changing their mind.
+ *
+ * Returns null when the server's version stands and nothing should be written.
  */
+private fun mergeCounter(server: SyncRowEntity, incoming: SyncRow): SyncRow? {
+    val incomingAt = Instant.parse(incoming.updatedAt)
+    val forgetting = incoming.deletedAt != null
+    val forgotten = server.deletedAt != null
+
+    return when {
+        // Forgotten on both: keep whichever was said last, so both devices agree on when it happened.
+        forgetting && forgotten -> if (incomingAt >= server.updatedAt) incoming else null
+
+        // Forgetting beats a count that was made before the user said so, and loses to one made after —
+        // a page opened again since is a page they want back.
+        forgetting -> if (incomingAt >= server.updatedAt) incoming else null
+
+        // The page was forgotten, and this device opened it again afterwards. It comes back with the count
+        // that device has, not the one it had before being forgotten: the old tally went with the instruction.
+        forgotten -> if (incomingAt > server.updatedAt) incoming else null
+
+        else -> mergeCounters(server, incoming)
+    }
+}
+
+/** Two live tallies: the larger of each field, so nothing either device counted is lost. */
 private fun mergeCounters(server: SyncRowEntity, incoming: SyncRow): SyncRow {
     val serverPayload = server.payload?.let { json.parseToJsonElement(it) as? JsonObject }
     val incomingPayload = incoming.payload

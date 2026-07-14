@@ -192,6 +192,7 @@ class UsageRow : Entity() {
     var host by Usage.host
     var hits by Usage.hits
     var lastUsedAt by Usage.lastUsedAt
+    var deletedAt by Usage.deletedAt
 }
 
 /**
@@ -215,7 +216,17 @@ object Usage : Table<StramusDb, UsageRow>("usage", ::UsageRow) {
     val hits by Column.Int()
     val lastUsedAt by Column.Instant()
 
-    init { url; title; host; hits; lastUsedAt }
+    /**
+     * A page the user asked us to forget.
+     *
+     * The one counter that can be *un*counted, and so the one that needs a tombstone: "stop suggesting this
+     * page" has to be a thing that happened, or the device that still remembers it would push it back on its
+     * next sync and the suggestion would return — which, for a page someone deliberately asked to be rid of,
+     * is about the worst thing this app could do.
+     */
+    val deletedAt by Column.Instant().nullable()
+
+    init { url; title; host; hits; lastUsedAt; deletedAt }
 }
 
 class ActionUsageRow : Entity() {
@@ -394,6 +405,7 @@ internal val schemaTableDdl: List<String> = listOf(
         "host" text NOT NULL,
         "hits" integer NOT NULL,
         "lastUsedAt" text NOT NULL,
+        "deletedAt" text,
         PRIMARY KEY ("url")
     )
     """.trimIndent(),
