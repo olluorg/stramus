@@ -356,6 +356,36 @@ interface Strings {
      * text like any other on screen, and because the language it is written in is the one the user
      * arrived with — the app's, not SQLite's. See `StoreSeed`.
      */
+    // Account and synchronisation
+    val account: String
+    val accountSignedOutHint: String
+    val signIn: String
+    val signUp: String
+    val signOut: String
+    val email: String
+    val password: String
+    val sendCode: String
+    val codeSent: String
+    val codeFromEmail: String
+    val signInWithCode: String
+    val signInWithPassword: String
+    val syncNow: String
+    val syncIdle: String
+    val syncRunning: String
+    val syncOffline: String
+    val syncSignedOut: String
+    fun syncedAt(time: String): String
+    fun conflictCopies(count: Int): String
+    val joinAccountTitle: String
+    val joinAccountHint: String
+    val joinAccountKeep: String
+    val joinAccountDiscard: String
+    val deleteAccount: String
+    val deleteAccountHint: String
+    val deleteAccountConfirm: String
+    val syncUsage: String
+    val syncUsageHint: String
+
     val seed: StoreSeed
 }
 
@@ -627,6 +657,37 @@ private object EnStrings : Strings {
     override val sortDomain = "Domain"
     override val sortNewest = "Newest first"
     override val sortOldest = "Oldest first"
+
+    override val account = "Account"
+    override val accountSignedOutHint = "Sign in to keep your collections on every browser you use. Everything works without an account — it just stays on this machine."
+    override val signIn = "Sign in"
+    override val signUp = "Create account"
+    override val signOut = "Sign out"
+    override val email = "Email"
+    override val password = "Password"
+    override val sendCode = "Email me a code"
+    override val codeSent = "We sent a six-digit code to that address, if it has an account — or made one if it did not."
+    override val codeFromEmail = "Code from the email"
+    override val signInWithCode = "Sign in with a code instead"
+    override val signInWithPassword = "Sign in with a password instead"
+    override val syncNow = "Sync now"
+    override val syncIdle = "Synced"
+    override val syncRunning = "Syncing…"
+    override val syncOffline = "Waiting for the network"
+    override val syncSignedOut = "Not signed in"
+    override fun syncedAt(time: String) = "Synced at $time"
+    override fun conflictCopies(count: Int) =
+        if (count == 1) "A note was edited on two devices at once. Both versions were kept."
+        else "$count notes were edited on two devices at once. Both versions of each were kept."
+    override val joinAccountTitle = "This browser already has collections"
+    override val joinAccountHint = "You can add them to the account, or leave them behind and take what the account already holds."
+    override val joinAccountKeep = "Add them to the account"
+    override val joinAccountDiscard = "Use the account's collections"
+    override val deleteAccount = "Delete account"
+    override val deleteAccountHint = "Erases everything the server holds. What is on this machine stays."
+    override val deleteAccountConfirm = "Delete the account and everything the server holds? This cannot be undone."
+    override val syncUsage = "Sync browsing statistics"
+    override val syncUsageHint = "Which pages you open, and how often — what the search ranks by. Off means it stays on this machine."
 
     override val seed = StoreSeed(
         sectionTitle = "Main",
@@ -927,6 +988,37 @@ private object RuStrings : Strings {
     override val sortDomain = "По домену"
     override val sortNewest = "Сначала новые"
     override val sortOldest = "Сначала старые"
+
+    override val account = "Аккаунт"
+    override val accountSignedOutHint = "Войдите, чтобы коллекции были во всех браузерах, которыми вы пользуетесь. Без аккаунта всё работает точно так же — просто остаётся на этой машине."
+    override val signIn = "Войти"
+    override val signUp = "Создать аккаунт"
+    override val signOut = "Выйти"
+    override val email = "Почта"
+    override val password = "Пароль"
+    override val sendCode = "Прислать код на почту"
+    override val codeSent = "Мы отправили шестизначный код на этот адрес — а если аккаунта не было, завели его."
+    override val codeFromEmail = "Код из письма"
+    override val signInWithCode = "Войти по коду"
+    override val signInWithPassword = "Войти по паролю"
+    override val syncNow = "Синхронизировать"
+    override val syncIdle = "Синхронизировано"
+    override val syncRunning = "Синхронизация…"
+    override val syncOffline = "Ждём сеть"
+    override val syncSignedOut = "Вы не вошли"
+    override fun syncedAt(time: String) = "Синхронизировано в $time"
+    override fun conflictCopies(count: Int) =
+        if (count == 1) "Заметку правили на двух устройствах сразу. Обе версии сохранены."
+        else "Заметок, которые правили на двух устройствах сразу: $count. Обе версии каждой сохранены."
+    override val joinAccountTitle = "В этом браузере уже есть коллекции"
+    override val joinAccountHint = "Их можно добавить в аккаунт — или оставить здесь и взять то, что в аккаунте уже есть."
+    override val joinAccountKeep = "Добавить в аккаунт"
+    override val joinAccountDiscard = "Взять коллекции из аккаунта"
+    override val deleteAccount = "Удалить аккаунт"
+    override val deleteAccountHint = "Стирает всё, что хранит сервер. То, что на этой машине, остаётся."
+    override val deleteAccountConfirm = "Удалить аккаунт и всё, что хранит сервер? Это не отменить."
+    override val syncUsage = "Синхронизировать статистику посещений"
+    override val syncUsageHint = "Какие страницы вы открываете и как часто — то, по чему ранжируется поиск. Выключено — остаётся на этой машине."
 
     override val seed = StoreSeed(
         sectionTitle = "Главный",

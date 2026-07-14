@@ -6,6 +6,8 @@ import react.dom.html.HTMLAttributes
 // URL/WindowTarget types, and kotlinx-browser has no js-target artifact, so a tiny external keeps
 // these calls simple. Works in a plain page and in an extension page alike.
 private external interface BrowserWindow {
+    fun addEventListener(type: String, listener: () -> Unit)
+    fun removeEventListener(type: String, listener: () -> Unit)
     fun prompt(message: String, default: String): String?
     fun confirm(message: String): Boolean
     fun alert(message: String)
@@ -108,7 +110,29 @@ internal fun cancelDelay(handle: Int) {
     clearTimeout(handle)
 }
 
+private external fun setInterval(handler: () -> Unit, timeout: Int): Int
+
+private external fun clearInterval(id: Int)
+
+/** Run [action] every [everyMs] until [cancelRepeat] is called with the handle. */
+internal fun repeatEvery(everyMs: Int, action: () -> Unit): Int = setInterval(action, everyMs)
+
+internal fun cancelRepeat(handle: Int) {
+    clearInterval(handle)
+}
+
 private fun browserWindow(): BrowserWindow = js("window")
+
+/**
+ * Run [action] whenever this window is brought back to the front, and stop when the returned function is
+ * called. What makes a tab left open overnight already in step by the time the user has read the first
+ * line, rather than a minute later.
+ */
+internal fun onWindowFocus(action: () -> Unit): () -> Unit {
+    val w = browserWindow()
+    w.addEventListener("focus", action)
+    return { w.removeEventListener("focus", action) }
+}
 
 /** What counts as the user still being here: anything they do with a pointer, a key or a wheel. */
 private val ACTIVITY_EVENTS = listOf("mousedown", "mousemove", "keydown", "wheel", "touchstart")

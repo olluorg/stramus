@@ -563,6 +563,27 @@
         .theme-opt:disabled { opacity: .45; cursor: default; }
         .theme-opt:disabled:hover { color: var(--text); }
 
+
+        /* ---- Account and sync ---------------------------------------------------------------- */
+        /* The badge is a dot, not a banner: sync working is the normal state of the world, and sync
+           failing has lost nothing — the work is on this machine and will go up when it can. */
+        .sync-badge { font-size: 13px; line-height: 1; padding: 6px 8px; }
+        .sync-badge.sync-idle { color: var(--ok, #3fb950); }
+        .sync-badge.sync-running { color: var(--accent, #58a6ff); }
+        .sync-badge.sync-offline, .sync-badge.sync-error { color: var(--warn, #d29922); }
+        .sync-badge.sync-signed_out { color: var(--muted, #8b949e); }
+
+        .account-modal { width: min(420px, 92vw); }
+        .account-modal label { display: block; margin: 12px 18px 0; font-size: 13px; color: var(--muted, #8b949e); }
+        .account-modal label input { display: block; width: 100%; margin-top: 4px; padding: 8px 10px;
+            border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
+        .account-modal p { margin: 12px 18px; font-size: 13px; }
+        .account-modal p.muted { color: var(--muted, #8b949e); }
+        .account-modal p.error { color: var(--danger, #f85149); }
+        .account-modal .btn.link { margin: 0 18px 14px; padding: 0; background: none; border: none;
+            color: var(--accent, #58a6ff); cursor: pointer; font-size: 13px; }
+        .account-modal .btn.danger { margin: 0 18px 16px; color: var(--danger, #f85149); }
+        .account-modal .row { display: flex; gap: 8px; padding: 12px 18px; }
     </style>
 </head>
 <body>

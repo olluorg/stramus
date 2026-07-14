@@ -48,6 +48,13 @@ kotlin {
             dependencies {
                 // The browser SQLite engine (composite build → local korm when ../korm is checked out).
                 api("io.github.kormium:kormium-sqlite-js:0.11.0")
+
+                // The server, over HTTP. Only the browser talks to it — the engine itself takes a
+                // `SyncApi`, which is why it can be tested against the real server without one.
+                implementation("io.ktor:ktor-client-core:3.5.0")
+                implementation("io.ktor:ktor-client-js:3.5.0")
+                implementation("io.ktor:ktor-client-content-negotiation:3.5.0")
+                implementation("io.ktor:ktor-serialization-kotlinx-json:3.5.0")
             }
         }
     }

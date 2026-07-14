@@ -6,7 +6,15 @@
   "version": "1.0.0",
   "default_locale": "en",
   "homepage_url": "https://olluorg.github.io/stramus/",
-  "permissions": ["tabs", "history", "search", "favicon"],
+  "permissions": [
+    "tabs",
+    "history",
+    "search",
+    "favicon"
+  ],
+  "host_permissions": [
+    "http://localhost:8080/*"
+  ],
   "minimum_chrome_version": "138",
   "icons": {
     "16": "logo-16.png",

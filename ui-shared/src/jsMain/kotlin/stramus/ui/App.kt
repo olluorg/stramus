@@ -30,6 +30,8 @@ import react.useRef
 import react.useState
 import stramus.core.db.StramusStore
 import stramus.core.db.openStramusStore
+import stramus.core.sync.StramusApi
+import stramus.core.sync.SyncEngine
 import stramus.core.model.Card
 import stramus.core.model.CardKind
 import stramus.core.model.CardSection
@@ -50,6 +52,16 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 private val scope = MainScope()
+
+/**
+ * How often the app checks in with the server.
+ *
+ * A minute: often enough that a card saved on the laptop is on the phone by the time the user has picked
+ * it up, and quiet enough that a browser left open all day costs the server 1440 requests, most of which
+ * answer "nothing new" in a few hundred bytes. A push channel would be tidier; it would also be a socket
+ * to keep alive, and it is not what stands between this and being useful.
+ */
+private const val SYNC_INTERVAL_MS = 60_000
 
 /**
  * How long the search box has to stand still before the query reaches the database and the browser's
@@ -497,6 +509,15 @@ val App = FC<AppProps> { props ->
     props.iconSources?.let { installIconSources(it) }
 
     var store by useState<StramusStore?>(null)
+
+    // The server, and this database's side of the conversation with it. Made once, and made whether or
+    // not anyone is signed in: the badge has to be able to say "not signed in", and the account dialog
+    // has to have something to sign in *with*.
+    val api = useMemo { StramusApi(serverBaseUrl()) }
+    var engine by useState<SyncEngine?>(null)
+    var syncUi by useState(SyncUi())
+    var accountOpen by useState(false)
+
     var sections by useState<List<Section>>(emptyList())
     var collections by useState<List<Collection>>(emptyList())
     var selectedId by useState<Uuid?>(null)
@@ -687,6 +708,7 @@ val App = FC<AppProps> { props ->
             val secs = s.sections.all()
             val cols = s.collections.all()
             store = s
+            engine = SyncEngine(s.db, api)
             sections = secs
             collections = cols
             selectedId = startCollection(cols, secs, startView)
@@ -849,6 +871,76 @@ val App = FC<AppProps> { props ->
             cardSections = s.cardSections.byCollection(sel)
         }
     }
+
+    /** Redraw everything a sync may have changed — which is anything at all, since it came from elsewhere. */
+    fun reloadAfterSync() {
+        val s = store ?: return
+        scope.launch {
+            sections = s.sections.all()
+            collections = s.collections.all()
+            val sel = selectedId
+            if (sel != null && sel !in hiddenCollectionIds) {
+                cards = s.cards.byCollection(sel)
+                cardSections = s.cardSections.byCollection(sel)
+            }
+        }
+    }
+
+    /**
+     * One run of the sync engine, in the background, on nobody's critical path.
+     *
+     * A failure is not an error the user has to deal with: their work is on this machine either way, and
+     * the next run will take it up. So it goes to the badge as "waiting for the network" and nowhere else
+     * — no dialog, no toast, nothing that interrupts.
+     */
+    fun runSync() {
+        val e = engine ?: return
+        if (!api.hasSession()) return
+        scope.launch {
+            syncUi = syncUi.copy(status = SyncStatus.RUNNING)
+            runCatching { e.syncNow() }
+                .onSuccess { result ->
+                    syncUi = syncUi.copy(
+                        status = SyncStatus.IDLE,
+                        syncedAt = nowLocalTime(),
+                        error = null,
+                        conflictCopies = result?.conflictCopies ?: 0,
+                    )
+                    // Only redraw when something actually arrived: a quiet sync every minute must not
+                    // rebuild the grid under the user's hands.
+                    if ((result?.applied ?: 0) > 0 || (result?.conflictCopies ?: 0) > 0) reloadAfterSync()
+                }
+                .onFailure { syncUi = syncUi.copy(status = SyncStatus.OFFLINE, error = it.message) }
+        }
+    }
+
+    // Picking a session back up, and then keeping it in step. A minute is often enough for two of the
+    // user's own browsers and quiet enough to be free; the run on regaining focus is what makes the app
+    // feel like it knew all along.
+    useEffect(engine) {
+        val e = engine ?: return@useEffect
+
+        val me = runCatching { api.resume() }.getOrNull()
+        if (me != null && e.signedIn()) {
+            syncUi = SyncUi(SyncStatus.IDLE, me.email)
+            runSync()
+        } else if (e.signedIn()) {
+            // The database belongs to an account, but this browser holds no session for it any more — the
+            // token expired, or the device was cut off. Nothing is lost; the user signs in again, and the
+            // rows that were waiting to go up are still waiting.
+            syncUi = SyncUi(SyncStatus.SIGNED_OUT)
+        }
+
+        val ticking = repeatEvery(SYNC_INTERVAL_MS) { runSync() }
+        val stopWatchingFocus = onWindowFocus { runSync() }
+        try {
+            awaitCancellation()
+        } finally {
+            cancelRepeat(ticking)
+            stopWatchingFocus()
+        }
+    }
+
 
     // The open tabs, reachable from a callback without being one of its dependencies: [onCardOpen] is
     // a prop of every memoized card tile, and a tab opening or navigating anywhere in the browser must
@@ -2034,6 +2126,11 @@ val App = FC<AppProps> { props ->
                 }
                 div {
                     className = ClassName("toolbar")
+                    SyncBadge {
+                        strings = t
+                        state = syncUi
+                        onOpen = { accountOpen = true }
+                    }
                     if (hasRightSidebar && rightCollapsed) {
                         button {
                             className = ClassName("btn")
@@ -2593,6 +2690,21 @@ val App = FC<AppProps> { props ->
                 }
             }
         }
+        val liveEngine = engine
+        val liveStore = store
+        if (accountOpen && liveEngine != null && liveStore != null) {
+            AccountDialog {
+                strings = t
+                state = syncUi
+                this.api = api
+                engine = liveEngine
+                store = liveStore
+                onSynced = { reloadAfterSync() }
+                onState = { syncUi = it }
+                onClose = { accountOpen = false }
+            }
+        }
+
         if (settingsOpen) {
             SettingsModal {
                 strings = t
