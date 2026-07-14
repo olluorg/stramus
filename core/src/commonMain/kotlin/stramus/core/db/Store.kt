@@ -3,8 +3,6 @@
 package stramus.core.db
 
 import io.github.kormium.DelicateKormiumApi
-import io.github.kormium.Expression
-import io.github.kormium.Value
 import io.github.kormium.and
 import io.github.kormium.database.SuspendDatabase
 import io.github.kormium.count
@@ -56,16 +54,6 @@ class StramusStore internal constructor(
 
 /** Words past this in one query are dropped: each one is another LIKE over every card. */
 private const val SEARCH_MAX_WORDS = 4
-
-/**
- * `NULL`, for the expression form of `update`.
- *
- * `set` takes the column's own type, and a nullable column's type parameter is the *non-null* one —
- * nullability is a property of the column, not of the type — so `col set null` does not typecheck. A
- * bound null value says the same thing, and it is the one thing the entity form of `update` cannot say
- * at all: to a row, a column left unset and a column set to null look alike.
- */
-private val NULL: Expression = Value(null)
 
 /**
  * What a first install starts with. An empty sidebar is nothing to hand a new user, so a database
@@ -157,8 +145,7 @@ suspend fun openStramusStore(db: SuspendDatabase<StramusDb>, seed: StoreSeed = S
         // Un-group cards pointing at a card section of another collection: earlier builds moved a
         // card between collections without clearing its section, and such a card matched no group
         // and so was drawn nowhere. Ungrouped is the only place it can be shown.
-        Cards.update {
-            Cards.cardSectionId set NULL
+        Cards.update(CardRow().apply { cardSectionId = null }) {
             where {
                 CardSections.none {
                     (CardSections.id eq Cards.cardSectionId) and (CardSections.collectionId eq Cards.collectionId)
@@ -178,8 +165,7 @@ suspend fun openStramusStore(db: SuspendDatabase<StramusDb>, seed: StoreSeed = S
             }
         }
         if (inlined.isNotEmpty()) {
-            Cards.update {
-                Cards.content set NULL
+            Cards.update(CardRow().apply { content = null }) {
                 where { Cards.kind eq CardKind.FILE.id }
             }
         }
@@ -589,15 +575,10 @@ internal class KormiumSectionRepository(
     }
 
     override suspend fun clearPin(id: Uuid) {
-        // The expression form of update, not a row: a row cannot carry "set this column back to null"
-        // — an unset column and one assigned null are the same thing to it.
         db.suspendTransaction {
-            Sections.update {
-                Sections.pinSalt set NULL
-                Sections.pinHash set NULL
-                Sections.updatedAt set Clock.System.now()
-                where { Sections.id eq id }
-            }
+            Sections.update(
+                SectionRow().apply { pinSalt = null; pinHash = null; updatedAt = Clock.System.now() },
+            ) { where { Sections.id eq id } }
         }
     }
 
@@ -777,11 +758,9 @@ internal class KormiumCardSectionRepository(
         }.map { it.id }
         db.suspendTransaction {
             // Detach the section's cards (they become ungrouped) before removing the section.
-            Cards.update {
-                Cards.cardSectionId set NULL
-                Cards.updatedAt set Clock.System.now()
-                where { Cards.cardSectionId eq id }
-            }
+            Cards.update(
+                CardRow().apply { cardSectionId = null; updatedAt = Clock.System.now() },
+            ) { where { Cards.cardSectionId eq id } }
             CardSections.deleteWhere { where { CardSections.id eq id } }
         }
         return DeletedCardSection(row.toModel(), cardIds)
@@ -951,17 +930,17 @@ internal class KormiumCardRepository(
 
             val key = keyAt(siblings.map { it.orderKey }, newIndex)
 
-            // One row, one write — collection, group and place together. The expression form of update
-            // is what allows `group` to be null here: a card dragged out of a group must end up
-            // ungrouped, and a row cannot say that (an unset column and one assigned null look alike
-            // to it).
-            Cards.update {
-                Cards.collectionId set toCollectionId
-                if (group == null) Cards.cardSectionId set NULL else Cards.cardSectionId set group
-                Cards.orderKey set key
-                Cards.updatedAt set Clock.System.now()
-                where { Cards.id eq id }
-            }
+            // One row, one write — collection, group and place together. `group` may be null, and a
+            // patch row says so: an assigned null writes NULL, where an unassigned column is left
+            // alone. A card dragged out of a group has to end up ungrouped, and this is how it does.
+            Cards.update(
+                CardRow().apply {
+                    this.collectionId = toCollectionId
+                    this.cardSectionId = group
+                    this.orderKey = key
+                    this.updatedAt = Clock.System.now()
+                },
+            ) { where { Cards.id eq id } }
         }
     }
 
