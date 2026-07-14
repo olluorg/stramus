@@ -6,6 +6,13 @@ import kotlin.time.Instant
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+/*
+ * `orderKey`, on each of the four things below, is where the row sits among its siblings — a section
+ * among the sections, a card among the cards of its group. Sort by it (ties broken by id) and you have
+ * the user's order. It is a string rather than an index because a string always has room between two
+ * neighbours: see [stramus.core.order.OrderKey]. Nothing outside the repositories should build one.
+ */
+
 /**
  * A top-level group of collections in the sidebar. The default section — the one a first install is
  * given, named in the user's language — is not deletable.
@@ -17,7 +24,7 @@ import kotlin.uuid.Uuid
 data class Section(
     val id: Uuid,
     val title: String,
-    val position: Int,
+    val orderKey: String,
     val deletable: Boolean,
     val collapsed: Boolean,
     val locked: Boolean,
@@ -34,7 +41,7 @@ data class Collection(
     val id: Uuid,
     val sectionId: Uuid,
     val title: String,
-    val position: Int,
+    val orderKey: String,
     val createdAt: Instant,
     val readOnly: Boolean,
 )
@@ -45,7 +52,7 @@ data class CardSection(
     val collectionId: Uuid,
     val title: String,
     val description: String?,
-    val position: Int,
+    val orderKey: String,
     val collapsed: Boolean,
 )
 
@@ -83,6 +90,6 @@ data class Card(
     val content: String?,
     val thumb: String?,
     val mime: String?,
-    val position: Int,
+    val orderKey: String,
     val createdAt: Instant,
 )

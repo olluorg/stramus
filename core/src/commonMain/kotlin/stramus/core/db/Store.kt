@@ -7,9 +7,9 @@ import io.github.kormium.and
 import io.github.kormium.database.SuspendDatabase
 import io.github.kormium.count
 import io.github.kormium.eq
+import io.github.kormium.isNull
 import io.github.kormium.like
 import io.github.kormium.or
-import io.github.kormium.sqlite.js.createSqliteJsDatabase
 import io.github.kormium.suspendAutocommit
 import io.github.kormium.suspendTransaction
 import kotlin.time.Clock
@@ -22,6 +22,7 @@ import stramus.core.model.CardKind
 import stramus.core.model.CardSection
 import stramus.core.model.Collection
 import stramus.core.model.Section
+import stramus.core.order.OrderKey
 import stramus.core.repo.ActionStat
 import stramus.core.repo.ActionUsageRepository
 import stramus.core.repo.CachedIcon
@@ -80,15 +81,19 @@ data class StoreSeed(
 }
 
 /**
- * Opens the IndexedDB-persisted stramus database (via Kormium's Kotlin/JS wa-sqlite engine), creates
- * the schema if needed, ensures the default section exists, seeds a first install from [seed], and
- * returns the store. [name] is the IndexedDB database name.
+ * Brings [db] up to the current schema, migrating a database written by an earlier version of the app,
+ * ensures the default section exists, seeds a first install from [seed], and returns the store over it.
+ *
+ * The engine underneath is the caller's: the app hands it the browser's (IndexedDB-backed wa-sqlite,
+ * see the `openStramusStore(name)` beside this one), and a test hands it a file. Everything from here
+ * down is Kormium's DSL and nothing else — which is what lets the migration of a user's database be
+ * run, and checked, outside a browser.
  */
-suspend fun openStramusStore(name: String = "stramus", seed: StoreSeed = StoreSeed.Default): StramusStore {
-    val db: SuspendDatabase<StramusDb> = createSqliteJsDatabase(name)
+suspend fun openStramusStore(db: SuspendDatabase<StramusDb>, seed: StoreSeed = StoreSeed.Default): StramusStore {
     db.suspendTransaction {
-        schemaDdl.forEach { Sections.execSql(it) }
-        // Migrate databases created before these columns existed (ignore if already present).
+        schemaTableDdl.forEach { Sections.execSql(it) }
+        // Columns added by versions of the app that came after the table did (ignore if already
+        // present). These run before the order-key migration below, which expects the full old shape.
         runCatching { Collections.execSql("""ALTER TABLE "collections" ADD COLUMN "sectionId" text NOT NULL DEFAULT ''""") }
         runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "cardSectionId" text""") }
         runCatching { Sections.execSql("""ALTER TABLE "sections" ADD COLUMN "collapsed" integer NOT NULL DEFAULT 0""") }
@@ -101,6 +106,12 @@ suspend fun openStramusStore(name: String = "stramus", seed: StoreSeed = StoreSe
         runCatching { Collections.execSql("""ALTER TABLE "collections" ADD COLUMN "readOnly" integer NOT NULL DEFAULT 0""") }
         runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "thumb" text""") }
     }
+
+    migrateToOrderKeys(db)
+
+    // Left until after the migration: on a database still carrying integer positions, an index over
+    // the column that replaces them cannot be built.
+    db.suspendTransaction { schemaIndexDdl.forEach { Sections.execSql(it) } }
 
     // Nothing has ever been in this database — a first install, as opposed to one the user has emptied
     // out (a section always remains there, and a card or a collection may). Asked before the default
@@ -158,21 +169,139 @@ suspend fun openStramusStore(name: String = "stramus", seed: StoreSeed = StoreSe
     )
 }
 
-private fun SectionRow.toModel() = Section(id, title, position, deletable != 0, collapsed != 0, pinHash != null)
-private fun CollectionRow.toModel() = Collection(id, sectionId, title, position, createdAt, readOnly != 0)
-private fun CardSectionRow.toModel() = CardSection(id, collectionId, title, description, position, collapsed != 0)
+/**
+ * Rewrite a database that still orders its rows by an integer `position` to order them by an
+ * [OrderKey] instead (and give every row the `updatedAt`/`deletedAt` a synchronised row needs).
+ *
+ * The four tables are rebuilt rather than altered in place: SQLite cannot change a column's type, and
+ * leaving the old `position` behind is not an option — it is `NOT NULL` with no default, so the first
+ * card saved afterwards would be refused by a column no one uses any more.
+ *
+ * The keys are computed here, in Kotlin, from the order the rows already have, and then written back
+ * per row: the user's order is preserved exactly, including the groups the old scheme kept contiguous
+ * inside one collection-wide sequence. It all runs in one transaction, so a database that dies halfway
+ * through this comes back as the database it was.
+ */
+private suspend fun migrateToOrderKeys(db: SuspendDatabase<StramusDb>) {
+    // Reading a column that only the old schema has is the test for the old schema: on a database
+    // already carrying order keys, this query names a column that is not there, and fails.
+    val legacy = runCatching {
+        db.suspendAutocommit { LegacySections.find { limit = 1 } }
+    }.isSuccess
+    if (!legacy) return
+
+    val sections = db.suspendAutocommit { LegacySections.find { orderBy ASC LegacySections.position } }
+    val collections = db.suspendAutocommit { LegacyCollections.find { orderBy ASC LegacyCollections.position } }
+    val cardSections = db.suspendAutocommit { LegacyCardSections.find { orderBy ASC LegacyCardSections.position } }
+    val cards = db.suspendAutocommit { LegacyCards.find { orderBy ASC LegacyCards.position } }
+
+    // One key per row, siblings numbered together: sections across the sidebar, collections within
+    // their section, card sections within their collection, cards within their group.
+    val sectionKeys = keysFor(sections.map { it.id }) { null }
+    val collectionKeys = keysFor(collections.map { it.id }) { id -> collections.first { it.id == id }.sectionId }
+    val cardSectionKeys = keysFor(cardSections.map { it.id }) { id -> cardSections.first { it.id == id }.collectionId }
+    val cardKeys = keysFor(cards.map { it.id }) { id ->
+        val card = cards.first { it.id == id }
+        card.collectionId to card.cardSectionId
+    }
+
+    val now = Clock.System.now().toString()
+
+    db.suspendTransaction {
+        // The indexes name the column that is about to go, and they would otherwise follow the old
+        // tables into `_legacy` and be dropped with them, leaving the new tables unindexed.
+        Sections.execSql("""DROP INDEX IF EXISTS "idx_cards_collection"""")
+        Sections.execSql("""DROP INDEX IF EXISTS "idx_card_sections_collection"""")
+        Sections.execSql("""DROP INDEX IF EXISTS "idx_collections_section"""")
+
+        listOf("sections", "collections", "card_sections", "cards").forEach { table ->
+            Sections.execSql("""ALTER TABLE "$table" RENAME TO "${table}_legacy"""")
+        }
+        schemaTableDdl.forEach { Sections.execSql(it) }
+
+        Sections.execSql(
+            """
+            INSERT INTO "sections" ("id", "title", "orderKey", "deletable", "collapsed", "pinSalt", "pinHash", "updatedAt")
+            SELECT "id", "title", '', "deletable", "collapsed", "pinSalt", "pinHash", '$now' FROM "sections_legacy"
+            """.trimIndent(),
+        )
+        Sections.execSql(
+            """
+            INSERT INTO "collections" ("id", "sectionId", "title", "orderKey", "createdAt", "readOnly", "updatedAt")
+            SELECT "id", "sectionId", "title", '', "createdAt", "readOnly", '$now' FROM "collections_legacy"
+            """.trimIndent(),
+        )
+        Sections.execSql(
+            """
+            INSERT INTO "card_sections" ("id", "collectionId", "title", "description", "orderKey", "collapsed", "updatedAt")
+            SELECT "id", "collectionId", "title", "description", '', "collapsed", '$now' FROM "card_sections_legacy"
+            """.trimIndent(),
+        )
+        Sections.execSql(
+            """
+            INSERT INTO "cards" (
+                "id", "collectionId", "cardSectionId", "kind", "title", "url", "favicon", "content",
+                "thumb", "mime", "orderKey", "createdAt", "updatedAt"
+            )
+            SELECT
+                "id", "collectionId", "cardSectionId", "kind", "title", "url", "favicon", "content",
+                "thumb", "mime", '', "createdAt", '$now'
+            FROM "cards_legacy"
+            """.trimIndent(),
+        )
+
+        sectionKeys.forEach { (id, key) ->
+            Sections.update(SectionRow().apply { orderKey = key }) { where { Sections.id eq id } }
+        }
+        collectionKeys.forEach { (id, key) ->
+            Collections.update(CollectionRow().apply { orderKey = key }) { where { Collections.id eq id } }
+        }
+        cardSectionKeys.forEach { (id, key) ->
+            CardSections.update(CardSectionRow().apply { orderKey = key }) { where { CardSections.id eq id } }
+        }
+        cardKeys.forEach { (id, key) ->
+            Cards.update(CardRow().apply { orderKey = key }) { where { Cards.id eq id } }
+        }
+
+        listOf("sections", "collections", "card_sections", "cards").forEach { table ->
+            Sections.execSql("""DROP TABLE "${table}_legacy"""")
+        }
+    }
+}
+
+/**
+ * An order key for each of [ids], which arrive in the order the old schema put them in. [groupOf] says
+ * which rows are siblings — rows of one group are keyed against each other and against no one else.
+ *
+ * The keys of a group are spread rather than generated one after another, so a collection of two
+ * hundred cards does not end with keys two hundred characters long.
+ */
+private fun <K> keysFor(ids: List<Uuid>, groupOf: (Uuid) -> K): Map<Uuid, String> {
+    val groups = ids.groupBy(groupOf)
+    return buildMap {
+        groups.values.forEach { members ->
+            OrderKey.sequence(null, null, members.size).forEachIndexed { i, key -> put(members[i], key) }
+        }
+    }
+}
+
+private fun SectionRow.toModel() = Section(id, title, orderKey, deletable != 0, collapsed != 0, pinHash != null)
+private fun CollectionRow.toModel() = Collection(id, sectionId, title, orderKey, createdAt, readOnly != 0)
+private fun CardSectionRow.toModel() = CardSection(id, collectionId, title, description, orderKey, collapsed != 0)
 private fun CardRow.toModel() =
-    Card(id, collectionId, cardSectionId, CardKind.from(kind), title, url, favicon, content, thumb, mime, position, createdAt)
+    Card(id, collectionId, cardSectionId, CardKind.from(kind), title, url, favicon, content, thumb, mime, orderKey, createdAt)
 
 // The way back from a model to the row it came from — what an undo writes. A restored row keeps its
-// id and its position, so what comes back is the thing that was deleted and not a copy of it.
+// id and its order key, so what comes back is the thing that was deleted, in the place it was deleted
+// from, and not a copy of it appended to the end.
 private fun Collection.toRow() = CollectionRow().apply {
     this.id = this@toRow.id
     this.sectionId = this@toRow.sectionId
     this.title = this@toRow.title
-    this.position = this@toRow.position
+    this.orderKey = this@toRow.orderKey
     this.createdAt = this@toRow.createdAt
     this.readOnly = if (this@toRow.readOnly) 1 else 0
+    this.updatedAt = Clock.System.now()
 }
 
 private fun CardSection.toRow() = CardSectionRow().apply {
@@ -180,8 +309,9 @@ private fun CardSection.toRow() = CardSectionRow().apply {
     this.collectionId = this@toRow.collectionId
     this.title = this@toRow.title
     this.description = this@toRow.description
-    this.position = this@toRow.position
+    this.orderKey = this@toRow.orderKey
     this.collapsed = if (this@toRow.collapsed) 1 else 0
+    this.updatedAt = Clock.System.now()
 }
 
 private fun Card.toRow() = CardRow().apply {
@@ -195,22 +325,44 @@ private fun Card.toRow() = CardRow().apply {
     this.content = this@toRow.content
     this.thumb = this@toRow.thumb
     this.mime = this@toRow.mime
-    this.position = this@toRow.position
+    this.orderKey = this@toRow.orderKey
     this.createdAt = this@toRow.createdAt
+    this.updatedAt = Clock.System.now()
 }
 
 /**
- * Insert a collection at the end of the sidebar's order. Shared by the collection repository and by
+ * The key of a row dropped at [index] among [siblings] — the row itself already taken out of them, so
+ * [index] counts the places it could land. This is the whole of what a move now writes: one key, on
+ * one row, leaving every other row of the group untouched.
+ */
+private fun keyAt(siblings: List<String>, index: Int): String {
+    val at = index.coerceIn(0, siblings.size)
+    return OrderKey.between(siblings.getOrNull(at - 1), siblings.getOrNull(at))
+}
+
+/** The key that appends to a group: after [last], or the first key of all if the group is empty. */
+private fun appendKey(last: String?): String = OrderKey.between(last, null)
+
+/**
+ * Insert a collection at the end of its section. Shared by the collection repository and by
  * [KormiumSectionRepository.create], which gives every new section a collection of its own name.
  */
 private suspend fun insertCollection(db: SuspendDatabase<StramusDb>, title: String, sectionId: Uuid): Collection {
+    val last = db.suspendAutocommit {
+        Collections.find {
+            where { (Collections.sectionId eq sectionId) and Collections.deletedAt.isNull() }
+            orderBy DESC Collections.orderKey
+            limit = 1
+        }.firstOrNull()?.orderKey
+    }
     val row = CollectionRow().apply {
         this.id = Uuid.random()
         this.sectionId = sectionId
         this.title = title
-        this.position = db.suspendAutocommit { Collections.count() }.toInt()
+        this.orderKey = appendKey(last)
         this.createdAt = Clock.System.now()
         this.readOnly = 0
+        this.updatedAt = Clock.System.now()
     }
     db.suspendTransaction { Collections.insert(row) }
     return row.toModel()
@@ -226,13 +378,13 @@ private suspend fun deleteCollection(db: SuspendDatabase<StramusDb>, id: Uuid): 
     val cardSections = db.suspendAutocommit {
         CardSections.find {
             where { CardSections.collectionId eq id }
-            orderBy ASC CardSections.position
+            orderBy ASC CardSections.orderKey
         }
     }
     val cards = db.suspendAutocommit {
         Cards.find {
             where { Cards.collectionId eq id }
-            orderBy ASC Cards.position
+            orderBy ASC Cards.orderKey
         }
     }
     // The bytes are read out before they are deleted: an undone deletion has to open the file again.
@@ -274,18 +426,30 @@ internal class KormiumSectionRepository(
 ) : SectionRepository {
 
     override suspend fun all(): List<Section> = db.suspendAutocommit {
-        Sections.find { orderBy ASC Sections.position }.map { it.toModel() }
+        Sections.find {
+            where { Sections.deletedAt.isNull() }
+            orderBy ASC Sections.orderKey
+            orderBy ASC Sections.id
+        }.map { it.toModel() }
     }
 
     override suspend fun create(title: String): Section {
+        val last = db.suspendAutocommit {
+            Sections.find {
+                where { Sections.deletedAt.isNull() }
+                orderBy DESC Sections.orderKey
+                limit = 1
+            }.firstOrNull()?.orderKey
+        }
         val row = SectionRow().apply {
             this.id = Uuid.random()
             this.title = title
-            this.position = db.suspendAutocommit { Sections.count() }.toInt()
+            this.orderKey = appendKey(last)
             this.deletable = 1
             this.collapsed = 0
             this.pinSalt = null
             this.pinHash = null
+            this.updatedAt = Clock.System.now()
         }
         db.suspendTransaction { Sections.insert(row) }
         // A section with no collection in it can hold nothing, so it comes with one, named after it.
@@ -295,24 +459,36 @@ internal class KormiumSectionRepository(
 
     override suspend fun rename(id: Uuid, title: String) {
         db.suspendTransaction {
-            Sections.update(SectionRow().apply { this.title = title }) { where { Sections.id eq id } }
+            Sections.update(
+                SectionRow().apply { this.title = title; this.updatedAt = Clock.System.now() },
+            ) { where { Sections.id eq id } }
         }
     }
 
     override suspend fun setCollapsed(id: Uuid, collapsed: Boolean) {
         db.suspendTransaction {
-            Sections.update(SectionRow().apply { this.collapsed = if (collapsed) 1 else 0 }) { where { Sections.id eq id } }
+            Sections.update(
+                SectionRow().apply {
+                    this.collapsed = if (collapsed) 1 else 0
+                    this.updatedAt = Clock.System.now()
+                },
+            ) { where { Sections.id eq id } }
         }
     }
 
     override suspend fun move(id: Uuid, newIndex: Int) {
         db.suspendTransaction {
-            val order = Sections.find { orderBy ASC Sections.position }.map { it.id }.toMutableList()
-            if (!order.remove(id)) return@suspendTransaction
-            order.add(newIndex.coerceIn(0, order.size), id)
-            order.forEachIndexed { i, sectionId ->
-                Sections.update(SectionRow().apply { position = i }) { where { Sections.id eq sectionId } }
-            }
+            val siblings = Sections.find {
+                where { Sections.deletedAt.isNull() }
+                orderBy ASC Sections.orderKey
+                orderBy ASC Sections.id
+            }.filter { it.id != id }
+            if (Sections.findOne { where { Sections.id eq id } } == null) return@suspendTransaction
+
+            val key = keyAt(siblings.map { it.orderKey }, newIndex)
+            Sections.update(
+                SectionRow().apply { orderKey = key; updatedAt = Clock.System.now() },
+            ) { where { Sections.id eq id } }
         }
     }
 
@@ -326,7 +502,7 @@ internal class KormiumSectionRepository(
         val collectionIds = db.suspendAutocommit {
             Collections.find {
                 where { Collections.sectionId eq id }
-                orderBy ASC Collections.position
+                orderBy ASC Collections.orderKey
             }
         }.map { it.id }
         val collections = collectionIds.mapNotNull { deleteCollection(db, it) }
@@ -339,12 +515,13 @@ internal class KormiumSectionRepository(
         val row = SectionRow().apply {
             this.id = deleted.section.id
             this.title = deleted.section.title
-            this.position = deleted.section.position
+            this.orderKey = deleted.section.orderKey
             this.deletable = if (deleted.section.deletable) 1 else 0
             this.collapsed = if (deleted.section.collapsed) 1 else 0
             // The PIN comes back with the section: an undone deletion must not be a way past a lock.
             this.pinSalt = deleted.pinSalt
             this.pinHash = deleted.pinHash
+            this.updatedAt = Clock.System.now()
         }
         db.suspendTransaction { Sections.insert(row) }
         deleted.collections.forEach { restoreCollection(db, it) }
@@ -357,11 +534,12 @@ internal class KormiumSectionRepository(
         val row = SectionRow().apply {
             this.id = Uuid.random()
             this.title = defaultTitle
-            this.position = 0
+            this.orderKey = OrderKey.FIRST
             this.deletable = 0
             this.collapsed = 0
             this.pinSalt = null
             this.pinHash = null
+            this.updatedAt = Clock.System.now()
         }
         db.suspendTransaction { Sections.insert(row) }
         return row.id
@@ -372,7 +550,11 @@ internal class KormiumSectionRepository(
         val hash = hashPin(pin, salt)
         db.suspendTransaction {
             Sections.update(
-                SectionRow().apply { this.pinSalt = salt; this.pinHash = hash },
+                SectionRow().apply {
+                    this.pinSalt = salt
+                    this.pinHash = hash
+                    this.updatedAt = Clock.System.now()
+                },
             ) { where { Sections.id eq id } }
         }
     }
@@ -380,8 +562,11 @@ internal class KormiumSectionRepository(
     override suspend fun clearPin(id: Uuid) {
         // SQL, not an update built from a row: a row cannot carry "set this column back to null" —
         // an unset column and one assigned null are the same thing to it.
+        val now = Clock.System.now()
         db.suspendTransaction {
-            Sections.execSql("""UPDATE "sections" SET "pinSalt" = NULL, "pinHash" = NULL WHERE "id" = '$id'""")
+            Sections.execSql(
+                """UPDATE "sections" SET "pinSalt" = NULL, "pinHash" = NULL, "updatedAt" = '$now' WHERE "id" = '$id'""",
+            )
         }
     }
 
@@ -399,14 +584,23 @@ internal class KormiumCollectionRepository(
 ) : CollectionRepository {
 
     override suspend fun all(): List<Collection> = db.suspendAutocommit {
-        Collections.find { orderBy ASC Collections.position }.map { it.toModel() }
+        // Ordered by key, which orders each section's collections among themselves; collections of two
+        // different sections do not compare, and the UI never asks them to — it walks the sections in
+        // their own order and takes the collections of each.
+        Collections.find {
+            where { Collections.deletedAt.isNull() }
+            orderBy ASC Collections.orderKey
+            orderBy ASC Collections.id
+        }.map { it.toModel() }
     }
 
     override suspend fun create(title: String, sectionId: Uuid): Collection = insertCollection(db, title, sectionId)
 
     override suspend fun rename(id: Uuid, title: String) {
         db.suspendTransaction {
-            Collections.update(CollectionRow().apply { this.title = title }) { where { Collections.id eq id } }
+            Collections.update(
+                CollectionRow().apply { this.title = title; this.updatedAt = Clock.System.now() },
+            ) { where { Collections.id eq id } }
         }
     }
 
@@ -415,45 +609,56 @@ internal class KormiumCollectionRepository(
     override suspend fun restore(deleted: DeletedCollection) = restoreCollection(db, deleted)
 
     override suspend fun moveToSection(id: Uuid, sectionId: Uuid) {
+        // The end of the section it lands in — a key from the section it came from would name a place
+        // among rows it has never been ordered against.
+        val last = db.suspendAutocommit {
+            Collections.find {
+                where { (Collections.sectionId eq sectionId) and Collections.deletedAt.isNull() }
+                orderBy DESC Collections.orderKey
+                limit = 1
+            }.firstOrNull()?.orderKey
+        }
         db.suspendTransaction {
-            Collections.update(CollectionRow().apply { this.sectionId = sectionId }) { where { Collections.id eq id } }
+            Collections.update(
+                CollectionRow().apply {
+                    this.sectionId = sectionId
+                    this.orderKey = appendKey(last)
+                    this.updatedAt = Clock.System.now()
+                },
+            ) { where { Collections.id eq id } }
         }
     }
 
     override suspend fun move(id: Uuid, toSectionId: Uuid, newIndex: Int) {
         db.suspendTransaction {
-            val moving = Collections.findOne { where { Collections.id eq id } } ?: return@suspendTransaction
+            if (Collections.findOne { where { Collections.id eq id } } == null) return@suspendTransaction
 
-            // Reattach to the target section, then splice the moved collection into that section's
-            // order at newIndex.
-            if (moving.sectionId != toSectionId) {
-                Collections.update(CollectionRow().apply { sectionId = toSectionId }) { where { Collections.id eq id } }
-            }
+            val siblings = Collections.find {
+                where { (Collections.sectionId eq toSectionId) and Collections.deletedAt.isNull() }
+                orderBy ASC Collections.orderKey
+                orderBy ASC Collections.id
+            }.filter { it.id != id }
 
-            val all = Collections.find { orderBy ASC Collections.position }
-            val sections = Sections.find { orderBy ASC Sections.position }.map { it.id }
-
-            val target = all.filter { it.sectionId == toSectionId && it.id != id }.map { it.id }.toMutableList()
-            target.add(newIndex.coerceIn(0, target.size), id)
-
-            // Renumber every collection with a single global position sequence, walking sections in
-            // their sidebar order and using the spliced order for the target section.
-            var pos = 0
-            for (sectionId in sections) {
-                val ids = if (sectionId == toSectionId) target
-                else all.filter { it.sectionId == sectionId && it.id != id }.map { it.id }
-                for (cid in ids) {
-                    Collections.update(CollectionRow().apply { position = pos }) { where { Collections.id eq cid } }
-                    pos++
-                }
-            }
+            // Section and place at once, and nothing else touched: where this used to renumber every
+            // collection of every section, it now writes the one row that moved.
+            val key = keyAt(siblings.map { it.orderKey }, newIndex)
+            Collections.update(
+                CollectionRow().apply {
+                    sectionId = toSectionId
+                    orderKey = key
+                    updatedAt = Clock.System.now()
+                },
+            ) { where { Collections.id eq id } }
         }
     }
 
     override suspend fun setReadOnly(id: Uuid, readOnly: Boolean) {
         db.suspendTransaction {
             Collections.update(
-                CollectionRow().apply { this.readOnly = if (readOnly) 1 else 0 },
+                CollectionRow().apply {
+                    this.readOnly = if (readOnly) 1 else 0
+                    this.updatedAt = Clock.System.now()
+                },
             ) { where { Collections.id eq id } }
         }
     }
@@ -465,21 +670,28 @@ internal class KormiumCardSectionRepository(
 
     override suspend fun byCollection(collectionId: Uuid): List<CardSection> = db.suspendAutocommit {
         CardSections.find {
-            where { CardSections.collectionId eq collectionId }
-            orderBy ASC CardSections.position
+            where { (CardSections.collectionId eq collectionId) and CardSections.deletedAt.isNull() }
+            orderBy ASC CardSections.orderKey
+            orderBy ASC CardSections.id
         }.map { it.toModel() }
     }
 
     override suspend fun create(collectionId: Uuid, title: String, description: String?): CardSection {
+        val last = db.suspendAutocommit {
+            CardSections.find {
+                where { (CardSections.collectionId eq collectionId) and CardSections.deletedAt.isNull() }
+                orderBy DESC CardSections.orderKey
+                limit = 1
+            }.firstOrNull()?.orderKey
+        }
         val row = CardSectionRow().apply {
             this.id = Uuid.random()
             this.collectionId = collectionId
             this.title = title
             this.description = description
-            this.position = db.suspendAutocommit {
-                CardSections.count { where { CardSections.collectionId eq collectionId } }
-            }.toInt()
+            this.orderKey = appendKey(last)
             this.collapsed = 0
+            this.updatedAt = Clock.System.now()
         }
         db.suspendTransaction { CardSections.insert(row) }
         return row.toModel()
@@ -488,7 +700,11 @@ internal class KormiumCardSectionRepository(
     override suspend fun update(id: Uuid, title: String, description: String?) {
         db.suspendTransaction {
             CardSections.update(
-                CardSectionRow().apply { this.title = title; this.description = description },
+                CardSectionRow().apply {
+                    this.title = title
+                    this.description = description
+                    this.updatedAt = Clock.System.now()
+                },
             ) { where { CardSections.id eq id } }
         }
     }
@@ -496,7 +712,10 @@ internal class KormiumCardSectionRepository(
     override suspend fun setCollapsed(id: Uuid, collapsed: Boolean) {
         db.suspendTransaction {
             CardSections.update(
-                CardSectionRow().apply { this.collapsed = if (collapsed) 1 else 0 },
+                CardSectionRow().apply {
+                    this.collapsed = if (collapsed) 1 else 0
+                    this.updatedAt = Clock.System.now()
+                },
             ) { where { CardSections.id eq id } }
         }
     }
@@ -504,15 +723,16 @@ internal class KormiumCardSectionRepository(
     override suspend fun move(id: Uuid, newIndex: Int) {
         db.suspendTransaction {
             val moving = CardSections.findOne { where { CardSections.id eq id } } ?: return@suspendTransaction
-            val order = CardSections.find {
-                where { CardSections.collectionId eq moving.collectionId }
-                orderBy ASC CardSections.position
-            }.map { it.id }.toMutableList()
-            if (!order.remove(id)) return@suspendTransaction
-            order.add(newIndex.coerceIn(0, order.size), id)
-            order.forEachIndexed { i, sectionId ->
-                CardSections.update(CardSectionRow().apply { position = i }) { where { CardSections.id eq sectionId } }
-            }
+            val siblings = CardSections.find {
+                where { (CardSections.collectionId eq moving.collectionId) and CardSections.deletedAt.isNull() }
+                orderBy ASC CardSections.orderKey
+                orderBy ASC CardSections.id
+            }.filter { it.id != id }
+
+            val key = keyAt(siblings.map { it.orderKey }, newIndex)
+            CardSections.update(
+                CardSectionRow().apply { orderKey = key; updatedAt = Clock.System.now() },
+            ) { where { CardSections.id eq id } }
         }
     }
 
@@ -521,12 +741,15 @@ internal class KormiumCardSectionRepository(
         val cardIds = db.suspendAutocommit {
             Cards.find {
                 where { Cards.cardSectionId eq id }
-                orderBy ASC Cards.position
+                orderBy ASC Cards.orderKey
             }
         }.map { it.id }
+        val now = Clock.System.now()
         db.suspendTransaction {
             // Detach the section's cards (they become ungrouped) before removing the section.
-            Cards.execSql("""UPDATE "cards" SET "cardSectionId" = NULL WHERE "cardSectionId" = '$id'""")
+            Cards.execSql(
+                """UPDATE "cards" SET "cardSectionId" = NULL, "updatedAt" = '$now' WHERE "cardSectionId" = '$id'""",
+            )
             CardSections.deleteWhere { where { CardSections.id eq id } }
         }
         return DeletedCardSection(row.toModel(), cardIds)
@@ -539,7 +762,10 @@ internal class KormiumCardSectionRepository(
             // Any that the user has since moved elsewhere are simply no longer there to be found.
             deleted.cardIds.forEach { cardId ->
                 Cards.update(
-                    CardRow().apply { this.cardSectionId = deleted.cardSection.id },
+                    CardRow().apply {
+                        this.cardSectionId = deleted.cardSection.id
+                        this.updatedAt = Clock.System.now()
+                    },
                 ) { where { Cards.id eq cardId } }
             }
         }
@@ -551,14 +777,18 @@ internal class KormiumCardRepository(
 ) : CardRepository {
 
     override suspend fun byCollection(collectionId: Uuid): List<Card> = db.suspendAutocommit {
+        // Every card of the collection, ordered by key. Keys are per group, so this puts each group's
+        // cards in the right order among themselves — which is all the UI reads, since it draws the
+        // ungrouped cards, then each card section in turn.
         Cards.find {
-            where { Cards.collectionId eq collectionId }
-            orderBy ASC Cards.position
+            where { (Cards.collectionId eq collectionId) and Cards.deletedAt.isNull() }
+            orderBy ASC Cards.orderKey
+            orderBy ASC Cards.id
         }.map { it.toModel() }
     }
 
     override suspend fun count(collectionId: Uuid): Int = db.suspendAutocommit {
-        Cards.count { where { Cards.collectionId eq collectionId } }
+        Cards.count { where { (Cards.collectionId eq collectionId) and Cards.deletedAt.isNull() } }
     }.toInt()
 
     override suspend fun add(collectionId: Uuid, title: String, url: String, favicon: String?, cardSectionId: Uuid?): Card =
@@ -610,10 +840,9 @@ internal class KormiumCardRepository(
             this.content = content
             this.thumb = thumb
             this.mime = mime
-            this.position = db.suspendAutocommit {
-                Cards.count { where { Cards.collectionId eq collectionId } }
-            }.toInt()
+            this.orderKey = appendKey(lastKeyOfGroup(db, collectionId, cardSectionId))
             this.createdAt = Clock.System.now()
+            this.updatedAt = Clock.System.now()
         }
         db.suspendTransaction {
             Cards.insert(row)
@@ -631,23 +860,33 @@ internal class KormiumCardRepository(
 
     override suspend fun setThumb(id: Uuid, thumb: String) {
         db.suspendTransaction {
-            Cards.update(CardRow().apply { this.thumb = thumb }) { where { Cards.id eq id } }
+            Cards.update(
+                CardRow().apply { this.thumb = thumb; this.updatedAt = Clock.System.now() },
+            ) { where { Cards.id eq id } }
         }
     }
 
     override suspend fun imageFilesWithoutThumb(): List<Card> = db.suspendAutocommit {
-        Cards.find { where { Cards.kind eq CardKind.FILE.id } }.map { it.toModel() }
+        Cards.find { where { (Cards.kind eq CardKind.FILE.id) and Cards.deletedAt.isNull() } }.map { it.toModel() }
     }.filter { it.thumb == null && (it.mime ?: "").startsWith("image/") }
 
     override suspend fun updateNote(id: Uuid, title: String, content: String) {
         db.suspendTransaction {
-            Cards.update(CardRow().apply { this.title = title; this.content = content }) { where { Cards.id eq id } }
+            Cards.update(
+                CardRow().apply {
+                    this.title = title
+                    this.content = content
+                    this.updatedAt = Clock.System.now()
+                },
+            ) { where { Cards.id eq id } }
         }
     }
 
     override suspend fun rename(id: Uuid, title: String) {
         db.suspendTransaction {
-            Cards.update(CardRow().apply { this.title = title }) { where { Cards.id eq id } }
+            Cards.update(
+                CardRow().apply { this.title = title; this.updatedAt = Clock.System.now() },
+            ) { where { Cards.id eq id } }
         }
     }
 
@@ -660,81 +899,68 @@ internal class KormiumCardRepository(
 
     override suspend fun move(id: Uuid, toCollectionId: Uuid, cardSectionId: Uuid?, newIndex: Int) {
         db.suspendTransaction {
-            val moving = Cards.findOne { where { Cards.id eq id } } ?: return@suspendTransaction
-            val fromCollectionId = moving.collectionId
+            if (Cards.findOne { where { Cards.id eq id } } == null) return@suspendTransaction
 
             // A card can only join a section of the collection it lands in; anything else (a stale
             // section from the collection it came from) would hide it from every group.
             val groups = CardSections.find {
-                where { CardSections.collectionId eq toCollectionId }
-                orderBy ASC CardSections.position
+                where { (CardSections.collectionId eq toCollectionId) and CardSections.deletedAt.isNull() }
             }.map { it.id }
             val group = cardSectionId?.takeIf { it in groups }
 
-            // Reattach first, so the renumbering below sees the card in its new home. This goes
-            // through SQL because an update built from a row can't clear cardSectionId — an unset
-            // column and one assigned null look the same to it.
+            val siblings = Cards.find {
+                where {
+                    val inGroup = if (group == null) Cards.cardSectionId.isNull() else (Cards.cardSectionId eq group)
+                    (Cards.collectionId eq toCollectionId) and inGroup and Cards.deletedAt.isNull()
+                }
+                orderBy ASC Cards.orderKey
+                orderBy ASC Cards.id
+            }.filter { it.id != id }
+
+            val key = keyAt(siblings.map { it.orderKey }, newIndex)
+
+            // One row, one write — collection, group and place together. This goes through SQL because
+            // an update built from a row cannot clear cardSectionId: an unset column and one assigned
+            // null look the same to it, and a card dragged out of a group must end up ungrouped.
             val groupValue = if (group == null) "NULL" else "'$group'"
+            val now = Clock.System.now()
             Cards.execSql(
-                """UPDATE "cards" SET "collectionId" = '$toCollectionId', "cardSectionId" = $groupValue WHERE "id" = '$id'""",
+                """
+                UPDATE "cards"
+                SET "collectionId" = '$toCollectionId', "cardSectionId" = $groupValue,
+                    "orderKey" = '$key', "updatedAt" = '$now'
+                WHERE "id" = '$id'
+                """.trimIndent(),
             )
-
-            // Renumber the target collection one group at a time — ungrouped first, then each card
-            // section in its own order — with the moved card spliced into its group at newIndex.
-            // Positions stay a single collection-wide sequence, so a group's cards never interleave.
-            val target = Cards.find {
-                where { Cards.collectionId eq toCollectionId }
-                orderBy ASC Cards.position
-            }
-            var pos = 0
-            for (g in listOf<Uuid?>(null) + groups) {
-                val ids = target.filter { it.cardSectionId == g && it.id != id }.map { it.id }.toMutableList()
-                if (g == group) ids.add(newIndex.coerceIn(0, ids.size), id)
-                for (cid in ids) {
-                    Cards.update(CardRow().apply { position = pos }) { where { Cards.id eq cid } }
-                    pos++
-                }
-            }
-
-            // The card left a hole in the order of the collection it came from.
-            if (fromCollectionId != toCollectionId) {
-                Cards.find {
-                    where { Cards.collectionId eq fromCollectionId }
-                    orderBy ASC Cards.position
-                }.map { it.id }.forEachIndexed { i, cid ->
-                    Cards.update(CardRow().apply { position = i }) { where { Cards.id eq cid } }
-                }
-            }
         }
     }
 
     override suspend fun reorder(collectionId: Uuid, cardSectionId: Uuid?, orderedIds: List<Uuid>) {
         db.suspendTransaction {
-            val groups = CardSections.find {
-                where { CardSections.collectionId eq collectionId }
-                orderBy ASC CardSections.position
+            val members = Cards.find {
+                where {
+                    val inGroup =
+                        if (cardSectionId == null) Cards.cardSectionId.isNull() else (Cards.cardSectionId eq cardSectionId)
+                    (Cards.collectionId eq collectionId) and inGroup and Cards.deletedAt.isNull()
+                }
+                orderBy ASC Cards.orderKey
+                orderBy ASC Cards.id
             }.map { it.id }
-            val all = Cards.find {
-                where { Cards.collectionId eq collectionId }
-                orderBy ASC Cards.position
-            }
 
-            // The collection is renumbered as a whole — ungrouped first, then each section in turn —
-            // because positions are one collection-wide sequence (see [move]). Only the named group
-            // changes order: everywhere else the cards are written back in the order they were read.
-            var pos = 0
-            for (g in listOf<Uuid?>(null) + groups) {
-                val members = all.filter { it.cardSectionId == g }.map { it.id }
-                val ids = if (g == cardSectionId) {
-                    val sorted = orderedIds.filter { it in members }
-                    sorted + members.filterNot { it in sorted }
-                } else {
-                    members
-                }
-                for (cid in ids) {
-                    Cards.update(CardRow().apply { position = pos }) { where { Cards.id eq cid } }
-                    pos++
-                }
+            // The caller names the whole group; a card it left out (one saved while the sort was being
+            // chosen) keeps its place at the end rather than being dropped.
+            val sorted = orderedIds.filter { it in members }
+            val ids = sorted + members.filterNot { it in sorted }
+
+            // A sort is the one operation that really does re-place every card of the group, so here —
+            // and only here — every row of the group is written. The keys are spread rather than
+            // generated one after another, which keeps them short.
+            val keys = OrderKey.sequence(null, null, ids.size)
+            val now = Clock.System.now()
+            ids.forEachIndexed { i, cardId ->
+                Cards.update(
+                    CardRow().apply { orderKey = keys[i]; updatedAt = now },
+                ) { where { Cards.id eq cardId } }
             }
         }
     }
@@ -756,11 +982,29 @@ internal class KormiumCardRepository(
                             (Cards.title like pattern) or (Cards.url like pattern) or (Cards.content like pattern)
                         }
                         .reduce { all, word -> all and word }
+                        .and(Cards.deletedAt.isNull())
                 }
                 orderBy ASC Cards.title
             }.map { it.toModel() }
         }
     }
+}
+
+/** The last key of a card group — the (collection, card section) a card is about to be appended to. */
+private suspend fun lastKeyOfGroup(
+    db: SuspendDatabase<StramusDb>,
+    collectionId: Uuid,
+    cardSectionId: Uuid?,
+): String? = db.suspendAutocommit {
+    Cards.find {
+        where {
+            val inGroup =
+                if (cardSectionId == null) Cards.cardSectionId.isNull() else (Cards.cardSectionId eq cardSectionId)
+            (Cards.collectionId eq collectionId) and inGroup and Cards.deletedAt.isNull()
+        }
+        orderBy DESC Cards.orderKey
+        limit = 1
+    }.firstOrNull()?.orderKey
 }
 
 internal class KormiumFaviconRepository(

@@ -49,8 +49,8 @@ internal suspend fun exportCsv(store: StramusStore, lockedSections: Set<Uuid>) {
  * Section → Collection folders. Triggers a download.
  */
 internal suspend fun exportBookmarks(store: StramusStore, lockedSections: Set<Uuid>) {
-    val sections = store.sections.all().filter { it.id !in lockedSections }.sortedBy { it.position }
-    val collections = store.collections.all().sortedBy { it.position }
+    val sections = store.sections.all().filter { it.id !in lockedSections }.sortedBy { it.orderKey }
+    val collections = store.collections.all().sortedBy { it.orderKey }
 
     val html = StringBuilder()
     html.append("<!DOCTYPE NETSCAPE-Bookmark-file-1>\n")

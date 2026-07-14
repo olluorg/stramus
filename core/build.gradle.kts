@@ -32,10 +32,13 @@ kotlin {
         }
 
         // Tests live on the JVM alone: the code they cover is common, and a browser test run would
-        // want Karma and a Chrome to point it at for no gain.
+        // want Karma and a Chrome to point it at for no gain. The store itself is exercised here too —
+        // against SQLite on a file, which is the same SQLite the browser runs, only reachable.
         val jvmTest by getting {
             dependencies {
                 implementation(kotlin("test"))
+                implementation("io.github.kormium:kormium-sqlite:0.11.0")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
             }
         }
 

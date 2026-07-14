@@ -619,7 +619,7 @@ val App = FC<AppProps> { props ->
     // which is the order the user put it in, by dragging or by sorting. The ungrouped ones are under
     // the null key.
     val cardsByGroup = useMemo(cards) { cards.groupBy { it.cardSectionId } }
-    val orderedCardSections = useMemo(cardSections) { cardSections.sortedBy { it.position } }
+    val orderedCardSections = useMemo(cardSections) { cardSections.sortedBy { it.orderKey } }
 
     // Tabs matching the sidebar's own search box (title or URL). The search only hides rows: a tab
     // still knows its real place in its window, so a drag lands correctly. Lowercasing every tab's
