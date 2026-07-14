@@ -31,7 +31,7 @@ import stramus.core.sync.SyncEngine
  * is how the extension — which cannot be given an environment variable — is pointed somewhere else while
  * this is still being built.
  */
-fun serverBaseUrl(): String = localStorage.getItem("stramus.server") ?: "http://localhost:8080"
+fun serverBaseUrl(): String = localStorage.getItem("stramus.server") ?: "http://localhost:8090"
 
 // The wrappers' InputType is opaque; the app names the ones it uses the way the rest of the UI does.
 private val EMAIL_INPUT: InputType = "email".unsafeCast<InputType>()

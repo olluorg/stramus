@@ -10,7 +10,8 @@ import kotlin.time.Duration.Companion.minutes
  * is what refuses to let the wrong ones out of the house.
  */
 data class ServerConfig(
-    val port: Int = 8080,
+    /** 8090, not 8080: the web app's own dev server has 8080, and the two are always run together. */
+    val port: Int = 8090,
 
     /**
      * Where the database lives. SQLite for now — one writer, one instance, which is the honest shape
@@ -33,7 +34,7 @@ data class ServerConfig(
     val loginCodeTtl: Duration = 10.minutes,
 
     /** Browsers refuse a cross-origin request that this does not name. Both clients are cross-origin. */
-    val allowedOrigins: List<String> = listOf("http://localhost:8081", "http://localhost:8080"),
+    val allowedOrigins: List<String> = listOf("http://localhost:8080"),
 
     val production: Boolean = false,
 ) {
@@ -41,7 +42,7 @@ data class ServerConfig(
         fun fromEnv(env: Map<String, String> = System.getenv()): ServerConfig {
             val production = env["STRAMUS_ENV"] == "production"
             val config = ServerConfig(
-                port = env["PORT"]?.toIntOrNull() ?: 8080,
+                port = env["PORT"]?.toIntOrNull() ?: 8090,
                 databasePath = env["STRAMUS_DB"] ?: "stramus.db",
                 jwtSecret = env["STRAMUS_JWT_SECRET"] ?: "dev-secret-not-for-production",
                 allowedOrigins = env["STRAMUS_ALLOWED_ORIGINS"]
