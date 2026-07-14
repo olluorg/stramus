@@ -42,6 +42,10 @@ dependencies {
     // Argon2id, in pure Java — no JNA, no native library to ship in the container.
     implementation("org.bouncycastle:bcprov-jdk18on:1.79")
 
+    // Mail, over SMTP. Not a provider's HTTP API: every mail service speaks SMTP, so this works with
+    // Postmark, SES, Fastmail or a self-hosted relay without a line of code changing.
+    implementation("org.eclipse.angus:angus-mail:2.0.3")
+
     implementation("org.slf4j:slf4j-simple:2.0.16")
 
     testImplementation(kotlin("test"))
@@ -52,6 +56,8 @@ dependencies {
     testImplementation("io.ktor:ktor-server-test-host:$ktorVersion")
     testImplementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    // A real SMTP server, in the test JVM: the only way to find out whether what we send is what arrives.
+    testImplementation("com.icegreen:greenmail:2.1.3")
 }
 
 tasks.test {

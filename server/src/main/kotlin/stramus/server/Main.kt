@@ -8,6 +8,6 @@ fun main() {
     val db = openServerDatabase(config)
 
     embeddedServer(Netty, port = config.port) {
-        stramusModule(config, db)
+        stramusModule(config, db, mailerFor(config))
     }.start(wait = true)
 }

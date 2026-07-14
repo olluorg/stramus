@@ -10,8 +10,17 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationStopping
 import io.ktor.server.application.call
 import io.ktor.server.application.install
+import io.ktor.server.application.log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import io.ktor.server.auth.Authentication
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
@@ -66,6 +75,22 @@ fun Application.stramusModule(
     val accounts = Accounts(db, config, sessions, mailer)
     val sync = SyncService(db)
     val blobs = BlobStore(db, config)
+
+    // The sweep, on its own clock. Once a day is often enough for landfill — an orphaned file costs disk
+    // and nothing else — and it runs off the request path entirely, where a slow disk cannot make anybody
+    // wait. A server that dies mid-sweep loses nothing: the next one starts over from what is still there.
+    if (config.blobGcEnabled) {
+        val gc = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        monitor.subscribe(ApplicationStopping) { gc.cancel() }
+        gc.launch {
+            while (isActive) {
+                delay(config.blobGcInterval)
+                runCatching { blobs.collectGarbage() }
+                    .onSuccess { swept -> if (swept > 0) log.info("Swept {} orphaned files", swept) }
+                    .onFailure { log.warn("The file sweep failed; it will be tried again", it) }
+            }
+        }
+    }
 
     // Ktor's own DI, keyed by the full type: this is what `call.transaction<ServerDb, _> { }` resolves
     // the database out of, so a route never has to be handed one.

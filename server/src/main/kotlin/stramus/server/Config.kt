@@ -2,6 +2,7 @@ package stramus.server
 
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 
 /**
@@ -33,6 +34,26 @@ data class ServerConfig(
     /** How long a mailed one-time code is good for. */
     val loginCodeTtl: Duration = 10.minutes,
 
+    /**
+     * The mail relay the one-time codes go through. Blank means there is none, and the codes go to the log
+     * instead — which is right on a developer's machine and a catastrophe anywhere else, so production
+     * refuses to start without it.
+     */
+    val smtpHost: String = "",
+    val smtpPort: Int = 587,
+    val smtpUser: String? = null,
+    val smtpPassword: String? = null,
+    val mailFrom: String = "stramus@localhost",
+
+    /**
+     * Whether the connection to the relay must be encrypted (STARTTLS, or implicit TLS on port 465).
+     *
+     * True everywhere it matters, and false only for a test SMTP server in the same JVM, which has no TLS
+     * and needs none — there is no network for anyone to listen on. Turning it off against a real relay
+     * would put the SMTP password, and every sign-in code, on the wire in the clear; production refuses.
+     */
+    val smtpRequireTls: Boolean = true,
+
     /** Where the file bytes live. Not in the database: a backup should not have to copy them. */
     val blobDir: String = "blobs",
 
@@ -41,6 +62,12 @@ data class ServerConfig(
 
     /** The most one account may store. */
     val quotaBytes: Long = 500L * 1024 * 1024,
+
+    /** Whether the sweep for orphaned files runs at all. Off in tests, which do their own sweeping. */
+    val blobGcEnabled: Boolean = true,
+
+    /** How often it runs. An orphaned file costs disk and nothing else, so daily is generous. */
+    val blobGcInterval: Duration = 24.hours,
 
     /** Browsers refuse a cross-origin request that this does not name. Both clients are cross-origin. */
     val allowedOrigins: List<String> = listOf("http://localhost:8080"),
@@ -54,6 +81,11 @@ data class ServerConfig(
                 port = env["PORT"]?.toIntOrNull() ?: 8090,
                 databasePath = env["STRAMUS_DB"] ?: "stramus.db",
                 blobDir = env["STRAMUS_BLOBS"] ?: "blobs",
+                smtpHost = env["STRAMUS_SMTP_HOST"] ?: "",
+                smtpPort = env["STRAMUS_SMTP_PORT"]?.toIntOrNull() ?: 587,
+                smtpUser = env["STRAMUS_SMTP_USER"],
+                smtpPassword = env["STRAMUS_SMTP_PASSWORD"],
+                mailFrom = env["STRAMUS_MAIL_FROM"] ?: "stramus@localhost",
                 jwtSecret = env["STRAMUS_JWT_SECRET"] ?: "dev-secret-not-for-production",
                 allowedOrigins = env["STRAMUS_ALLOWED_ORIGINS"]
                     ?.split(',')
@@ -81,6 +113,14 @@ data class ServerConfig(
         }
         require(allowedOrigins.none { it.startsWith("http://localhost") }) {
             "STRAMUS_ALLOWED_ORIGINS still names localhost"
+        }
+        require(smtpHost.isNotBlank()) {
+            "STRAMUS_SMTP_HOST is not set — sign-in codes would be printed to the log, " +
+                "which hands every account to anyone who can read it"
+        }
+        require(smtpRequireTls) {
+            "the mail connection is unencrypted — the SMTP password and every sign-in code would cross " +
+                "the network in the clear"
         }
     }
 }

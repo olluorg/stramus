@@ -13,6 +13,8 @@ import io.github.kormium.suspendAutocommit
 import io.github.kormium.suspendTransaction
 import java.nio.file.Files
 import java.nio.file.Path
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.hours
 import kotlin.io.path.createDirectories
 import kotlin.io.path.exists
 import kotlin.io.path.readBytes
@@ -20,6 +22,10 @@ import kotlin.io.path.writeBytes
 import kotlin.time.Clock
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 
 class BlobRow : Entity() {
     var sha by Blobs.sha
@@ -122,6 +128,50 @@ class BlobStore(private val db: SuspendDatabase<ServerDb>, private val config: S
     /** What this account is using, in bytes. */
     suspend fun usedBytes(userId: Uuid): Long = db.suspendAutocommit {
         Blobs.find { where { Blobs.userId eq userId } }.sumOf { it.size }
+    }
+
+    /**
+     * Sweep the files no card holds any more.
+     *
+     * A card deleted on Tuesday leaves its bytes behind: the same file may be held by another card, so the
+     * client cannot say "delete this blob", and nothing else is in a position to know. The server is —
+     * every card of every device is here, and the set of hashes they name is exactly the set of files worth
+     * keeping. Anything else is landfill, and for a file store landfill is measured in gigabytes.
+     *
+     * [grace] is why this is not simply "delete what nothing names". A file is uploaded *after* the card
+     * that names it is pushed, but only just: a device that dies between the two — or one that uploads
+     * while another device's card row is still in flight — would have its bytes swept from under it. A
+     * blob younger than [grace] is left alone, whoever names it.
+     */
+    suspend fun collectGarbage(grace: Duration = 24.hours): Int {
+        val now = Clock.System.now()
+        val all = db.suspendAutocommit { Blobs.all() }
+        if (all.isEmpty()) return 0
+
+        var swept = 0
+        all.groupBy { it.userId }.forEach { (userId, blobs) ->
+            val held = heldShas(userId)
+            blobs.filter { it.sha !in held && it.createdAt < now - grace }.forEach { orphan ->
+                db.suspendTransaction {
+                    Blobs.deleteWhere { where { (Blobs.sha eq orphan.sha) and (Blobs.userId eq userId) } }
+                }
+                // The bytes may be another account's as well: two people who saved the same file each have
+                // their own row over one file on disk. The file goes only when the last row naming it does.
+                val stillReferenced = db.suspendAutocommit { Blobs.findOne { where { Blobs.sha eq orphan.sha } } }
+                if (stillReferenced == null) Files.deleteIfExists(pathOf(orphan.sha))
+                swept++
+            }
+        }
+        return swept
+    }
+
+    /** Every file hash named by a card this user still has. A tombstone names nothing — that is the point. */
+    private suspend fun heldShas(userId: Uuid): Set<String> = db.suspendAutocommit {
+        SyncRows.find { where { (SyncRows.userId eq userId) and (SyncRows.tbl eq "cards") } }
+    }.mapNotNullTo(mutableSetOf()) { row ->
+        if (row.deletedAt != null) return@mapNotNullTo null
+        val payload = row.payload?.let { runCatching { Json.parseToJsonElement(it) as? JsonObject }.getOrNull() }
+        payload?.get("blobSha")?.jsonPrimitive?.contentOrNull
     }
 
     /** Erase every file of an account. Part of "forget me", which has to mean the bytes too. */
