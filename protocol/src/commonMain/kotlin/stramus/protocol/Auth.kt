@@ -76,3 +76,15 @@ data class Me(val userId: String, val email: String)
 /** What every failure says, so the client never has to guess from a status code alone. */
 @Serializable
 data class ApiError(val error: String, val message: String)
+
+/**
+ * Everything the server holds about a person, handed over on request — the account itself and every row
+ * it has synced. Whatever else GDPR asks of a service, it asks that a person can have their data back in
+ * a form they can use, and this is that form: the same JSON the client wrote.
+ */
+@Serializable
+data class AccountExport(
+    val email: String,
+    val createdAt: String,
+    val rows: List<SyncRow>,
+)

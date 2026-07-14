@@ -139,6 +139,46 @@ object LoginCodes : Table<ServerDb, LoginCodeRow>("login_codes", ::LoginCodeRow)
     init { id; email; codeHash; issuedAt; expiresAt; usedAt; attempts }
 }
 
+class SyncRowEntity : Entity() {
+    var userId by SyncRows.userId
+    var tbl by SyncRows.tbl
+    var id by SyncRows.id
+    var rev by SyncRows.rev
+    var updatedAt by SyncRows.updatedAt
+    var deletedAt by SyncRows.deletedAt
+    var deviceId by SyncRows.deviceId
+    var payload by SyncRows.payload
+}
+
+/**
+ * Every row of every user, as JSON the server does not read.
+ *
+ * One table rather than seven mirrors of the client's, because the server has no use for the inside of a
+ * card: it orders rows by [rev], decides which of two versions is later by [updatedAt], and hands them
+ * on. Search and sorting happen in the browser. What that buys is a client free to change its own schema
+ * without a server deploy — and two clients on different versions still syncing through a server that
+ * understands neither.
+ *
+ * [deviceId] is the device that last wrote the row, and it exists to break a tie: two writes with the
+ * same [updatedAt] to the millisecond must resolve the same way on every machine, and "the larger device
+ * id" is arbitrary but agreed.
+ *
+ * [deletedAt] is a tombstone — the row is gone, and its going is a fact the other devices need. The
+ * payload of a tombstone is null: what is deleted is not kept here in the hope it comes back.
+ */
+object SyncRows : Table<ServerDb, SyncRowEntity>("sync_rows", ::SyncRowEntity) {
+    val userId by Column.UUID().primaryKey()
+    val tbl by Column.Text().primaryKey()
+    val id by Column.Text().primaryKey()
+    val rev by Column.Long()
+    val updatedAt by Column.Instant()
+    val deletedAt by Column.Instant().nullable()
+    val deviceId by Column.UUID()
+    val payload by Column.Text().nullable()
+
+    init { userId; tbl; id; rev; updatedAt; deletedAt; deviceId; payload }
+}
+
 class UserSeqRow : Entity() {
     var userId by UserSeq.userId
     var rev by UserSeq.rev

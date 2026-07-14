@@ -168,6 +168,35 @@ class Accounts(
     }
 
     suspend fun me(userId: Uuid): UserRow? = db.suspendAutocommit { Users.findOne { where { Users.id eq userId } } }
+
+    /**
+     * Erase the account: the synced rows, the devices, the sessions, the sign-in codes, the user.
+     *
+     * Every table is named here on purpose rather than left to a cascade the schema does not declare —
+     * "forget me" that leaves a row behind somewhere is not forgetting, and the way that happens is a
+     * table added later that nobody remembered to add to this list. It runs as one transaction, so a
+     * half-deleted account is not a state this can end in.
+     *
+     * The access tokens already handed out cannot be recalled — they are signed, not stored — but they
+     * die with the user: `validate` refuses a token whose account is gone, on every request.
+     */
+    suspend fun delete(userId: Uuid) {
+        db.suspendTransaction {
+            SyncRows.deleteWhere { where { SyncRows.userId eq userId } }
+            UserSeq.deleteWhere { where { UserSeq.userId eq userId } }
+            RefreshTokens.deleteWhere { where { RefreshTokens.userId eq userId } }
+            Devices.deleteWhere { where { Devices.userId eq userId } }
+            Identities.deleteWhere { where { Identities.userId eq userId } }
+
+            val user = Users.findOne { where { Users.id eq userId } }
+            if (user != null) {
+                // The codes are keyed by address, not by user: a code mailed to an address that then
+                // deleted its account must not sign the next owner of that address in.
+                LoginCodes.deleteWhere { where { LoginCodes.email eq user.email } }
+                Users.deleteWhere { where { Users.id eq userId } }
+            }
+        }
+    }
 }
 
 /**

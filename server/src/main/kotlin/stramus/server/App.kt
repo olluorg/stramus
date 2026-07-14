@@ -23,6 +23,7 @@ import io.ktor.server.plugins.di.provide
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
+import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
@@ -37,7 +38,9 @@ import stramus.protocol.LoginRequest
 import stramus.protocol.LogoutRequest
 import stramus.protocol.Me
 import stramus.protocol.RefreshRequest
+import stramus.protocol.AccountExport
 import stramus.protocol.RegisterRequest
+import stramus.protocol.SyncRequest
 
 /** The name of the JWT authentication provider — `authenticate(BEARER)` guards a route with it. */
 const val BEARER = "bearer"
@@ -55,6 +58,7 @@ fun Application.stramusModule(
     val accessTokens = AccessTokens(config)
     val sessions = Sessions(db, config, accessTokens)
     val accounts = Accounts(db, config, sessions, mailer)
+    val sync = SyncService(db)
 
     // Ktor's own DI, keyed by the full type: this is what `call.transaction<ServerDb, _> { }` resolves
     // the database out of, so a route never has to be handed one.
@@ -152,6 +156,40 @@ fun Application.stramusModule(
                 val userId = call.userId()
                 val user = accounts.me(userId) ?: throw AuthException("no such user")
                 call.respond(Me(user.id.toString(), user.email))
+            }
+
+            post("/v1/sync") {
+                val body = call.receive<SyncRequest>()
+                // The device is taken from the token, not from the body: a signed-in caller does not get
+                // to write rows as one of the user's *other* devices, which is what the tie-break in a
+                // conflict is decided by.
+                call.respond(sync.sync(call.userId(), call.deviceId(), body.since, body.rows))
+            }
+
+            /**
+             * Everything the server holds about the caller, in the form it holds it. The right to have a
+             * copy of your data, and to take it elsewhere — and the honest test of whether we know what
+             * we are storing.
+             */
+            get("/v1/account/export") {
+                val userId = call.userId()
+                val user = accounts.me(userId) ?: throw AuthException("no such user")
+                call.respond(
+                    AccountExport(
+                        email = user.email,
+                        createdAt = user.createdAt.toString(),
+                        rows = sync.exportAll(userId),
+                    ),
+                )
+            }
+
+            /**
+             * The right to be forgotten, meant literally: the rows go, the devices go, the sessions go,
+             * the account goes. Not a flag — nothing is left behind that says this person was ever here.
+             */
+            delete("/v1/account") {
+                accounts.delete(call.userId())
+                call.respond(HttpStatusCode.NoContent)
             }
         }
     }

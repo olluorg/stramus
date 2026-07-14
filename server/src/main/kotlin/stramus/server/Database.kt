@@ -98,4 +98,23 @@ val serverMigrations: List<Migration<ServerDb>> = listOf(
         );
         """,
     ),
+    Migration(
+        "002-sync-rows",
+        """
+        CREATE TABLE "sync_rows" (
+            "userId" text NOT NULL,
+            "tbl" text NOT NULL,
+            "id" text NOT NULL,
+            "rev" integer NOT NULL,
+            "updatedAt" text NOT NULL,
+            "deletedAt" text,
+            "deviceId" text NOT NULL,
+            "payload" text,
+            PRIMARY KEY ("userId", "tbl", "id")
+        );
+
+        -- The only query that matters: "what has changed for this user since revision N?"
+        CREATE INDEX "idx_sync_rows_delta" ON "sync_rows" ("userId", "rev");
+        """,
+    ),
 )
