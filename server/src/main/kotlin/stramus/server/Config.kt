@@ -69,6 +69,13 @@ data class ServerConfig(
     /** How often it runs. An orphaned file costs disk and nothing else, so daily is generous. */
     val blobGcInterval: Duration = 24.hours,
 
+    /**
+     * The OAuth client id of this application, as registered with Google. Blank means the Google door is not
+     * there at all — and it is the *only* thing that makes an ID token ours rather than anybody's, so a
+     * server without one refuses Google sign-ins rather than accepting them loosely. See [GoogleIdTokenVerifier].
+     */
+    val googleClientId: String = "",
+
     /** Browsers refuse a cross-origin request that this does not name. Both clients are cross-origin. */
     val allowedOrigins: List<String> = listOf("http://localhost:8080"),
 
@@ -86,6 +93,7 @@ data class ServerConfig(
                 smtpUser = env["STRAMUS_SMTP_USER"],
                 smtpPassword = env["STRAMUS_SMTP_PASSWORD"],
                 mailFrom = env["STRAMUS_MAIL_FROM"] ?: "stramus@localhost",
+                googleClientId = env["STRAMUS_GOOGLE_CLIENT_ID"] ?: "",
                 jwtSecret = env["STRAMUS_JWT_SECRET"] ?: "dev-secret-not-for-production",
                 allowedOrigins = env["STRAMUS_ALLOWED_ORIGINS"]
                     ?.split(',')
@@ -98,6 +106,10 @@ data class ServerConfig(
             return config
         }
     }
+
+    /** The verifier this configuration asks for, or null when no Google client id is set. */
+    fun googleVerifier(): GoogleVerifier? =
+        if (googleClientId.isNotBlank()) GoogleIdTokenVerifier(googleClientId) else null
 
     /**
      * The defaults above are conveniences for a developer, and every one of them is a hole in a server

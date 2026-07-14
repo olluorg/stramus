@@ -39,6 +39,9 @@ dependencies {
     implementation("io.github.kormium:kormium-migrate:0.11.0")
     implementation("io.github.kormium:kormium-ktor-di:0.11.0")
 
+    // Google's public keys, fetched and cached, to check the signature on an ID token.
+    implementation("com.auth0:jwks-rsa:0.22.1")
+
     // Argon2id, in pure Java — no JNA, no native library to ship in the container.
     implementation("org.bouncycastle:bcprov-jdk18on:1.79")
 

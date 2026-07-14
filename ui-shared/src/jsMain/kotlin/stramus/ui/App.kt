@@ -30,6 +30,7 @@ import react.useRef
 import react.useState
 import stramus.core.db.StramusStore
 import stramus.core.db.openStramusStore
+import stramus.core.platform.GoogleSignIn
 import stramus.core.sync.StramusApi
 import stramus.core.sync.SyncEngine
 import stramus.core.model.Card
@@ -473,6 +474,12 @@ val TabRow = memo(
 )
 
 external interface AppProps : Props {
+    /**
+     * How this host reaches Google, if it can: `chrome.identity` in the extension, a popup in the web app.
+     * Null when no Google client id has been configured, and then that door is simply not offered.
+     */
+    var google: GoogleSignIn?
+
     /** Present in the extension (chrome.tabs); null in the web app. Enables "Save open tabs". */
     var tabCapture: TabCapture?
 
@@ -2707,6 +2714,7 @@ val App = FC<AppProps> { props ->
                 this.api = api
                 engine = liveEngine
                 store = liveStore
+                google = props.google
                 onSynced = { reloadAfterSync() }
                 onState = { syncUi = it }
                 onClose = { accountOpen = false }

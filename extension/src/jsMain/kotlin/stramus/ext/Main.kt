@@ -4,6 +4,7 @@ import react.create
 import react.dom.client.createRoot
 import stramus.core.platform.builtInAi
 import stramus.ui.App
+import stramus.ui.googleClientId
 import web.dom.ElementId
 import web.dom.document
 
@@ -24,6 +25,8 @@ fun main() {
             // user keeps here — see [ChromeIcons].
             iconSources = ChromeIcons
             ai = builtInAi()
+            // chrome.identity, but only where an OAuth client has actually been registered for this app.
+            google = googleClientId().takeIf { it.isNotBlank() }?.let { ChromeGoogleSignIn(it) }
         },
     )
 }

@@ -26,6 +26,8 @@ private const val MAX_LIVE_CODES_PER_EMAIL = 3
 
 private val random = SecureRandom()
 
+private const val GOOGLE = "google"
+
 /**
  * Signing up, signing in, and the one-time codes on the mail.
  *
@@ -39,7 +41,65 @@ class Accounts(
     private val config: ServerConfig,
     private val sessions: Sessions,
     private val mailer: Mailer,
+    /** Null when no Google client id is configured — then the door simply is not there. */
+    private val google: GoogleVerifier? = null,
 ) {
+
+    /**
+     * The third door: Google.
+     *
+     * Two questions here have answers that are not obvious, and both are about the same thing — that an
+     * email address is not a proof of anything unless somebody checked it.
+     *
+     * **Linking.** If the address already has an account (made with a password, or by a mailed code), this
+     * signs into *that* account rather than making a second one — but only when Google says the address is
+     * verified. Google will hand out an ID token for an unverified address, and an attacker who can get one
+     * for `ada@example.org` without ever reading Ada's mail could otherwise walk straight into Ada's
+     * account. An unverified address gets a refusal, not an account.
+     *
+     * **The identity, not the email, is the key.** A person can change the address on their Google account;
+     * `sub` never changes. So the identity row is what is looked up, and the address is only used the first
+     * time, to decide whether this is somebody we already know.
+     */
+    suspend fun signInWithGoogle(idToken: String, deviceId: Uuid, deviceName: String?): TokenPair {
+        val verifier = google ?: throw AccountException(501, "signing in with Google is not set up on this server")
+        val identity = verifier.verify(idToken) ?: throw AuthException("that Google sign-in was not accepted")
+        if (!identity.emailVerified) {
+            throw AccountException(403, "that Google account has not verified its email address")
+        }
+
+        val address = normalizeEmail(identity.email)
+        val now = Clock.System.now()
+
+        val userId = db.suspendTransaction {
+            val existing = Identities.findOne {
+                where { (Identities.provider eq GOOGLE) and (Identities.subject eq identity.subject) }
+            }
+            if (existing != null) return@suspendTransaction existing.userId
+
+            // Known address, first time through this door: the same person, another way in.
+            val byEmail = Users.findOne { where { Users.email eq address } }
+            val userId = byEmail?.id ?: UserRow().apply {
+                id = Uuid.random()
+                email = address
+                passwordHash = null // signed up with Google; there is no password, and none is missing
+                createdAt = now
+            }.also { Users.insert(it) }.id
+
+            Identities.insert(
+                IdentityRow().apply {
+                    id = Uuid.random()
+                    this.userId = userId
+                    provider = GOOGLE
+                    subject = identity.subject
+                    createdAt = now
+                },
+            )
+            userId
+        }
+
+        return sessions.start(userId, deviceId, deviceName)
+    }
 
     suspend fun register(email: String, password: String, deviceId: Uuid, deviceName: String?): TokenPair {
         val address = normalizeEmail(email)

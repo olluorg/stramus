@@ -82,6 +82,24 @@ CORS по умолчанию разрешает ровно `http://localhost:808
 localStorage.setItem("stramus.server", "https://example.org")
 ```
 
+### Вход через Google
+
+Нужен OAuth-клиент в Google Cloud Console (тип «Web application»). Разрешённые redirect URI:
+
+- веб-версия — `https://olluorg.github.io/stramus/oauth.html` (и `http://localhost:8080/oauth.html` для разработки);
+- расширение — `https://<extension-id>.chromiumapp.org/`.
+
+Один и тот же client ID прописывается **и серверу** (`STRAMUS_GOOGLE_CLIENT_ID`), **и клиенту**:
+
+```js
+localStorage.setItem("stramus.googleClientId", "…apps.googleusercontent.com")
+```
+
+Пока client ID не задан, кнопки «Продолжить с Google» просто нет — кнопка, которая открывает Google и
+возвращается с «invalid client», хуже, чем её отсутствие. Сервер проверяет подпись токена, издателя и
+то, что токен выписан **именно этому** приложению (`aud`): без последней проверки любой человек со своим
+приложением в Google мог бы войти под кем угодно.
+
 Расширению нужен `host_permissions` на этот адрес (в `manifest.json` сейчас стоит localhost:8090).
 
 Переменные окружения сервера:
@@ -92,6 +110,7 @@ localStorage.setItem("stramus.server", "https://example.org")
 | `STRAMUS_JWT_SECRET` | подпись access-токенов |
 | `STRAMUS_ALLOWED_ORIGINS` | CORS: через запятую |
 | `STRAMUS_SMTP_HOST` / `_PORT` / `_USER` / `_PASSWORD` / `STRAMUS_MAIL_FROM` | почта для одноразовых кодов; без хоста коды печатаются в лог |
+| `STRAMUS_GOOGLE_CLIENT_ID` | вход через Google; без него эта дверь просто отсутствует |
 | `STRAMUS_ENV=production` | боевой режим |
 
 В боевом режиме сервер **не стартует**, если остался дев-секрет, если в CORS остался localhost, если не

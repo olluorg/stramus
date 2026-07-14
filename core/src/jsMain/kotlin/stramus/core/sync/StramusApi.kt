@@ -27,6 +27,7 @@ import stramus.protocol.BlobCheckRequest
 import stramus.protocol.BlobCheckResponse
 import stramus.protocol.CodeRequest
 import stramus.protocol.CodeVerifyRequest
+import stramus.protocol.GoogleSignInRequest
 import stramus.protocol.LoginRequest
 import stramus.protocol.LogoutRequest
 import stramus.protocol.Me
@@ -105,6 +106,16 @@ class StramusApi(
 
     suspend fun verifyCode(email: String, code: String): Me {
         val tokens: TokenPair = post("/v1/auth/code/verify", CodeVerifyRequest(email, code, deviceId.toString()))
+        return keep(tokens)
+    }
+
+    /**
+     * Hand the server the token Google gave us. The server checks it — the signature, the issuer, and that
+     * the token was issued for *this* application — because a client saying "Google says I am Ada" is a
+     * client, and anyone can write one.
+     */
+    suspend fun signInWithGoogle(idToken: String): Me {
+        val tokens: TokenPair = post("/v1/auth/oauth/google", GoogleSignInRequest(idToken, deviceId.toString()))
         return keep(tokens)
     }
 

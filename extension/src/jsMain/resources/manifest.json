@@ -10,7 +10,8 @@
     "tabs",
     "history",
     "search",
-    "favicon"
+    "favicon",
+    "identity"
   ],
   "host_permissions": [
     "http://localhost:8090/*"

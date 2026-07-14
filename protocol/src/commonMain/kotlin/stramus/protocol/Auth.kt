@@ -88,3 +88,17 @@ data class AccountExport(
     val createdAt: String,
     val rows: List<SyncRow>,
 )
+
+/**
+ * Signing in with Google.
+ *
+ * The client gets an ID token from Google and hands it here; the *server* checks it — signature, issuer,
+ * audience, expiry — because a client that says "Google told me this is ada@example.org" is a client, and
+ * anyone can be one. What is trusted is Google's signature, not our own code running on someone's machine.
+ */
+@Serializable
+data class GoogleSignInRequest(
+    val idToken: String,
+    val deviceId: String,
+    val deviceName: String? = null,
+)

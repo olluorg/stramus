@@ -387,6 +387,7 @@ interface Strings {
     val syncUsageHint: String
     val optionOn: String
     val optionOff: String
+    val signInWithGoogle: String
 
     val seed: StoreSeed
 }
@@ -692,6 +693,7 @@ private object EnStrings : Strings {
     override val syncUsageHint = "Which pages you open, and how often — what the search ranks by. Off means it stays on this machine."
     override val optionOn = "On"
     override val optionOff = "Off"
+    override val signInWithGoogle = "Continue with Google"
 
     override val seed = StoreSeed(
         sectionTitle = "Main",
@@ -1025,6 +1027,7 @@ private object RuStrings : Strings {
     override val syncUsageHint = "Какие страницы вы открываете и как часто — то, по чему ранжируется поиск. Выключено — остаётся на этой машине."
     override val optionOn = "Вкл"
     override val optionOff = "Выкл"
+    override val signInWithGoogle = "Продолжить с Google"
 
     override val seed = StoreSeed(
         sectionTitle = "Главный",

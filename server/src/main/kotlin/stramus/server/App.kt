@@ -47,6 +47,7 @@ import kotlin.uuid.Uuid
 import stramus.protocol.ApiError
 import stramus.protocol.CodeRequest
 import stramus.protocol.CodeVerifyRequest
+import stramus.protocol.GoogleSignInRequest
 import stramus.protocol.LoginRequest
 import stramus.protocol.LogoutRequest
 import stramus.protocol.Me
@@ -69,10 +70,12 @@ fun Application.stramusModule(
     config: ServerConfig,
     db: SuspendDatabase<ServerDb>,
     mailer: Mailer = LoggingMailer(),
+    /** A test hands in its own; in the app it is built from the configured client id, or absent. */
+    googleVerifier: GoogleVerifier? = null,
 ) {
     val accessTokens = AccessTokens(config)
     val sessions = Sessions(db, config, accessTokens)
-    val accounts = Accounts(db, config, sessions, mailer)
+    val accounts = Accounts(db, config, sessions, mailer, googleVerifier ?: config.googleVerifier())
     val sync = SyncService(db)
     val blobs = BlobStore(db, config)
 
@@ -173,6 +176,13 @@ fun Application.stramusModule(
                 val body = call.receive<CodeVerifyRequest>()
                 call.respond(
                     accounts.verifyCode(body.email, body.code, body.deviceId.asDeviceId(), body.deviceName),
+                )
+            }
+
+            post("/oauth/google") {
+                val body = call.receive<GoogleSignInRequest>()
+                call.respond(
+                    accounts.signInWithGoogle(body.idToken, body.deviceId.asDeviceId(), body.deviceName),
                 )
             }
 

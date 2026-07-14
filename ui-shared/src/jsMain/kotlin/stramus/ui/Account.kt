@@ -20,6 +20,7 @@ import web.html.InputType
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 import stramus.core.db.StramusStore
+import stramus.core.platform.GoogleSignIn
 import stramus.core.sync.ApiException
 import stramus.core.sync.StramusApi
 import stramus.core.sync.SyncEngine
@@ -32,6 +33,15 @@ import stramus.core.sync.SyncEngine
  * this is still being built.
  */
 fun serverBaseUrl(): String = localStorage.getItem("stramus.server") ?: "http://localhost:8090"
+
+/**
+ * The OAuth client id of this application, as registered with Google — the same one the server checks the
+ * token's audience against.
+ *
+ * Blank until someone registers one, and while it is blank the Google button is simply not there. A button
+ * that opens Google and comes back with "invalid client" is worse than no button.
+ */
+fun googleClientId(): String = localStorage.getItem("stramus.googleClientId") ?: ""
 
 // The wrappers' InputType is opaque; the app names the ones it uses the way the rest of the UI does.
 private val EMAIL_INPUT: InputType = "email".unsafeCast<InputType>()
@@ -95,6 +105,8 @@ external interface AccountDialogProps : Props {
     var api: StramusApi
     var engine: SyncEngine
     var store: StramusStore
+    /** Null where there is no way to reach Google — then that door is not offered. */
+    var google: GoogleSignIn?
     /** Run after anything that changes the database, so the app redraws what the sync brought in. */
     var onSynced: () -> Unit
     var onState: (SyncUi) -> Unit
@@ -259,6 +271,30 @@ val AccountDialog = FC<AccountDialogProps> { props ->
         p {
             className = ClassName("muted")
             +t.accountSignedOutHint
+        }
+
+        props.google?.let { google ->
+            button {
+                className = ClassName("btn google")
+                disabled = busy
+                onClick = {
+                    busy = true
+                    error = null
+                    scope.launch {
+                        // Null means the user closed Google's window. They know they did; there is nothing
+                        // to tell them, and an error message here would be the app arguing with them.
+                        val token = runCatching { google.idToken() }.getOrNull()
+                        if (token == null) {
+                            busy = false
+                        } else {
+                            runCatching { props.api.signInWithGoogle(token) }
+                                .onSuccess { authenticated(Uuid.parse(it.userId)) }
+                                .onFailure(::fail)
+                        }
+                    }
+                }
+                +t.signInWithGoogle
+            }
         }
 
         fun proceed() {
