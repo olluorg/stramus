@@ -4,6 +4,8 @@ package stramus.ui
 
 import react.FC
 import react.Props
+import react.dom.html.HTMLAttributes
+import react.dom.html.ReactHTML.a
 import react.dom.html.ReactHTML.button
 import react.dom.html.ReactHTML.div
 import react.dom.html.ReactHTML.img
@@ -15,6 +17,7 @@ import web.cssom.ClassName
 import web.data.AllowedEffect
 import web.data.DropEffect
 import web.data.move
+import web.html.HTMLElement
 import kotlin.uuid.ExperimentalUuidApi
 
 external interface CardTileProps : Props {
@@ -46,6 +49,12 @@ external interface CardTileProps : Props {
  * of its markdown, a file shows an image thumbnail (or a file glyph). Its text comes from `strings`,
  * the active translations handed down by `App`. Hovering reveals rename and delete.
  *
+ * A link card is a real `<a href>`, so the browser opens it in a new tab on a middle-click or a
+ * Ctrl/Cmd-click, and offers "open in new tab" in its context menu — exactly as any other link on
+ * the page. A plain left-click is caught and routed through [CardTileProps.onOpen] instead, so that
+ * a page already open in another tab is reused rather than duplicated (see `App.openPage`). Notes and
+ * files have nowhere to open to but a modal, so they stay plain `<div>`s.
+ *
  * When draggable it joins HTML5 drag-and-drop: `onStartDrag` / `onEndDrag` track it, and it is dimmed
  * while dragging. It takes a drop only while `acceptsDrop` — i.e. while another card is in flight —
  * so that a dragged tab or collection falls through to the zone behind it instead. A drop fires
@@ -61,118 +70,148 @@ external interface CardTileProps : Props {
 val CardTile = memo(
     FC<CardTileProps> { props ->
         val card = props.card
-        val strings = props.strings
 
-        // The second line of the tile: where a link keeps its URL, a note its first words, a file the
-        // kind of file it is. A link's URL is the one the user can turn off — null then, and the tile
-        // is the title alone.
-        val subtitle = when (card.kind) {
-            CardKind.LINK -> card.url.takeIf { props.showUrl }
-            CardKind.NOTE -> (card.content ?: "").replace("\n", " ").ifBlank { strings.emptyNote }
-            CardKind.FILE -> card.mime ?: strings.fileLabel
-        }
-
-        div {
-            className = ClassName(
-                buildString {
-                    append("card kind-${card.kind.id}")
-                    if (props.isDragging) append(" dragging")
-                },
-            )
-            // The title, whole — the tile cuts it to its width. The line under it (a URL, a note's
-            // first words) is not repeated here: it is the title the user is trying to read. A link
-            // whose address the tile does not show is the exception — then the tooltip is the only
-            // place left to see where the card goes.
-            hint(if (card.kind == CardKind.LINK && !props.showUrl) "${card.title} — ${card.url}" else card.title)
-            draggable = props.isDraggable
-            onClick = { props.onOpen(card) }
-            if (props.isDraggable) {
-                onDragStart = { e ->
-                    // Firefox refuses to start a drag whose dataTransfer carries nothing.
-                    e.dataTransfer.setData("text/plain", card.id.toString())
-                    e.dataTransfer.effectAllowed = AllowedEffect.move
-                    props.onStartDrag(card)
-                }
-                onDragEnd = { props.onEndDrag() }
-            }
-            if (props.acceptsDrop) {
-                onDragOver = { e ->
-                    e.preventDefault()
-                    e.dataTransfer.dropEffect = DropEffect.move
-                }
-                onDrop = { e ->
-                    e.preventDefault()
-                    e.stopPropagation() // this card decides the drop position, not the section behind it
-                    props.onDropHere(card)
-                }
-            }
-
-            // Leading glyph / thumbnail.
-            when (card.kind) {
-                CardKind.LINK -> Favicon {
-                    url = card.url
-                    favicon = card.favicon
-                }
-                CardKind.NOTE -> span { className = ClassName("glyph"); +"📝" }
-                // The card carries a downscaled preview, never the file itself — the bytes stay in the
-                // database until the file is opened. No preview (not an image, or one that would not
-                // decode) means a glyph.
-                CardKind.FILE -> {
-                    val thumb = card.thumb
-                    if (thumb != null) {
-                        img {
-                            className = ClassName("fav thumb")
-                            src = thumb
-                            alt = ""
-                            draggable = false
-                        }
-                    } else {
-                        span { className = ClassName("glyph"); +fileGlyph(card.mime) }
+        if (card.kind == CardKind.LINK) {
+            a {
+                href = card.url
+                onClick = { e ->
+                    // A modified click — Ctrl/Cmd/Shift/Alt, or the middle button, which never reaches
+                    // `onClick` at all — is left to the browser: that is how it opens a link in a new
+                    // tab or window, and that is the whole point of this being an <a>. A plain click is
+                    // ours, and goes through the app so an already-open tab is reused.
+                    if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+                        e.preventDefault()
+                        props.onOpen(card)
                     }
                 }
+                cardTileBody(props)
             }
-
+        } else {
             div {
-                className = ClassName("card-body")
-                div {
-                    // Without a second line the title takes it: two lines of title in the space the
-                    // tile already had, so a long one is readable and the card is the same size.
-                    className = ClassName(if (subtitle == null) "card-title two-line" else "card-title")
-                    +card.title
-                }
-                if (subtitle != null) {
-                    div {
-                        className = ClassName("card-url")
-                        +subtitle
-                    }
-                }
-            }
-            if (!props.readOnly) {
-                div {
-                    className = ClassName("card-tools")
-                    button {
-                        className = ClassName("icon edit")
-                        hint(strings.renameCard)
-                        onClick = { e ->
-                            e.stopPropagation()
-                            props.onRename(card)
-                        }
-                        +"✎"
-                    }
-                    button {
-                        className = ClassName("icon del")
-                        hint(strings.deleteCardHint)
-                        onClick = { e ->
-                            e.stopPropagation()
-                            props.onDelete(card)
-                        }
-                        +"×"
-                    }
-                }
+                onClick = { props.onOpen(card) }
+                cardTileBody(props)
             }
         }
     },
 )
+
+/**
+ * The tile's insides and its shared behaviour — everything but the click, which differs between a
+ * link's `<a>` and the `<div>` of a note or file (see [CardTile]). Generic over the element so it can
+ * dress either one.
+ */
+private fun <T : HTMLElement> HTMLAttributes<T>.cardTileBody(props: CardTileProps) {
+    val card = props.card
+    val strings = props.strings
+
+    // The second line of the tile: where a link keeps its URL, a note its first words, a file the
+    // kind of file it is. A link's URL is the one the user can turn off — null then, and the tile
+    // is the title alone.
+    val subtitle = when (card.kind) {
+        CardKind.LINK -> card.url.takeIf { props.showUrl }
+        CardKind.NOTE -> (card.content ?: "").replace("\n", " ").ifBlank { strings.emptyNote }
+        CardKind.FILE -> card.mime ?: strings.fileLabel
+    }
+
+    className = ClassName(
+        buildString {
+            append("card kind-${card.kind.id}")
+            if (props.isDragging) append(" dragging")
+        },
+    )
+    // The title, whole — the tile cuts it to its width. The line under it (a URL, a note's
+    // first words) is not repeated here: it is the title the user is trying to read. A link
+    // whose address the tile does not show is the exception — then the tooltip is the only
+    // place left to see where the card goes.
+    hint(if (card.kind == CardKind.LINK && !props.showUrl) "${card.title} — ${card.url}" else card.title)
+    draggable = props.isDraggable
+    if (props.isDraggable) {
+        onDragStart = { e ->
+            // Firefox refuses to start a drag whose dataTransfer carries nothing.
+            e.dataTransfer.setData("text/plain", card.id.toString())
+            e.dataTransfer.effectAllowed = AllowedEffect.move
+            props.onStartDrag(card)
+        }
+        onDragEnd = { props.onEndDrag() }
+    }
+    if (props.acceptsDrop) {
+        onDragOver = { e ->
+            e.preventDefault()
+            e.dataTransfer.dropEffect = DropEffect.move
+        }
+        onDrop = { e ->
+            e.preventDefault()
+            e.stopPropagation() // this card decides the drop position, not the section behind it
+            props.onDropHere(card)
+        }
+    }
+
+    // Leading glyph / thumbnail.
+    when (card.kind) {
+        CardKind.LINK -> Favicon {
+            url = card.url
+            favicon = card.favicon
+        }
+        CardKind.NOTE -> span { className = ClassName("glyph"); +"📝" }
+        // The card carries a downscaled preview, never the file itself — the bytes stay in the
+        // database until the file is opened. No preview (not an image, or one that would not
+        // decode) means a glyph.
+        CardKind.FILE -> {
+            val thumb = card.thumb
+            if (thumb != null) {
+                img {
+                    className = ClassName("fav thumb")
+                    src = thumb
+                    alt = ""
+                    draggable = false
+                }
+            } else {
+                span { className = ClassName("glyph"); +fileGlyph(card.mime) }
+            }
+        }
+    }
+
+    div {
+        className = ClassName("card-body")
+        div {
+            // Without a second line the title takes it: two lines of title in the space the
+            // tile already had, so a long one is readable and the card is the same size.
+            className = ClassName(if (subtitle == null) "card-title two-line" else "card-title")
+            +card.title
+        }
+        if (subtitle != null) {
+            div {
+                className = ClassName("card-url")
+                +subtitle
+            }
+        }
+    }
+    if (!props.readOnly) {
+        div {
+            className = ClassName("card-tools")
+            button {
+                className = ClassName("icon edit")
+                hint(strings.renameCard)
+                onClick = { e ->
+                    e.preventDefault()
+                    e.stopPropagation()
+                    props.onRename(card)
+                }
+                +"✎"
+            }
+            button {
+                className = ClassName("icon del")
+                hint(strings.deleteCardHint)
+                onClick = { e ->
+                    e.preventDefault()
+                    e.stopPropagation()
+                    props.onDelete(card)
+                }
+                +"×"
+            }
+        }
+    }
+}
 
 private fun fileGlyph(mime: String?): String = when {
     mime == null -> "📄"
