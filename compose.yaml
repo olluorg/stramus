@@ -1,0 +1,30 @@
+# The sync server for a VPS. `docker compose up -d` and it is running; edit the values under `environment`
+# first, or a production server will refuse to start and tell you which one you missed.
+services:
+  stramus:
+    image: ghcr.io/olluorg/stramus-server:latest
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      STRAMUS_ENV: production
+      # A long random string. `openssl rand -base64 48` makes one. Change it and every session ends, so set
+      # it once and leave it: the server signs its tokens with this.
+      STRAMUS_JWT_SECRET: "change-me-to-something-long-and-random"
+      # The exact origins the browser clients are served from — the web app, and the extension's own id.
+      STRAMUS_ALLOWED_ORIGINS: "https://olluorg.github.io,chrome-extension://<your-extension-id>"
+      # A mail relay for the one-time sign-in codes. Without it, production will not start (the codes would
+      # otherwise be printed to the log, which is the whole account).
+      STRAMUS_SMTP_HOST: "smtp.example.org"
+      STRAMUS_SMTP_PORT: "587"
+      STRAMUS_SMTP_USER: "apikey"
+      STRAMUS_SMTP_PASSWORD: "your-smtp-password"
+      STRAMUS_MAIL_FROM: "stramus@example.org"
+      # Optional: sign-in with Google. Leave it out and that door simply is not there.
+      # STRAMUS_GOOGLE_CLIENT_ID: "…apps.googleusercontent.com"
+    volumes:
+      # The database and the file bytes. This one directory is the whole of what to back up.
+      - stramus-data:/data
+
+volumes:
+  stramus-data:

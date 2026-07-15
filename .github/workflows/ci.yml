@@ -26,5 +26,11 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Test
+        # The server and the shared core carry the whole of the sync logic, and it is the kind of logic that
+        # fails quietly — a merge that drops a version, a code that can be guessed. It is checked here before
+        # anything is assembled.
+        run: ./gradlew :core:jvmTest :server:test --no-daemon
+
       - name: Assemble
         run: ./gradlew :webapp:jsBrowserDistribution :extension:jsBrowserDistribution --no-daemon

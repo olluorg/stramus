@@ -124,6 +124,22 @@ localStorage.setItem("stramus.googleClientId", "…apps.googleusercontent.com")
 сделать не может: те же байты может держать карточка на другом устройстве, и только сервер видит все
 карточки сразу.
 
+### Запуск на VPS
+
+Готовый образ собирается CI и лежит в GHCR: `ghcr.io/olluorg/stramus-server:latest` (мультиарх —
+amd64 и arm64). Быстрый путь — [`compose.yaml`](compose.yaml) в корне репозитория:
+
+```bash
+# отредактируйте environment (секрет, origins, SMTP), затем:
+docker compose up -d
+```
+
+Всё состояние — база и байты файлов — лежит в одном томе `/data`; его и нужно бэкапить. Сервер отдаёт
+`/health` для оркестратора, работает от непривилегированного пользователя и в боевом режиме не стартует,
+пока не заданы секрет, origins и SMTP-хост — то есть падает громко, а не тихо раздаёт аккаунты.
+
+Собрать образ локально: `docker build -t stramus-server .`
+
 Что уже есть: аккаунты (пароль + код на почту, JWT с ротацией refresh), синхронизация секций,
 коллекций, групп, карточек и файлов, tombstones, конфликтующие копии заметок, экспорт и удаление
 аккаунта.
@@ -170,7 +186,7 @@ ZIP, так что правка там меняет разом и интерфе
 ## Проверка сборки
 
 ```bash
-./gradlew :core:jvmTest :server:test                      # 51 тест
+./gradlew :core:jvmTest :server:test                      # 78 тестов
 ./gradlew :webapp:jsBrowserDistribution :extension:jsBrowserDistribution
 ```
 

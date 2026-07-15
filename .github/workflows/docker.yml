@@ -1,0 +1,86 @@
+name: Server image
+
+# Builds the sync server's container image and pushes it to the GitHub Container Registry, so that a VPS
+# can pull a tagged image rather than a repository and a JDK.
+#
+# Only the paths that end up *in* the image trigger this: a change to the extension's CSS has nothing to do
+# with the server, and rebuilding for it would mean a new image digest that says nothing changed.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - 'server/**'
+      - 'protocol/**'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'settings.gradle.kts'
+      - 'build.gradle.kts'
+      - '.github/workflows/docker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/stramus-server
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The image runs on whatever the VPS turns out to be, and the cheap ones are increasingly arm64.
+      # QEMU is here for the runtime layer only — the Kotlin build itself runs natively, on the runner's own
+      # architecture, because the bytecode it produces is the same either way (see the Dockerfile).
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Sign in to the registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Work out the tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=sha,format=long
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # The Gradle dependency cache, kept between runs: without it every build downloads Kotlin, Ktor and
+          # the rest again, which is most of the build.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Check the image actually starts
+        run: |
+          # A pushed image that does not run is worse than no image at all: it is a green tick on a broken
+          # deploy, found out by whoever pulls it. So the thing that was just pushed is pulled back and asked
+          # whether it is alive.
+          docker run -d --name check -p 8090:8090 -v "$(mktemp -d)":/data "$IMAGE:sha-$GITHUB_SHA"
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8090/health; then
+              echo "the server answers"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "the image never became healthy:"
+          docker logs check
+          exit 1
