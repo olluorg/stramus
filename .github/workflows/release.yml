@@ -17,6 +17,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The Web Store keys a submission by the manifest's version and rejects one it has already
+      # seen, so a tag that disagrees with the manifest produces a ZIP that cannot be uploaded
+      # under the name it carries. Fail here instead, where it is one line to fix.
+      - name: Check the tag against the manifest version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          MANIFEST=$(jq -r .version extension/src/jsMain/resources/manifest.json)
+          if [ "$TAG" != "$MANIFEST" ]; then
+            echo "Tag v$TAG does not match manifest version $MANIFEST" >&2
+            exit 1
+          fi
+
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
@@ -37,6 +50,12 @@ jobs:
           OUT="stramus-extension-${VERSION}.zip"
           echo "ZIP=$OUT" >> "$GITHUB_ENV"
           cd extension/build/dist/js/productionExecutable
+          # The manifest names its strings out of _locales; without them Chrome refuses to load the
+          # extension at all ("Localization used, but default_locale wasn't specified"). Resources
+          # are copied by the build, so their absence would mean the build changed under us.
+          for required in manifest.json _locales/en/messages.json _locales/ru/messages.json; do
+            [ -f "$required" ] || { echo "Missing from the bundle: $required" >&2; exit 1; }
+          done
           zip -r "$GITHUB_WORKSPACE/$OUT" . -x '*.map' -x '*.LICENSE.txt'
 
       - name: Create GitHub Release

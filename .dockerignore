@@ -1,0 +1,14 @@
+# The build happens inside the image; what is on this machine is noise, and copying it in would both slow
+# the build and quietly bust the layer cache on every stray file a developer leaves lying around.
+build/
+*/build/
+.gradle/
+.kotlin/
+kotlin-js-store/
+node_modules/
+.git/
+.github/
+docs/
+store/
+*.db
+blobs/

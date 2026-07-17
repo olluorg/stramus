@@ -4,6 +4,7 @@ import react.create
 import react.dom.client.createRoot
 import stramus.core.platform.builtInAi
 import stramus.ui.App
+import stramus.ui.googleClientId
 import web.dom.ElementId
 import web.dom.document
 
@@ -20,7 +21,12 @@ fun main() {
             // The user's own search engine, whichever it is: chrome.search asks the browser rather
             // than hardcoding one.
             webSearch = ChromeWebSearch
+            // The browser's own favicon store, so that no icon service is ever told which hosts the
+            // user keeps here — see [ChromeIcons].
+            iconSources = ChromeIcons
             ai = builtInAi()
+            // chrome.identity, but only where an OAuth client has actually been registered for this app.
+            google = googleClientId().takeIf { it.isNotBlank() }?.let { ChromeGoogleSignIn(it) }
         },
     )
 }

@@ -14,6 +14,7 @@ import react.dom.html.ReactHTML.aside
 import react.dom.html.ReactHTML.button
 import react.dom.html.ReactHTML.div
 import react.dom.html.ReactHTML.h2
+import react.dom.html.ReactHTML.img
 import react.dom.html.ReactHTML.input
 import react.dom.html.ReactHTML.li
 import react.dom.html.ReactHTML.main
@@ -29,6 +30,9 @@ import react.useRef
 import react.useState
 import stramus.core.db.StramusStore
 import stramus.core.db.openStramusStore
+import stramus.core.platform.GoogleSignIn
+import stramus.core.sync.StramusApi
+import stramus.core.sync.SyncEngine
 import stramus.core.model.Card
 import stramus.core.model.CardKind
 import stramus.core.model.CardSection
@@ -43,11 +47,22 @@ import stramus.core.platform.TabCapture
 import stramus.core.platform.WebSearchAccess
 import web.cssom.ClassName
 import web.data.DropEffect
+import web.data.copy
 import web.data.move
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 private val scope = MainScope()
+
+/**
+ * How often the app checks in with the server.
+ *
+ * A minute: often enough that a card saved on the laptop is on the phone by the time the user has picked
+ * it up, and quiet enough that a browser left open all day costs the server 1440 requests, most of which
+ * answer "nothing new" in a few hundred bytes. A push channel would be tidier; it would also be a socket
+ * to keep alive, and it is not what stands between this and being useful.
+ */
+private const val SYNC_INTERVAL_MS = 60_000
 
 /**
  * How long the search box has to stand still before the query reaches the database and the browser's
@@ -82,9 +97,33 @@ internal fun key(id: Uuid): Key = id.toString().unsafeCast<Key>()
  */
 private data class Undo(val message: String, val restore: suspend () -> Unit)
 
+/**
+ * The collection the page opens on: the one the user last had open, where they asked for that
+ * ([StartView.LAST], the default) and it is still there; the first one in the sidebar otherwise.
+ *
+ * A collection behind a PIN is never it. Every reload locks its section back up, so opening there
+ * would be to open on the PIN screen — every single time — and the choice of which collection was
+ * last looked at would itself be a thing the lock was meant not to say. Only when *every* collection
+ * is locked away is one of those opened, since then there is nothing else to show.
+ */
+private fun startCollection(collections: List<Collection>, sections: List<Section>, view: StartView): Uuid? {
+    val locked = sections.filter { it.locked }.map { it.id }.toSet()
+    val open = collections.filter { it.sectionId !in locked }
+    val remembered = if (view == StartView.LAST) prefGet(LAST_COLLECTION_PREF) else null
+    return open.firstOrNull { it.id.toString() == remembered }?.id
+        ?: open.firstOrNull()?.id
+        ?: collections.firstOrNull()?.id
+}
+
 /** Which modal is open. [existing] non-null = editing/viewing that card; null = creating a new one. */
 private data class NoteModal(val collectionId: Uuid, val cardSectionId: Uuid?, val existing: Card?)
 private data class FileModal(val collectionId: Uuid, val cardSectionId: Uuid?, val existing: Card?)
+/**
+ * Renaming a card. [fromSearch] = the tile was one of the search results, and the rename has to be
+ * written back to two places at once: the results on screen, and the collection the card lives in.
+ */
+private data class RenameModal(val card: Card, val fromSearch: Boolean)
+
 /** Editing a card section's description (title kept, body edited as markdown). */
 private data class DescModal(val sectionId: Uuid, val title: String, val description: String)
 /** Setting a section's PIN. [change] = it already has one and this replaces it. */
@@ -105,32 +144,129 @@ private data class DropGroup(val sectionId: Uuid?)
  * no section at all, does not also act on it. The hovered group is tracked on dragover rather than
  * dragenter: dragover keeps firing, so leaving this group for the content area's padding hands the
  * drag back cleanly, with no dragleave bookkeeping.
+ *
+ * [acceptsFiles] is the other kind of drag entirely: files from the desktop, which are copied in
+ * ([onDropFiles]) rather than moved from somewhere else in the app. Which of the two a drag is can
+ * only be told from the event ([draggingFiles]) — the app knows nothing of a file until it lands —
+ * so both are wired and each event settles it for itself.
  */
 private fun ChildrenBuilder.cardGroup(
     accepts: Boolean,
+    acceptsFiles: Boolean,
     active: Boolean,
     onOver: () -> Unit,
     onDropHere: () -> Unit,
+    onDropFiles: (List<PickedFile>) -> Unit,
     groupKey: Key? = null,
+    /** This group is the one being carried somewhere else — it fades where it stands. */
+    dragging: Boolean = false,
     content: ChildrenBuilder.() -> Unit,
 ) {
     div {
         key = groupKey
-        className = ClassName(if (active) "card-group drop-active" else "card-group")
-        if (accepts) {
+        className = ClassName(
+            buildString {
+                append("card-group")
+                if (active) append(" drop-active")
+                if (dragging) append(" dragging")
+            },
+        )
+        if (accepts || acceptsFiles) {
             onDragOver = { e ->
-                e.preventDefault()
-                e.stopPropagation()
-                e.dataTransfer.dropEffect = DropEffect.move
-                onOver()
+                val files = acceptsFiles && draggingFiles(e.dataTransfer)
+                if (accepts || files) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    e.dataTransfer.dropEffect = if (files) DropEffect.copy else DropEffect.move
+                    onOver()
+                }
             }
             onDrop = { e ->
-                e.preventDefault()
-                e.stopPropagation()
-                onDropHere()
+                val files = acceptsFiles && draggingFiles(e.dataTransfer)
+                if (accepts || files) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    if (files) onDropFiles(droppedFiles(e.dataTransfer)) else onDropHere()
+                }
             }
         }
         content()
+    }
+}
+
+/**
+ * The "add a card" menu, one per card group: a link on click, a note or a file from the menu the
+ * button reveals. It lives in the group's header rather than in the collection's toolbar, so what it
+ * adds lands in the group it was clicked in — no dragging the new card into place afterwards.
+ *
+ * Every click is stopped here: the header is the handle its section is dragged by, and its title
+ * collapses it. Neither should hear a click meant for this menu, and neither should turn a press on
+ * the button into a drag ([draggable] = false takes the subtree out of the header's handle).
+ */
+private fun ChildrenBuilder.addMenu(
+    strings: Strings,
+    onLink: () -> Unit,
+    onNote: () -> Unit,
+    onFile: () -> Unit,
+) {
+    // A bare "+", like the ✎ and × beside it: the header is a strip, not a toolbar, and it carries one
+    // of these per section. What the click does is left to the tooltip.
+    hoverMenu(glyph = "+", tooltip = strings.addCardHint, onGlyphClick = onLink) {
+        menuItem(strings.addLinkItem, onLink)
+        menuItem(strings.addNoteItem, onNote)
+        menuItem(strings.addFileItem, onFile)
+    }
+}
+
+/**
+ * A glyph in a card-section header that reveals a list of actions under it — the "+" that adds a card,
+ * the ⇅ that sorts the section. [onGlyphClick] is the one action the glyph itself performs, for the
+ * menus that have an obvious default (the "+" adds a link); a menu whose actions are all equals leaves
+ * it out, and then the glyph only opens the list.
+ *
+ * Built out of buttons rather than a `select`, which cannot be styled into anything like the rest of
+ * the app once its list is open. That leaves the two things a `select` gave for free to be done here:
+ * every click is stopped, because the header is the handle its section is dragged by and its title
+ * collapses it, and neither should hear a click meant for this menu; and [draggable] = false takes the
+ * whole subtree out of that handle, so a press on an item cannot start a drag of the section.
+ */
+private fun ChildrenBuilder.hoverMenu(
+    glyph: String,
+    tooltip: String,
+    onGlyphClick: (() -> Unit)? = null,
+    items: ChildrenBuilder.() -> Unit,
+) {
+    div {
+        className = ClassName("menu")
+        draggable = false
+        onClick = { e -> e.stopPropagation() }
+        button {
+            className = ClassName("icon menu-btn")
+            hint(tooltip)
+            onClick = { e -> e.stopPropagation(); onGlyphClick?.invoke() }
+            +glyph
+        }
+        div {
+            className = ClassName("menu-dropdown")
+            items()
+        }
+    }
+}
+
+/** One action in a [hoverMenu]. */
+private fun ChildrenBuilder.menuItem(label: String, onSelect: () -> Unit) {
+    button {
+        className = ClassName("menu-item")
+        onClick = { e -> e.stopPropagation(); onSelect() }
+        +label
+    }
+}
+
+/** A heading over a run of [menuItem]s, saying what the actions under it have in common. */
+private fun ChildrenBuilder.menuTitle(label: String) {
+    div {
+        className = ClassName("menu-title")
+        +label
     }
 }
 
@@ -148,8 +284,9 @@ private fun ChildrenBuilder.cardGrid(
     cards: List<Card>,
     draggingCardId: Uuid?,
     readOnly: Boolean,
+    showUrls: Boolean,
     onOpen: (Card) -> Unit,
-    onRename: (Card, String) -> Unit,
+    onRename: (Card) -> Unit,
     onDelete: (Card) -> Unit,
     onStartDrag: (Card) -> Unit,
     onEndDrag: () -> Unit,
@@ -162,6 +299,7 @@ private fun ChildrenBuilder.cardGrid(
                 key = key(card.id)
                 this.strings = strings
                 this.card = card
+                this.showUrl = showUrls
                 this.isDraggable = !readOnly
                 this.readOnly = readOnly
                 this.isDragging = draggingCardId == card.id
@@ -290,7 +428,9 @@ val TabRow = memo(
                     if (props.isDropTarget) append(" drop-target")
                 },
             )
-            hint(props.strings.goToTab)
+            // The row shows the title cut to the panel's width; the tooltip is the whole of it. A
+            // tab that has no title at all has only its URL to be known by.
+            hint(tab.title.ifBlank { tab.url })
             draggable = true
             onClick = { props.onGoTo(tab) }
             onDragStart = { e ->
@@ -334,6 +474,12 @@ val TabRow = memo(
 )
 
 external interface AppProps : Props {
+    /**
+     * How this host reaches Google, if it can: `chrome.identity` in the extension, a popup in the web app.
+     * Null when no Google client id has been configured, and then that door is simply not offered.
+     */
+    var google: GoogleSignIn?
+
     /** Present in the extension (chrome.tabs); null in the web app. Enables "Save open tabs". */
     var tabCapture: TabCapture?
 
@@ -351,6 +497,12 @@ external interface AppProps : Props {
      * which engine the user chose and falls back to a URL of its own.
      */
     var webSearch: WebSearchAccess?
+
+    /**
+     * Where site icons are read from. The extension passes the browser's own favicon store, which is
+     * on this machine; null in the web app, which has nothing to read but the public icon services.
+     */
+    var iconSources: IconSources?
 }
 
 val App = FC<AppProps> { props ->
@@ -359,7 +511,26 @@ val App = FC<AppProps> { props ->
     val ai = props.ai
     val webSearch = props.webSearch
 
+    // Before the first icon is drawn, and idempotent: whoever renders the app decides, once, where its
+    // icons may be read from. Left alone, they come from the icon services (see [NetworkIcons]).
+    props.iconSources?.let { installIconSources(it) }
+
     var store by useState<StramusStore?>(null)
+
+    // The server, and this database's side of the conversation with it. Made once, and made whether or
+    // not anyone is signed in: the badge has to be able to say "not signed in", and the account dialog
+    // has to have something to sign in *with*.
+    val api = useMemo { StramusApi(serverBaseUrl()) }
+    var engine by useState<SyncEngine?>(null)
+    var syncUi by useState(SyncUi())
+    var accountOpen by useState(false)
+
+    // Off unless the user says otherwise. The collections are things they chose to keep; this is a record
+    // of where they have been, and that is not the same thing to put on a server.
+    var syncUsage by useState(prefGet("syncUsage") == "1")
+    val syncUsageRef = useRef(syncUsage)
+    syncUsageRef.current = syncUsage
+
     var sections by useState<List<Section>>(emptyList())
     var collections by useState<List<Collection>>(emptyList())
     var selectedId by useState<Uuid?>(null)
@@ -378,9 +549,9 @@ val App = FC<AppProps> { props ->
     // Bumped whenever a page is opened, so what is ranked by how much the user uses it is re-ranked:
     // the frecency index itself lives outside React (see Usage.kt).
     var usageVersion by useState(0)
-    // The box is a question to the model rather than a search. [aiQuestion] is the question actually
-    // asked — the field is cleared for the next one, and re-asking the same thing is the same question.
-    var aiMode by useState(false)
+    // The conversation with the model, in a window over the page. [aiQuestion] is what the search box
+    // was carrying when it opened — the first question; the rest are asked in the window itself.
+    var aiOpen by useState(false)
     var aiQuestion by useState("")
     // What the browser's model can do for us — shown in the settings, and what decides whether the box
     // offers to ask it at all. Null until the question has been put to the browser (or there is no
@@ -388,6 +559,10 @@ val App = FC<AppProps> { props ->
     var aiState by useState<AiAvailability?>(null)
     var draggingCardId by useState<Uuid?>(null)
     var draggingCollectionId by useState<Uuid?>(null)
+    // The section being dragged by its header, to be dropped on another section and take its place.
+    var draggingSectionId by useState<Uuid?>(null)
+    // The same, for a card section (a divider) being dragged up or down the open collection's grid.
+    var draggingCardSectionId by useState<Uuid?>(null)
     var openTabs by useState<List<CapturedTab>>(emptyList())
     var tabQuery by useState("")
     // The browser window this page is open in: its tabs are the group shown first, as "This window".
@@ -407,6 +582,7 @@ val App = FC<AppProps> { props ->
     var contentDropActive by useState(false)
     var noteModal by useState<NoteModal?>(null)
     var fileModal by useState<FileModal?>(null)
+    var renameModal by useState<RenameModal?>(null)
     var descModal by useState<DescModal?>(null)
     var pinDialog by useState<PinDialog?>(null)
     // The PIN-protected sections opened in this session, and the message under a rejected PIN. The set
@@ -420,6 +596,9 @@ val App = FC<AppProps> { props ->
     // The unlocked-but-protected section whose lock menu (lock now / change PIN / unprotect) is open.
     var lockMenuId by useState<Uuid?>(null)
     var settingsOpen by useState(false)
+    // What the last import did, said in the settings page under the button that started it. Cleared
+    // when the page is closed: it is the answer to something the user did there, not a standing notice.
+    var importStatus by useState<String?>(null)
     // The section, collection or card section — their ids share one space — being renamed in place.
     var renamingId by useState<Uuid?>(null)
     // The last deletion, for as long as it can still be taken back. See [UNDO_MS].
@@ -427,17 +606,28 @@ val App = FC<AppProps> { props ->
     // The pending collapse of a section whose title was just clicked once. See [onTitleClick].
     val clickTimer = useRef<Int>(null)
 
-    // Persisted UI preferences (localStorage): theme, language, card sort, and sidebar collapse state.
+    // Persisted UI preferences (localStorage): theme, language, and sidebar collapse state. Card order
+    // is not among them — a sort writes the cards' own order (see [CardSort]), it does not remember one.
     var theme by useState(prefGet("theme") ?: "auto")
     var lang by useState(Lang.from(prefGet("lang")))
-    var sortMode by useState(SortMode.from(prefGet("sort")))
+    // A card is its title, not its address: the URL under it says the same thing twice for most links
+    // and pushes the ones it does not to a second line of noise. Hidden unless asked for.
+    var showCardUrls by useState(prefGet("showCardUrls") == "1")
     var leftCollapsed by useState(prefGet("leftCollapsed") == "1")
     var rightCollapsed by useState(prefGet("rightCollapsed") == "1")
     var rightPane by useState(RightPane.from(prefGet("rightPane")))
     var autoLockMinutes by useState(prefGet("autoLock")?.toIntOrNull() ?: DEFAULT_AUTO_LOCK_MINUTES)
+    // What the page opens on: where the user left off, or the first collection. Read once, on the
+    // render that also loads the store — changing it later is for the *next* open, not for this one.
+    var startView by useState(StartView.from(prefGet("startView")))
     // Saving a window's tabs into a collection closes them, as dragging one there does: the tab has
     // been put away, and leaving it open would be to have it in two places. Unset means the default.
     var closeSavedTabs by useState(prefGet("closeSavedTabs") != "0")
+    // Who the user asked to be answered by: the browser's own model, in a window over the page, or one
+    // of the web chats — which cannot answer here, so the question opens there instead. What actually
+    // answers is [aiProvider] below: a browser with no model to run cannot honour a choice of the local
+    // one, and the question has to go somewhere.
+    var aiChoice by useState(AiProvider.from(prefGet(AI_PROVIDER_PREF)))
 
     // Active translations: every string below reads from here, and the same table is handed to the
     // child components. Named `t`, not `s` — `s` is the store in this file's many `val s = store` blocks.
@@ -458,13 +648,12 @@ val App = FC<AppProps> { props ->
         collections.filter { it.sectionId in lockedSectionIds }.map { it.id }.toSet()
     }
 
-    // The selected collection's cards, already split into the groups the page draws and sorted the way
-    // the user asked for — done once per change to the cards or the sort, rather than once per group
-    // per render. The ungrouped ones are under the null key.
-    val cardsByGroup = useMemo(cards, sortMode) {
-        cards.groupBy { it.cardSectionId }.mapValues { (_, group) -> sortMode.apply(group) }
-    }
-    val orderedCardSections = useMemo(cardSections) { cardSections.sortedBy { it.position } }
+    // The selected collection's cards, split into the groups the page draws — done once per change to
+    // the cards, rather than once per group per render. Each group keeps the order it is stored in,
+    // which is the order the user put it in, by dragging or by sorting. The ungrouped ones are under
+    // the null key.
+    val cardsByGroup = useMemo(cards) { cards.groupBy { it.cardSectionId } }
+    val orderedCardSections = useMemo(cardSections) { cardSections.sortedBy { it.orderKey } }
 
     // Tabs matching the sidebar's own search box (title or URL). The search only hides rows: a tab
     // still knows its real place in its window, so a drag lands correctly. Lowercasing every tab's
@@ -525,13 +714,19 @@ val App = FC<AppProps> { props ->
             // Before the first keystroke, so the very first search is already ranked by what the user
             // uses — and an empty box already offers their top sites.
             initUsageIndex(s.usage)
+            // The other half of the ranking: not which pages they open, but what they come to the box
+            // to do — see [HitAction].
+            initActionIndex(s.actions)
             usageVersion += 1
             val secs = s.sections.all()
             val cols = s.collections.all()
             store = s
+            // The engine asks the ref, not the value it was built with: the user can turn the statistics off
+            // between two runs, and when they do it has to stop at the next one, not at the next reload.
+            engine = SyncEngine(s.db, api, api) { syncUsageRef.current == true }
             sections = secs
             collections = cols
-            selectedId = cols.firstOrNull()?.id
+            selectedId = startCollection(cols, secs, startView)
 
             // Files saved before previews existed have none, and their bytes are no longer part of a
             // card: make each one a preview, once. Behind the first paint — it reads whole files, and
@@ -548,6 +743,16 @@ val App = FC<AppProps> { props ->
     useEffect(lang) {
         applyLang(lang.id)
         prefSet("lang", lang.id)
+    }
+
+    // Where the user is, kept for the next open — whether or not they have asked to come back to it:
+    // the setting decides what the *next* start does with this, so turning it on is not a thing that
+    // has to be turned on first to work. Only a collection that is really on screen is written down,
+    // so a locked-away or deleted one does not take the place of the last real one.
+    useEffect(selectedId, hiddenCollectionIds) {
+        val sel = selectedId ?: return@useEffect
+        if (sel in hiddenCollectionIds) return@useEffect
+        prefSet(LAST_COLLECTION_PREF, sel.toString())
     }
 
     // The cards of a locked section are not merely hidden: they are never read out of the database, so
@@ -613,9 +818,29 @@ val App = FC<AppProps> { props ->
         aiState = assistant.availability()
     }
 
-    // A model that has to be downloaded first is still a model to offer: the first question starts the
-    // download, and the panel shows it happening rather than pretending to think.
-    val aiAvailable = aiState != null && aiState != AiAvailability.UNAVAILABLE
+    // Whether the browser's own model can answer here: no, where the host gives the page no model at
+    // all; not yet known, while the browser is still being asked (the answer is a moment away, and a
+    // model wrongly written off in that moment would be a setting silently overridden); otherwise
+    // whatever it said. A model that has to be downloaded first still counts — the first question
+    // starts the download, and the window shows it happening rather than pretending to think.
+    val aiLocalAvailable: Boolean? = when {
+        ai == null -> false
+        aiState == null -> null
+        else -> aiState != AiAvailability.UNAVAILABLE
+    }
+
+    // Who actually answers. A browser that cannot run the local model is most browsers, and the user
+    // who never had it cannot have chosen anything else — so rather than offer nothing, the question
+    // goes to a web chat, and the settings show the local one struck out with the reason next to it.
+    val aiProvider = if (aiChoice == AiProvider.LOCAL && aiLocalAvailable == false) {
+        AiProvider.WEB_DEFAULT
+    } else {
+        aiChoice
+    }
+
+    // Whether there is anything to offer the question to at all: a web chat always is (it is a page,
+    // and this machine has nothing to do with it), the local model only once it has said that it is.
+    val aiAvailable = aiProvider != AiProvider.LOCAL || aiLocalAvailable == true
 
     // The extension provides tab access: load the open tabs and keep the list live via tab events —
     // opening, closing, navigating, reordering and moving a tab between windows all land here.
@@ -662,6 +887,76 @@ val App = FC<AppProps> { props ->
         }
     }
 
+    /** Redraw everything a sync may have changed — which is anything at all, since it came from elsewhere. */
+    fun reloadAfterSync() {
+        val s = store ?: return
+        scope.launch {
+            sections = s.sections.all()
+            collections = s.collections.all()
+            val sel = selectedId
+            if (sel != null && sel !in hiddenCollectionIds) {
+                cards = s.cards.byCollection(sel)
+                cardSections = s.cardSections.byCollection(sel)
+            }
+        }
+    }
+
+    /**
+     * One run of the sync engine, in the background, on nobody's critical path.
+     *
+     * A failure is not an error the user has to deal with: their work is on this machine either way, and
+     * the next run will take it up. So it goes to the badge as "waiting for the network" and nowhere else
+     * — no dialog, no toast, nothing that interrupts.
+     */
+    fun runSync() {
+        val e = engine ?: return
+        if (!api.hasSession()) return
+        scope.launch {
+            syncUi = syncUi.copy(status = SyncStatus.RUNNING)
+            runCatching { e.syncNow() }
+                .onSuccess { result ->
+                    syncUi = syncUi.copy(
+                        status = SyncStatus.IDLE,
+                        syncedAt = nowLocalTime(),
+                        error = null,
+                        conflictCopies = result?.conflictCopies ?: 0,
+                    )
+                    // Only redraw when something actually arrived: a quiet sync every minute must not
+                    // rebuild the grid under the user's hands.
+                    if ((result?.applied ?: 0) > 0 || (result?.conflictCopies ?: 0) > 0) reloadAfterSync()
+                }
+                .onFailure { syncUi = syncUi.copy(status = SyncStatus.OFFLINE, error = it.message) }
+        }
+    }
+
+    // Picking a session back up, and then keeping it in step. A minute is often enough for two of the
+    // user's own browsers and quiet enough to be free; the run on regaining focus is what makes the app
+    // feel like it knew all along.
+    useEffect(engine) {
+        val e = engine ?: return@useEffect
+
+        val me = runCatching { api.resume() }.getOrNull()
+        if (me != null && e.signedIn()) {
+            syncUi = SyncUi(SyncStatus.IDLE, me.email)
+            runSync()
+        } else if (e.signedIn()) {
+            // The database belongs to an account, but this browser holds no session for it any more — the
+            // token expired, or the device was cut off. Nothing is lost; the user signs in again, and the
+            // rows that were waiting to go up are still waiting.
+            syncUi = SyncUi(SyncStatus.SIGNED_OUT)
+        }
+
+        val ticking = repeatEvery(SYNC_INTERVAL_MS) { runSync() }
+        val stopWatchingFocus = onWindowFocus { runSync() }
+        try {
+            awaitCancellation()
+        } finally {
+            cancelRepeat(ticking)
+            stopWatchingFocus()
+        }
+    }
+
+
     // The open tabs, reachable from a callback without being one of its dependencies: [onCardOpen] is
     // a prop of every memoized card tile, and a tab opening or navigating anywhere in the browser must
     // not rebuild that callback — and with it redraw the whole grid.
@@ -691,7 +986,7 @@ val App = FC<AppProps> { props ->
         if (tc != null && alreadyOpen != null) {
             scope.launch { tc.activateTab(alreadyOpen.id, alreadyOpen.windowId) }
         } else {
-            openUrl(url)
+            navigateTo(url)
         }
     }
 
@@ -928,6 +1223,37 @@ val App = FC<AppProps> { props ->
         draggingHistory = null
     }
 
+    /**
+     * Files dragged in from the desktop, saved as file cards in [collectionId] / [cardSectionId]
+     * (null = ungrouped) — what a dragged tab is to a page, this is to a file, and it is the same
+     * card the ＋ menu's "File" makes.
+     *
+     * They are read one at a time and in the order they were dropped, so that is the order the cards
+     * land in — and so that ten files are ten files being read, not ten whole files held in memory at
+     * once. One too big for the database is named to the user and passed over ([MAX_FILE_MB]); one
+     * that cannot be read at all is passed over silently, which is what a dropped *folder* is: the
+     * browser offers it as a file and then declines to open it.
+     */
+    fun saveFiles(files: List<PickedFile>, collectionId: Uuid, cardSectionId: Uuid? = null) {
+        val s = store ?: return
+        dropGroup = null
+        contentDropActive = false
+        dropCollectionId = null
+        if (files.isEmpty()) return
+
+        val (oversized, saveable) = files.partition { it.tooLarge }
+        if (oversized.isNotEmpty()) browserAlert(t.filesTooLarge(oversized.map { it.name }, MAX_FILE_MB))
+        if (saveable.isEmpty()) return
+        scope.launch {
+            saveable.forEach { file ->
+                val data = file.read() ?: return@forEach
+                // The card keeps a small preview; the bytes go to the blob store, as in the file modal.
+                s.cards.addFile(collectionId, file.name, data, file.mime, makeThumb(data, file.mime), cardSectionId)
+            }
+            reloadCards(collectionId)
+        }
+    }
+
     // Every card drop lands here: the card joins [collectionId] / [cardSectionId] at [index] within
     // that group (Int.MAX_VALUE = append). Collection, section and order always move together.
     fun moveCard(cardId: Uuid, collectionId: Uuid, cardSectionId: Uuid?, index: Int) {
@@ -938,6 +1264,28 @@ val App = FC<AppProps> { props ->
         }
         draggingCardId = null
         dropGroup = null
+    }
+
+    // Put one card section's cards in order — where a drag moves one card, this lays out the whole
+    // group at once, and it writes the same order a drag writes rather than a way of looking at it.
+    // Which is why it can be taken back: a sort overwrites an arrangement the user may have built by
+    // hand over a long time, and the cards' old order — the one thing that is lost — is right here to
+    // put back. Cards hidden by a search are sorted with the rest: the group is the user's, and half of
+    // it quietly reshuffled to fit a query would be no kind of sort at all.
+    fun sortCards(collectionId: Uuid, cardSectionId: Uuid?, by: CardSort) {
+        val s = store ?: return
+        val group = cards.filter { it.cardSectionId == cardSectionId }
+        val before = group.map { it.id }
+        val after = by.apply(group).map { it.id }
+        if (after == before) return
+        scope.launch {
+            s.cards.reorder(collectionId, cardSectionId, after)
+            reloadCards(collectionId)
+            undo = Undo(t.sortedCards) {
+                s.cards.reorder(collectionId, cardSectionId, before)
+                reloadCards(collectionId)
+            }
+        }
     }
 
     // Move the dragged collection into [sectionId] at [index], then refresh the sidebar list.
@@ -953,6 +1301,49 @@ val App = FC<AppProps> { props ->
         draggingCollectionId = null
         dropCollectionId = null
         dropSectionId = null
+    }
+
+    // The dragged section is dropped on [targetId] and takes its place. Dragging one down the sidebar
+    // puts it *after* the section it was dropped on, dragging one up puts it *before* — otherwise the
+    // last place in the sidebar would be the one place a section could never be dropped into.
+    fun moveSection(targetId: Uuid) {
+        val dragged = draggingSectionId
+        val s = store
+        if (dragged != null && dragged != targetId && s != null) {
+            val order = sections.map { it.id }
+            val movingDown = order.indexOf(dragged) < order.indexOf(targetId)
+            val index = order.filter { it != dragged }.indexOf(targetId)
+            if (index >= 0) {
+                scope.launch {
+                    s.sections.move(dragged, if (movingDown) index + 1 else index)
+                    sections = s.sections.all()
+                }
+            }
+        }
+        draggingSectionId = null
+        dropSectionId = null
+    }
+
+    // The same for a card section, dropped on another one of the open collection: it takes that
+    // section's place, after it when dragged down the grid and before it when dragged up. The
+    // ungrouped area is not part of this — it is not a section, and it is always the first thing.
+    fun moveCardSection(targetId: Uuid) {
+        val dragged = draggingCardSectionId
+        val s = store
+        val collectionId = cardSections.firstOrNull { it.id == dragged }?.collectionId
+        if (dragged != null && dragged != targetId && s != null && collectionId != null) {
+            val order = orderedCardSections.map { it.id }
+            val movingDown = order.indexOf(dragged) < order.indexOf(targetId)
+            val index = order.filter { it != dragged }.indexOf(targetId)
+            if (index >= 0) {
+                scope.launch {
+                    s.cardSections.move(dragged, if (movingDown) index + 1 else index)
+                    cardSections = s.cardSections.byCollection(collectionId)
+                }
+            }
+        }
+        draggingCardSectionId = null
+        dropGroup = null
     }
 
     // A card, a tab or a history entry is dropped on a *group* — the ungrouped area or one card
@@ -991,6 +1382,12 @@ val App = FC<AppProps> { props ->
         }
     }
 
+    // The ✎ on a tile asks for the box, it does not do the renaming: the box is where the title is
+    // edited, and — for a link, on a machine whose browser has a model of its own — where the same title
+    // with the rubbish taken out of it is offered. See [RenameCardModal].
+    val onCardRenameRequest = useCallback { card: Card -> renameModal = RenameModal(card, fromSearch = false) }
+    val onResultRenameRequest = useCallback { card: Card -> renameModal = RenameModal(card, fromSearch = true) }
+
     val onCardRename = useCallback(store, hiddenCollectionIds) { card: Card, title: String ->
         val s = store ?: return@useCallback
         scope.launch { s.cards.rename(card.id, title); reloadCards(card.collectionId) }
@@ -998,6 +1395,9 @@ val App = FC<AppProps> { props ->
 
     val onCardDelete = useCallback(store, hiddenCollectionIds) { card: Card ->
         val s = store ?: return@useCallback
+        // The card goes, and with it any unsaved text kept for it — a draft outlives the editor, but
+        // it must not outlive the note.
+        if (card.kind == CardKind.NOTE) clearNoteDraft(cardDraftKey(card.id))
         scope.launch { s.cards.delete(card.id); reloadCards(card.collectionId) }
     }
 
@@ -1008,13 +1408,11 @@ val App = FC<AppProps> { props ->
         dropGroup = null
     }
 
-    // Dropping a card on a tile puts it in that tile's group, right before it. Under a sort other than
-    // MANUAL the order on screen is the sort's to decide, so there the position would be invisible:
-    // the card just joins the group.
+    // Dropping a card on a tile puts it in that tile's group, right before it. What is on screen is the
+    // stored order itself, so the slot the card is dropped into is the slot it takes.
     val onDropOnTile = useCallback(
         store,
         cards,
-        sortMode,
         selectedId,
         draggingCardId,
         draggingTab,
@@ -1024,7 +1422,7 @@ val App = FC<AppProps> { props ->
         val collectionId = selectedId ?: return@useCallback
         val dragged = draggingCardId
         if (dragged == target.id) return@useCallback
-        val index = if (dragged != null && sortMode == SortMode.MANUAL) {
+        val index = if (dragged != null) {
             // The dragged card is spliced into an order it is no longer part of, so its own slot must
             // not count towards the target's index.
             cards.filter { it.cardSectionId == target.cardSectionId && it.id != dragged }
@@ -1072,6 +1470,7 @@ val App = FC<AppProps> { props ->
         searchHistory,
         collections,
         hiddenCollectionIds,
+        aiProvider,
         aiAvailable,
         usageVersion,
         lang,
@@ -1083,6 +1482,7 @@ val App = FC<AppProps> { props ->
             history = searchHistory,
             collections = collections.filter { it.id !in hiddenCollectionIds },
             collectionTitles = collectionTitles,
+            aiProvider = aiProvider,
             aiAvailable = aiAvailable,
             strings = t,
         )
@@ -1099,8 +1499,15 @@ val App = FC<AppProps> { props ->
      * switched to rather than opened again, the collection is selected rather than navigated to, the
      * question goes to the model rather than to Google — and every one of them that ends in a page
      * being opened counts towards the ranking that put it there.
+     *
+     * The row itself is counted too, under its kind: a user who always ends up asking the model, or
+     * always searching the web, gets that row offered sooner next time (see [HitAction]). Only rows
+     * taken *here* count — the box learns what the user comes to the box for, not what they do with
+     * the rest of the app.
      */
     fun activateHit(hit: Hit) {
+        recordAction(hit.action)
+        usageVersion += 1
         when (hit) {
             is TabHit -> {
                 onTabGoTo(hit.tab)
@@ -1141,19 +1548,27 @@ val App = FC<AppProps> { props ->
                 unlockError = null
                 clearSearch()
             }
-            // The box becomes the question box; the answer takes over the content area. The field is
-            // emptied for the follow-up.
+            // The built-in model answers here: the question opens the conversation window over the
+            // page, the box goes back to being a search box, and the follow-ups are asked in the window.
+            //
+            // A web chat cannot answer here, so the question goes there — to a new conversation with the
+            // message already sent, in this tab, exactly as a web search goes to the results page. Both
+            // are the search box handing the query to something that answers it elsewhere.
             is AiHit -> {
-                aiMode = true
-                aiQuestion = hit.query
-                query = ""
-                showAllResults = false
+                val chat = hit.provider.chatUrl(hit.query)
+                if (chat == null) {
+                    aiOpen = true
+                    aiQuestion = hit.query
+                } else {
+                    navigateTo(chat)
+                }
+                clearSearch()
             }
         }
     }
 
     fun exitAi() {
-        aiMode = false
+        aiOpen = false
         aiQuestion = ""
     }
 
@@ -1285,6 +1700,30 @@ val App = FC<AppProps> { props ->
     div {
         className = ClassName("app")
 
+        // A file dropped anywhere but a drop zone — the toolbar, the tab list, the gap between two
+        // sections — is a file the *browser* would open, navigating the page to it and taking the app
+        // off the screen with it. So the page as a whole takes every file drag (the drop zones inside
+        // it stop their own events before they reach here) and does nothing at all with it.
+        onDragOver = { e -> if (draggingFiles(e.dataTransfer)) e.preventDefault() }
+        onDrop = { e ->
+            if (draggingFiles(e.dataTransfer)) {
+                e.preventDefault()
+                dropGroup = null
+                contentDropActive = false
+                dropCollectionId = null
+            }
+        }
+        // A file drag carried back out of the window ends nowhere: no dragend of ours ever fires for
+        // it, and the target it was over would stay lit. `relatedTarget == null` is what tells leaving
+        // the window from merely crossing between two elements inside it.
+        onDragLeave = { e ->
+            if (e.asDynamic().relatedTarget == null) {
+                dropGroup = null
+                contentDropActive = false
+                dropCollectionId = null
+            }
+        }
+
         // ---- Left sidebar (sections + collections), collapsible ----
         if (leftCollapsed) {
             aside {
@@ -1307,7 +1746,16 @@ val App = FC<AppProps> { props ->
                 className = ClassName("sidebar")
                 div {
                     className = ClassName("brand")
-                    span { +"stramus" }
+                    img {
+                        className = ClassName("brand-logo")
+                        src = "logo-128.png"
+                        alt = ""
+                        draggable = false
+                    }
+                    span {
+                        className = ClassName("brand-name")
+                        +"stramus"
+                    }
                     button {
                         className = ClassName("icon collapse-btn")
                         hint(t.collapseSidebar)
@@ -1339,27 +1787,49 @@ val App = FC<AppProps> { props ->
                     // A locked section is a closed door: no collections under it, nothing to drop into
                     // it, nothing to rename or delete. Clicking its header asks for the PIN.
                     val isLocked = section.id in lockedSectionIds
+                    // A section dragged onto another one is a reorder, and a lock has no say in it:
+                    // where a section sits says nothing about what is behind its PIN.
+                    val takesSection = draggingSectionId != null && draggingSectionId != section.id
                     div {
                         key = key(section.id)
                         className = ClassName(
                             buildString {
                                 append("section")
                                 if (isLocked) append(" locked")
+                                if (section.id == draggingSectionId) append(" dragging")
                                 if (section.id == dropSectionId) append(" drop-section")
                             },
                         )
                         // Dropping a collection anywhere on the section (not on a specific item) moves
-                        // it to the end of this section.
-                        onDragOver = { e -> if (draggingCollectionId != null && !isLocked) e.preventDefault() }
-                        onDragEnter = { if (draggingCollectionId != null && !isLocked) dropSectionId = section.id }
+                        // it to the end of this section; dropping a *section* reorders the sidebar.
+                        onDragOver = { e ->
+                            if (takesSection || (draggingCollectionId != null && !isLocked)) e.preventDefault()
+                        }
+                        onDragEnter = {
+                            if (takesSection || (draggingCollectionId != null && !isLocked)) dropSectionId = section.id
+                        }
                         onDrop = { e ->
-                            if (draggingCollectionId != null && !isLocked) {
+                            if (takesSection) {
+                                e.preventDefault()
+                                moveSection(section.id)
+                            } else if (draggingCollectionId != null && !isLocked) {
                                 e.preventDefault()
                                 moveCollection(section.id, collections.count { it.sectionId == section.id })
                             }
                         }
                         div {
                             className = ClassName("section-head")
+                            // The header is the handle the section is dragged by — except while it is
+                            // being renamed, when the pointer belongs to the text field in its title.
+                            draggable = renamingId != section.id
+                            onDragStart = { e ->
+                                e.dataTransfer.setData("text/plain", section.id.toString())
+                                draggingSectionId = section.id
+                            }
+                            onDragEnd = {
+                                draggingSectionId = null
+                                dropSectionId = null
+                            }
                             // Clicking the title collapses/expands the section (hides its
                             // collections); double-clicking renames it right where the text is. While
                             // the section is locked the title does one thing only: ask for the PIN.
@@ -1384,8 +1854,12 @@ val App = FC<AppProps> { props ->
                                 }
                                 onDoubleClick = { if (!isLocked) onTitleDoubleClick(section.id) }
                                 span {
-                                    className = ClassName("chevron")
-                                    +(if (isLocked) "🔒" else if (section.collapsed) "▸" else "▾")
+                                    // The chevron turns as the section folds, so the two move together.
+                                    // A locked section is not folded but shut, and its padlock stands still.
+                                    className = ClassName(
+                                        if (section.collapsed && !isLocked) "chevron closed" else "chevron",
+                                    )
+                                    +(if (isLocked) "🔒" else "▾")
                                 }
                                 if (renamingId == section.id && !isLocked) {
                                     InlineEdit {
@@ -1440,7 +1914,8 @@ val App = FC<AppProps> { props ->
                                 }
                             }
                         }
-                        if (!section.collapsed && !isLocked) {
+                        Collapsible {
+                            open = !section.collapsed && !isLocked
                             ul {
                                 className = ClassName("collections")
                                 collections.filter { it.sectionId == section.id }.forEach { c ->
@@ -1475,14 +1950,24 @@ val App = FC<AppProps> { props ->
                                         // collection (reordered to this item's position).
                                         // preventDefault marks a valid target — withheld where the
                                         // drop would edit a read-only collection.
+                                        // A dragged section is none of these things: it falls through to
+                                        // the section behind this row, which is what it is dropped on.
+                                        // A dragged card section belongs to the grid it came from and
+                                        // has no business here at all, so this row does not light up.
+                                        val takesDrag = draggingSectionId == null && draggingCardSectionId == null &&
+                                            (draggingCollectionId != null || takesContent)
+                                        // Files from the desktop land here too — saved into this
+                                        // collection, ungrouped, without it having to be opened first.
                                         onDragEnter = { e ->
-                                            if (draggingCollectionId != null || takesContent) {
+                                            if (takesDrag || (takesContent && draggingFiles(e.dataTransfer))) {
                                                 e.preventDefault()
                                                 if (dropCollectionId != c.id) dropCollectionId = c.id
                                             }
                                         }
                                         onDragOver = { e ->
-                                            if (draggingCollectionId != null || takesContent) e.preventDefault()
+                                            val files = takesContent && draggingFiles(e.dataTransfer)
+                                            if (takesDrag || files) e.preventDefault()
+                                            if (files) e.dataTransfer.dropEffect = DropEffect.copy
                                             // The drag left the content area; drop the group it was
                                             // last over, or two targets would light up at once.
                                             if (dropGroup != null) dropGroup = null
@@ -1496,8 +1981,18 @@ val App = FC<AppProps> { props ->
                                             val visit = draggingHistory
                                             val draggedCard = draggingCardId
                                             val draggedCol = draggingCollectionId
+                                            val draggedSection = draggingSectionId
                                             val s = store
                                             when {
+                                                // Files first: they are the one drag the app's own
+                                                // state says nothing about, and a drop carrying them
+                                                // is carrying nothing else.
+                                                draggingFiles(e.dataTransfer) ->
+                                                    if (takesContent) saveFiles(droppedFiles(e.dataTransfer), c.id)
+                                                // The drop stops here, so a section dropped on a row of
+                                                // this section is moved from here — it never reaches the
+                                                // section's own handler behind it.
+                                                draggedSection != null -> moveSection(c.sectionId)
                                                 draggedCol != null -> {
                                                     // The dragged collection is spliced into an order
                                                     // it is no longer part of, so its own slot must
@@ -1582,21 +2077,28 @@ val App = FC<AppProps> { props ->
             className = ClassName(
                 if (contentDropActive && dropGroup == null) "content drop-active" else "content",
             )
-            // The whole content area is a fallback drop zone for a dragged tab or history entry: saved
-            // ungrouped into the selected collection. Anything dropped on a group is that group's.
-            // What is on the content area has to be a collection that takes edits at all — not a PIN
-            // screen (locked section), not a read-only collection, not a page of search results.
-            val droppableCollection = targetCollection?.takeIf { !showAllResults && !aiMode }
+            // The whole content area is a fallback drop zone for a dragged tab, a history entry or a
+            // file from the desktop: saved ungrouped into the selected collection. Anything dropped on
+            // a group is that group's. What is on the content area has to be a collection that takes
+            // edits at all — not a PIN screen (locked section), not a read-only collection, not a page
+            // of search results.
+            val droppableCollection = targetCollection?.takeIf { !showAllResults }
             val takesPage = droppableCollection != null && (draggingTab != null || draggingHistory != null)
+            // Whether a drag carries files is asked of the event, never of the app's own drag state:
+            // until it lands, a dragged file is something the browser knows about and we do not.
 
-            onDragEnter = { e -> if (takesPage) e.preventDefault() }
+            onDragEnter = { e ->
+                if (takesPage || (droppableCollection != null && draggingFiles(e.dataTransfer))) e.preventDefault()
+            }
             onDragOver = { e ->
                 // A group that is under the pointer stops this event, so reaching here means the
                 // drag is over the content area but over no group: no group is the drop target.
                 if (dropGroup != null) dropGroup = null
                 leaveTabsSidebar()
-                if (takesPage) {
+                val files = droppableCollection != null && draggingFiles(e.dataTransfer)
+                if (takesPage || files) {
                     e.preventDefault()
+                    if (files) e.dataTransfer.dropEffect = DropEffect.copy
                     if (!contentDropActive) contentDropActive = true
                 }
             }
@@ -1607,6 +2109,7 @@ val App = FC<AppProps> { props ->
                 val visit = draggingHistory
                 if (droppableCollection != null) {
                     when {
+                        draggingFiles(e.dataTransfer) -> saveFiles(droppedFiles(e.dataTransfer), droppableCollection.id)
                         tab != null -> saveTab(tab, droppableCollection.id)
                         visit != null -> saveHistoryEntry(visit, droppableCollection.id)
                     }
@@ -1622,7 +2125,6 @@ val App = FC<AppProps> { props ->
                     strings = t
                     this.query = query
                     groups = hitGroups
-                    this.aiMode = aiMode
                     // Searching is leaving the PIN screen a clicked-on section header put up; the
                     // section stays locked, its cards simply are not among the results.
                     onQueryChange = { value ->
@@ -1632,7 +2134,6 @@ val App = FC<AppProps> { props ->
                     }
                     onActivate = ::activateHit
                     onShowAll = { if (query.isNotBlank()) showAllResults = true }
-                    onExitAi = ::exitAi
                     onForget = { hit ->
                         forgetUse(hit.stat.url)
                         usageVersion += 1
@@ -1640,6 +2141,11 @@ val App = FC<AppProps> { props ->
                 }
                 div {
                     className = ClassName("toolbar")
+                    SyncBadge {
+                        strings = t
+                        state = syncUi
+                        onOpen = { accountOpen = true }
+                    }
                     if (hasRightSidebar && rightCollapsed) {
                         button {
                             className = ClassName("btn")
@@ -1651,41 +2157,7 @@ val App = FC<AppProps> { props ->
                 }
             }
 
-            val aiAssistant = ai
-            if (aiMode && aiAssistant != null) {
-                // The answer stands where the collection was; the box above it is still the box, and
-                // Escape (or "back to search") brings the collection back.
-                val target = targetCollection
-                AiPanel {
-                    strings = t
-                    assistant = aiAssistant
-                    question = aiQuestion
-                    // What the model is told before the first question: what it is, and — so that "what
-                    // did I save about X" has an answer — what is in the collection the user is looking at.
-                    systemPrompt = buildString {
-                        append(t.aiSystemPrompt)
-                        if (target != null && cards.isNotEmpty()) {
-                            append("\n\n\"${target.title}\":\n")
-                            cards.take(AI_CONTEXT_CARDS).forEach { card ->
-                                append("- ${card.title}")
-                                if (card.url.isNotBlank()) append(" — ${card.url}")
-                                append("\n")
-                            }
-                        }
-                    }
-                    canSave = target != null
-                    onSaveNote = { title, content ->
-                        val s = store
-                        if (s != null && target != null) {
-                            scope.launch {
-                                s.cards.addNote(target.id, title, content)
-                                reloadCards(target.id)
-                            }
-                        }
-                    }
-                    onClose = ::exitAi
-                }
-            } else if (showAllResults && query.isNotBlank()) {
+            if (showAllResults && query.isNotBlank()) {
                 // The search runs over every card in the database, so it is here that a locked section
                 // would otherwise hand its cards to anyone who typed the right word.
                 val visibleResults = searchResults.filter { it.collectionId !in hiddenCollectionIds }
@@ -1696,11 +2168,15 @@ val App = FC<AppProps> { props ->
                 } else {
                     div {
                         className = ClassName("grid")
-                        sortMode.apply(visibleResults).forEach { card ->
+                        // In the order the search gives them back. There is no ⇅ over the results: a
+                        // sort here would have to rewrite the order of every collection a match came
+                        // from, and the results are a view of the cards, not a place they live in.
+                        visibleResults.forEach { card ->
                             CardTile {
                                 key = key(card.id)
                                 strings = t
                                 this.card = card
+                                showUrl = showCardUrls
                                 isDraggable = false
                                 // A card found by a search is still a card of its collection: if that
                                 // one is read-only, the result carries no rename or delete either.
@@ -1710,7 +2186,7 @@ val App = FC<AppProps> { props ->
                                 onOpen = onCardOpen
                                 // A result edited from here is edited in two places at once: the
                                 // results on screen, and the collection the card actually lives in.
-                                onRename = onResultRename
+                                onRename = onResultRenameRequest
                                 onDelete = onResultDelete
                                 onStartDrag = onCardStartDrag
                                 onEndDrag = onCardEndDrag
@@ -1750,26 +2226,6 @@ val App = FC<AppProps> { props ->
                         }
                         div {
                             className = ClassName("actions")
-                            // Sort order for this collection's cards. Sorting shows the cards in
-                            // another order, it does not move them, so it stays even when read-only.
-                            select {
-                                className = ClassName("control")
-                                hint(t.sortLinks)
-                                value = sortMode.id
-                                onChange = { e ->
-                                    sortMode = SortMode.from(e.target.value)
-                                    prefSet("sort", e.target.value)
-                                }
-                                SortMode.entries.forEach { m ->
-                                    option { value = m.id; +m.label(t) }
-                                }
-                            }
-                            // The read-only switch, and — while it is off — everything that edits.
-                            button {
-                                className = ClassName("btn")
-                                onClick = { toggleReadOnly(current) }
-                                +(if (editable) t.makeReadOnly else t.allowEditing)
-                            }
                             if (editable) {
                                 button {
                                     className = ClassName("btn")
@@ -1787,71 +2243,59 @@ val App = FC<AppProps> { props ->
                                     +t.addCardSection
                                 }
                             }
-                            // This window's tabs only: the sidebar lists every window, and each has its
-                            // own ⤓, but this button is about the one in front.
-                            if (editable && tabCapture != null) {
-                                val wid = currentWindowId
-                                val thisWindowTabs = openTabs.filter { wid == null || it.windowId == wid }
-                                button {
-                                    className = ClassName("btn")
-                                    hint(t.saveTabsHint(thisWindowTabs.size, closeSavedTabs))
-                                    onClick = { saveTabs(thisWindowTabs, current) }
-                                    +t.saveOpenTabs
-                                }
-                            }
-                            // "Add link" is the primary action; hovering reveals a menu to add a
-                            // markdown note or upload a file instead.
-                            if (editable) div {
-                                className = ClassName("add-menu")
-                                button {
-                                    className = ClassName("btn add-card")
-                                    hint(t.addCardHint)
-                                    onClick = {
-                                        val url = browserPrompt(t.pasteUrl)
-                                        val s = store
-                                        if (s != null && !url.isNullOrBlank()) {
-                                            val clean = url.trim()
-                                            scope.launch {
-                                                s.cards.add(current.id, hostOf(clean), clean, faviconFor(clean))
-                                                reloadCards(current.id)
-                                            }
-                                        }
-                                    }
-                                    +t.addLink
-                                }
-                                div {
-                                    className = ClassName("add-dropdown")
-                                    button {
-                                        className = ClassName("add-item")
-                                        onClick = {
-                                            val url = browserPrompt(t.pasteUrl)
-                                            val s = store
-                                            if (s != null && !url.isNullOrBlank()) {
-                                                val clean = url.trim()
-                                                scope.launch {
-                                                    s.cards.add(current.id, hostOf(clean), clean, faviconFor(clean))
-                                                    reloadCards(current.id)
-                                                }
-                                            }
-                                        }
-                                        +t.addLinkItem
-                                    }
-                                    button {
-                                        className = ClassName("add-item")
-                                        onClick = { noteModal = NoteModal(current.id, null, null) }
-                                        +t.addNoteItem
-                                    }
-                                    button {
-                                        className = ClassName("add-item")
-                                        onClick = { fileModal = FileModal(current.id, null, null) }
-                                        +t.addFileItem
-                                    }
-                                }
+                            // The read-only switch closes the row: everything before it edits, and
+                            // this is what takes those controls away. Locked, it is the only one left.
+                            button {
+                                className = ClassName("btn")
+                                hint(if (editable) t.makeReadOnlyHint else t.allowEditingHint)
+                                onClick = { toggleReadOnly(current) }
+                                +(if (editable) t.makeReadOnly else t.allowEditing)
                             }
                         }
                     }
 
                     val ungrouped = cardsByGroup[null] ?: emptyList()
+
+                    // Adding a card belongs to a group, not to the collection as a whole: the menu is
+                    // drawn in every group's header, and what it adds joins that group. [sectionId]
+                    // null is the ungrouped area, which is exactly where the old toolbar button put
+                    // everything.
+                    fun ChildrenBuilder.groupAddMenu(sectionId: Uuid?) = addMenu(
+                        strings = t,
+                        onLink = {
+                            val url = browserPrompt(t.pasteUrl)
+                            val s = store
+                            if (s != null && !url.isNullOrBlank()) {
+                                val clean = url.trim()
+                                scope.launch {
+                                    s.cards.add(current.id, hostOf(clean), clean, faviconFor(clean), sectionId)
+                                    reloadCards(current.id)
+                                }
+                            }
+                        },
+                        onNote = { noteModal = NoteModal(current.id, sectionId, null) },
+                        onFile = { fileModal = FileModal(current.id, sectionId, null) },
+                    )
+
+                    // The ⇅ beside it puts that same group's cards in order. Sorting belongs to a
+                    // section for the same reason adding does: what a sort means is "these cards, in
+                    // this order", and a collection-wide one would shuffle sections the user never
+                    // looked at.
+                    //
+                    // A menu of actions, not a setting: nothing in it is ever ticked, because the sort
+                    // is over the moment it is chosen — it moved the cards, and there is no "sorted by
+                    // title" left for the group to be in (see [CardSort]). The glyph does nothing on
+                    // its own click: no one of the five orders is the obvious one to mean by "sort".
+                    // And it writes, so it is drawn only where the tools are — a read-only collection
+                    // has none of it.
+                    fun ChildrenBuilder.groupSortMenu(sectionId: Uuid?) {
+                        hoverMenu(glyph = "⇅", tooltip = t.sortLinks) {
+                            menuTitle(t.sortMenuTitle)
+                            CardSort.entries.forEach { by ->
+                                menuItem(by.label(t)) { sortCards(current.id, sectionId, by) }
+                            }
+                        }
+                    }
 
                     run {
                         // Cards, tabs and history entries can all be dropped into a group; collections
@@ -1866,12 +2310,14 @@ val App = FC<AppProps> { props ->
                         // under no heading at all, in a group with no name to drop anything onto.
                         cardGroup(
                             accepts = groupAccepts,
+                            acceptsFiles = editable,
                             active = dropGroup == DropGroup(null),
                             onOver = {
                                 if (dropGroup != DropGroup(null)) dropGroup = DropGroup(null)
                                 leaveTabsSidebar()
                             },
                             onDropHere = { dropOnGroup(current.id, null, Int.MAX_VALUE) },
+                            onDropFiles = { files -> saveFiles(files, current.id) },
                         ) {
                             div {
                                 className = ClassName("card-section-head")
@@ -1880,6 +2326,11 @@ val App = FC<AppProps> { props ->
                                     +t.ungrouped
                                     span { className = ClassName("count"); +" ${ungrouped.size}" }
                                 }
+                                if (editable) div {
+                                    className = ClassName("card-section-tools")
+                                    groupAddMenu(null)
+                                    groupSortMenu(null)
+                                }
                             }
                             if (ungrouped.isNotEmpty()) {
                                 cardGrid(
@@ -1887,8 +2338,9 @@ val App = FC<AppProps> { props ->
                                     cards = ungrouped,
                                     draggingCardId = draggingCardId,
                                     readOnly = !editable,
+                                    showUrls = showCardUrls,
                                     onOpen = onCardOpen,
-                                    onRename = onCardRename,
+                                    onRename = onCardRenameRequest,
                                     onDelete = onCardDelete,
                                     onStartDrag = onCardStartDrag,
                                     onEndDrag = onCardEndDrag,
@@ -1904,18 +2356,41 @@ val App = FC<AppProps> { props ->
 
                         orderedCardSections.forEach { cs ->
                             val groupCards = cardsByGroup[cs.id] ?: emptyList()
+                            // A section dragged over another one is a reorder, and it is dropped on the
+                            // whole group, header and cards alike — the header strip alone would be a
+                            // needle to thread, exactly as it is for a card (see [cardGroup]).
+                            val takesSection = editable &&
+                                draggingCardSectionId != null && draggingCardSectionId != cs.id
                             cardGroup(
                                 groupKey = key(cs.id),
-                                accepts = groupAccepts,
+                                accepts = groupAccepts || takesSection,
+                                acceptsFiles = editable,
                                 active = dropGroup == DropGroup(cs.id),
+                                dragging = draggingCardSectionId == cs.id,
                                 onOver = {
                                     if (dropGroup != DropGroup(cs.id)) dropGroup = DropGroup(cs.id)
                                     leaveTabsSidebar()
                                 },
-                                onDropHere = { dropOnGroup(current.id, cs.id, Int.MAX_VALUE) },
+                                onDropHere = {
+                                    if (draggingCardSectionId != null) moveCardSection(cs.id)
+                                    else dropOnGroup(current.id, cs.id, Int.MAX_VALUE)
+                                },
+                                // A file dropped on a section joins that section, as a dragged tab does.
+                                onDropFiles = { files -> saveFiles(files, current.id, cs.id) },
                             ) {
                                 div {
                                     className = ClassName("card-section-head")
+                                    // The header is the handle the section is dragged by — except while
+                                    // it is being renamed, when the pointer belongs to the text field.
+                                    draggable = editable && renamingId != cs.id
+                                    onDragStart = { e ->
+                                        e.dataTransfer.setData("text/plain", cs.id.toString())
+                                        draggingCardSectionId = cs.id
+                                    }
+                                    onDragEnd = {
+                                        draggingCardSectionId = null
+                                        dropGroup = null
+                                    }
                                     span {
                                         className = ClassName("card-section-title")
                                         // Collapsing is not editing — it stays. Renaming does not.
@@ -1930,7 +2405,10 @@ val App = FC<AppProps> { props ->
                                             }
                                         }
                                         onDoubleClick = { if (editable) onTitleDoubleClick(cs.id) }
-                                        span { className = ClassName("chevron"); +(if (cs.collapsed) "▸" else "▾") }
+                                        span {
+                                            className = ClassName(if (cs.collapsed) "chevron closed" else "chevron")
+                                            +"▾"
+                                        }
                                         if (renamingId == cs.id && editable) {
                                             InlineEdit {
                                                 initial = cs.title
@@ -1944,6 +2422,8 @@ val App = FC<AppProps> { props ->
                                     }
                                     if (editable) div {
                                         className = ClassName("card-section-tools")
+                                        groupAddMenu(cs.id)
+                                        groupSortMenu(cs.id)
                                         button {
                                             className = ClassName("icon edit")
                                             hint(t.editDescription)
@@ -1964,12 +2444,13 @@ val App = FC<AppProps> { props ->
                                         }
                                     }
                                 }
-                                if (!cs.collapsed && !cs.description.isNullOrBlank()) {
-                                    markdownBlock("card-section-desc", cs.description!!)
-                                }
                                 // A collapsed section still takes drops — its header is inside the
                                 // group — and the card joins it, out of sight.
-                                if (!cs.collapsed) {
+                                Collapsible {
+                                    open = !cs.collapsed
+                                    if (!cs.description.isNullOrBlank()) {
+                                        markdownBlock("card-section-desc", cs.description!!)
+                                    }
                                     if (groupCards.isEmpty()) {
                                         div { className = ClassName("empty small"); +t.dragLinksHere }
                                     } else {
@@ -1978,8 +2459,9 @@ val App = FC<AppProps> { props ->
                                             cards = groupCards,
                                             draggingCardId = draggingCardId,
                                             readOnly = !editable,
+                                            showUrls = showCardUrls,
                                             onOpen = onCardOpen,
-                                            onRename = onCardRename,
+                                            onRename = onCardRenameRequest,
                                             onDelete = onCardDelete,
                                             onStartDrag = onCardStartDrag,
                                             onEndDrag = onCardEndDrag,
@@ -2156,9 +2638,17 @@ val App = FC<AppProps> { props ->
             NoteEditor {
                 strings = t
                 heading = if (m.existing != null) t.editNote else t.newNote
+                viewHeading = t.viewNote
+                // A note that exists opens to be read — clicking a card is how one *looks* at what was
+                // saved. A note that does not yet exist has nothing to read, so it opens in writing.
+                startInEdit = m.existing == null
                 showTitle = true
                 initialTitle = m.existing?.title ?: ""
                 initialContent = m.existing?.content ?: ""
+                // Unsaved text survives the modal, and the tab: an existing note keeps its draft under
+                // its own id, a new one under the place it is being written for.
+                draftKey = m.existing?.let { cardDraftKey(it.id) }
+                    ?: newNoteDraftKey(m.collectionId, m.cardSectionId)
                 // A note of a read-only collection opens to be read, not written: the editor comes up
                 // without its toolbar, its caret or its Save.
                 readOnly = collections.any { it.id == m.collectionId && it.readOnly }
@@ -2215,6 +2705,22 @@ val App = FC<AppProps> { props ->
                 }
             }
         }
+        val liveEngine = engine
+        val liveStore = store
+        if (accountOpen && liveEngine != null && liveStore != null) {
+            AccountDialog {
+                strings = t
+                state = syncUi
+                this.api = api
+                engine = liveEngine
+                store = liveStore
+                google = props.google
+                onSynced = { reloadAfterSync() }
+                onState = { syncUi = it }
+                onClose = { accountOpen = false }
+            }
+        }
+
         if (settingsOpen) {
             SettingsModal {
                 strings = t
@@ -2222,6 +2728,25 @@ val App = FC<AppProps> { props ->
                 onThemeChange = { theme = it }
                 this.lang = lang.id
                 onLangChange = { lang = Lang.from(it) }
+                this.showCardUrls = showCardUrls
+                onShowCardUrlsChange = { show ->
+                    showCardUrls = show
+                    prefSet("showCardUrls", if (show) "1" else "0")
+                }
+                this.syncUsage = syncUsage
+                onSyncUsageChange = { on ->
+                    syncUsage = on
+                    prefSet("syncUsage", if (on) "1" else "0")
+                    // Turning it *on* has to go and fetch what was skipped while it was off: those rows came
+                    // down in the delta, were dropped on the floor, and the cursor moved past them. Only a
+                    // fresh read of the whole account brings them back.
+                    if (on) scope.launch { engine?.refetchEverything(); runSync() }
+                }
+                this.startView = startView.id
+                onStartViewChange = { id ->
+                    startView = StartView.from(id)
+                    prefSet("startView", id)
+                }
                 this.autoLockMinutes = autoLockMinutes
                 onAutoLockChange = { minutes ->
                     autoLockMinutes = minutes
@@ -2234,23 +2759,60 @@ val App = FC<AppProps> { props ->
                     closeSavedTabs = close
                     prefSet("closeSavedTabs", if (close) "1" else "0")
                 }
-                // Which model is answering, if any — and if none, why not.
+                // Who is answering — the one actually answering, which on a browser without a model of
+                // its own is not the one that was chosen. The local option is offered until the browser
+                // has said it cannot run it; until then it is only unknown, not refused.
+                this.aiProvider = aiProvider.id
+                onAiProviderChange = { id ->
+                    aiChoice = AiProvider.from(id)
+                    prefSet(AI_PROVIDER_PREF, id)
+                }
+                this.aiLocalAvailable = aiLocalAvailable != false
                 aiName = ai?.name
                 this.aiState = aiState
                 // An export is a file the user can open anywhere, so a section whose PIN has not been
                 // entered stays out of it — otherwise it would be the way around the lock.
                 onExportCsv = { store?.let { s -> scope.launch { exportCsv(s, lockedSectionIds) } } }
                 onExportBookmarks = { store?.let { s -> scope.launch { exportBookmarks(s, lockedSectionIds) } } }
-                onClose = { settingsOpen = false }
+                // The other direction: a bookmarks file or a CSV read back in. It creates whatever the
+                // file names — sections, collections, card sections — so the sidebar and the open
+                // collection are both re-read from the database once it is done.
+                onImport = { name, text ->
+                    val s = store
+                    if (s != null) {
+                        importStatus = null
+                        scope.launch {
+                            val result = importFile(s, name, text, t.importedTitle)
+                            sections = s.sections.all()
+                            collections = s.collections.all()
+                            reloadCards(selectedId)
+                            importStatus = if (result.added == 0 && result.skipped == 0) {
+                                t.importNothing
+                            } else {
+                                t.importDone(result.added, result.skipped)
+                            }
+                        }
+                    }
+                }
+                this.importStatus = importStatus
+                onClose = {
+                    settingsOpen = false
+                    importStatus = null
+                }
             }
         }
         descModal?.let { m ->
             NoteEditor {
                 strings = t
                 heading = t.sectionDescription
+                viewHeading = t.sectionDescription
+                // Unlike a note, this editor is not reached by looking at something — it is reached by
+                // asking to change the description, so it opens on that.
+                startInEdit = true
                 showTitle = false
                 initialTitle = m.title
                 initialContent = m.description
+                draftKey = descDraftKey(m.sectionId)
                 readOnly = false // only reachable from a collection that takes edits
                 onClose = { descModal = null }
                 onSave = { _, c ->
@@ -2261,6 +2823,65 @@ val App = FC<AppProps> { props ->
                     }
                     descModal = null
                 }
+            }
+        }
+
+        renameModal?.let { m ->
+            // The model is offered to the box only once it is *on this machine*: a title cleaned up
+            // on-device costs the user nothing and leaves nothing, which is why this does not ask who
+            // they chose to answer their questions — a web chat is never handed a title here. A model
+            // that would first have to be downloaded is not offered at all: nobody asked for a few
+            // hundred megabytes by pressing ✎.
+            //
+            // Read out here rather than in the builder below, where `ai` is the prop being set.
+            val titleCleaner = ai.takeIf { aiState == AiAvailability.AVAILABLE }
+            RenameCardModal {
+                strings = t
+                this.card = m.card
+                this.ai = titleCleaner
+                onClose = { renameModal = null }
+                onSave = { renamed ->
+                    if (renamed != m.card.title) {
+                        if (m.fromSearch) onResultRename(m.card, renamed) else onCardRename(m.card, renamed)
+                    }
+                    renameModal = null
+                }
+            }
+        }
+
+        val aiAssistant = ai
+        if (aiOpen && aiAssistant != null) {
+            // The conversation stands over the collection rather than in place of it: what the model
+            // was told about is still on screen behind the window, and closing it changes nothing.
+            val target = targetCollection
+            AiChat {
+                strings = t
+                assistant = aiAssistant
+                initialQuestion = aiQuestion
+                // What the model is told before the first question: what it is, and — so that "what
+                // did I save about X" has an answer — what is in the collection the user is looking at.
+                systemPrompt = buildString {
+                    append(t.aiSystemPrompt)
+                    if (target != null && cards.isNotEmpty()) {
+                        append("\n\n\"${target.title}\":\n")
+                        cards.take(AI_CONTEXT_CARDS).forEach { card ->
+                            append("- ${card.title}")
+                            if (card.url.isNotBlank()) append(" — ${card.url}")
+                            append("\n")
+                        }
+                    }
+                }
+                canSave = target != null
+                onSaveNote = { title, content ->
+                    val s = store
+                    if (s != null && target != null) {
+                        scope.launch {
+                            s.cards.addNote(target.id, title, content)
+                            reloadCards(target.id)
+                        }
+                    }
+                }
+                onClose = ::exitAi
             }
         }
 

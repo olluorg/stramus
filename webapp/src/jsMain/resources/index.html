@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>stramus</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="logo-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="logo-16.png">
+    <link rel="apple-touch-icon" sizes="128x128" href="logo-128.png">
     <style>
         :root {
             --bg: #f6f7f9;
@@ -128,6 +131,8 @@
         }
         /* --card-accent is the card's own colour: the kinds that carry one (see .card.kind-*) override
            it, so the stripe and the hover highlight of a note are yellow where a link's stay blue. */
+        /* A link card is a real <a href> so it opens in a new tab on middle- or Ctrl/Cmd-click; the
+           reset keeps it from taking the browser's blue-underline link look. */
         .card {
             --card-accent: var(--accent);
             position: relative;
@@ -137,12 +142,20 @@
             border-radius: 10px;
             padding: 12px;
             cursor: pointer;
+            color: inherit; text-decoration: none;
             transition: border-color .12s, transform .12s;
         }
         .card:hover { border-color: var(--card-accent); transform: translateY(-1px); }
         .fav { width: 24px; height: 24px; flex: 0 0 24px; border-radius: 5px; background: var(--bg); }
         .card-body { min-width: 0; flex: 1; }
         .card-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 40px; }
+        /* A card with no second line (a link whose address is hidden) gives that line to the title:
+           two lines of it, and the min-height keeps the tile the same size as one that has a URL. */
+        .card-title.two-line {
+            white-space: normal;
+            display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+            min-height: 2.9em;
+        }
         .card-url { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .card-tools { position: absolute; top: 6px; right: 6px; display: flex; align-items: center; gap: 2px; }
         .card:hover .icon.edit { opacity: 1; }
@@ -235,7 +248,9 @@
         .history-time { color: var(--muted); font-size: 11px; flex: 0 0 auto; }
 
         /* Brand row + sidebar collapse controls */
-        .brand { display: flex; align-items: center; justify-content: space-between; }
+        .brand { display: flex; align-items: center; gap: 8px; }
+        .brand-logo { width: 22px; height: 22px; flex: 0 0 22px; border-radius: 5px; }
+        .brand-name { flex: 1; min-width: 0; color: #50219B; }
         .icon.collapse-btn { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px; opacity: .7; }
         .icon.collapse-btn:hover { color: var(--accent); opacity: 1; }
         .sidebar.collapsed, .tabs.collapsed { width: 40px; flex: 0 0 40px; padding: 12px 5px; align-items: center; }
@@ -244,8 +259,26 @@
 
         /* Section collapse chevron + drop highlight */
         .section-title { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 5px; }
-        .chevron { font-size: 9px; color: var(--muted); }
+        .chevron { font-size: 9px; color: var(--muted); display: inline-block; transition: transform .18s ease; }
+        /* The chevron points down when the section is open and turns as it folds shut. */
+        .chevron.closed { transform: rotate(-90deg); }
+
+        /* A section folds instead of blinking away: the content sits in a one-row grid whose row goes
+           from 1fr to 0fr, so the height is animated without anything having to be measured first.
+           The clipping that makes the fold look like one is lifted once the section stands open (see
+           Collapsible.kt) — the grid inside would otherwise go on cutting the lift off a hovered card. */
+        .collapsible { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .18s ease; }
+        .collapsible.open { grid-template-rows: 1fr; }
+        .collapsible-inner { overflow: hidden; min-height: 0; }
+        .collapsible.settled > .collapsible-inner { overflow: visible; }
+        @media (prefers-reduced-motion: reduce) {
+            .collapsible, .chevron { transition: none; }
+        }
         .section.drop-section { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 8px; }
+        /* A section is dragged by its header, and fades while it is being carried somewhere else. */
+        .section-head { cursor: grab; }
+        .section-head:active { cursor: grabbing; }
+        .section.dragging { opacity: .45; }
 
         /* Inline rename (double-click a section title). The field is stacked on a hidden copy of its
            own text in a one-cell grid, so it is exactly as wide as its content: nothing around it
@@ -268,9 +301,6 @@
         .search { flex: 1; min-width: 0; border: none; background: transparent; color: var(--text); padding: 8px 2px; font-size: 14px; }
         .search:focus { outline: none; }
 
-        /* The chip that says the box is now a question to the model, not a search. */
-        .ai-chip { flex: 0 0 auto; font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 2px 6px; }
-
         .search-drop { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; right: 0; padding: 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 14px 34px rgba(0, 0, 0, .18); max-height: 70vh; overflow: auto; }
         .hit-group-label { padding: 6px 8px 4px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
         .hit-list { list-style: none; margin: 0; padding: 0; }
@@ -288,18 +318,50 @@
         /* Settings: the model that answers, named. */
         .ai-model { font-weight: 700; font-size: 13px; white-space: nowrap; }
 
-        /* The model's answer, where the collection would be. */
-        .ai-panel { display: flex; flex-direction: column; gap: 12px; }
-        .ai-panel .content-head h2 { display: flex; align-items: center; gap: 8px; }
+        /* The conversation with the model: a window over the page. The exchanges scroll on their own,
+           so the field the next question is typed in stays where it is. */
+        .ai-modal { max-width: 720px; }
+        .ai-title { display: flex; align-items: center; gap: 8px; }
         .ai-badge { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 2px 6px; }
+        .ai-log { flex: 1; min-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; }
         .ai-download { padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); font-size: 13px; }
-        .ai-turn { padding: 12px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; }
-        .ai-question { margin-bottom: 8px; font-weight: 700; }
+        .ai-turn { position: relative; min-width: 0; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; }
+        /* An address the model wrote out in full is longer than this window is wide: it wraps mid-word
+           rather than pushing the conversation sideways. Code is the exception — it scrolls instead. */
+        .ai-question, .ai-answer { min-width: 0; overflow-wrap: anywhere; }
+        .ai-question { margin-bottom: 8px; padding-right: 52px; font-weight: 700; }
         .ai-thinking { color: var(--muted); }
         .ai-answer { line-height: 1.55; }
         .ai-answer p { margin: 0 0 8px; }
-        .ai-answer pre { overflow-x: auto; }
-        .ai-turn-actions { display: flex; gap: 8px; margin-top: 10px; }
+        .ai-answer pre { max-width: 100%; overflow-x: auto; }
+        .ai-answer pre code { overflow-wrap: normal; white-space: pre; }
+        .ai-answer img { max-width: 100%; }
+        .ai-answer table { display: block; max-width: 100%; overflow-x: auto; }
+        /* Copying the answer and keeping it as a note are the answer's own actions: its corner, on hover. */
+        .ai-turn-tools { position: absolute; top: 8px; right: 8px; display: flex; gap: 2px; opacity: 0; }
+        .icon.ai-tool {
+            border: none; background: transparent; color: var(--muted);
+            cursor: pointer; font-size: 14px; line-height: 1; padding: 2px 4px;
+        }
+        .ai-turn:hover .ai-turn-tools, .ai-turn-tools:focus-within { opacity: 1; }
+        .icon.ai-tool:hover { color: var(--accent); }
+        .ai-ask { justify-content: stretch; }
+        .ai-input { flex: 1; min-width: 0; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 8px; padding: 9px 12px; font-size: 14px; }
+        .ai-input:focus { outline: none; border-color: var(--accent); }
+        .ai-input:disabled { opacity: .6; }
+
+        /* Renaming a card: the title in a field, the page it names under it, and — for a link, where the
+           browser has a model of its own — that title with the rubbish taken out, offered on a button. */
+        .rename-modal { max-width: 560px; }
+        .rename-url-toggle { align-self: flex-start; margin: 8px 18px 0; border: none; background: none; padding: 0; color: var(--muted); font-size: 12px; cursor: pointer; }
+        .rename-url-toggle:hover { color: var(--accent); }
+        /* Asked for, and then given whole: an address is only useful if it is not cut short. It is
+           the length of it that keeps it folded away, so unfolding it must not hide the tail again. */
+        .rename-url { margin: 4px 18px 0; max-height: 4.5em; overflow-y: auto; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+        .ai-suggest { display: flex; align-items: center; gap: 8px; margin: 12px 18px 2px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); font-size: 13px; }
+        .ai-suggest-text { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+        .ai-suggest-wait { flex: 1; color: var(--muted); }
+        .ai-suggest .btn { flex: 0 0 auto; }
 
         .toolbar { display: flex; align-items: center; gap: 8px; }
         .control { border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 8px; padding: 7px 8px; font-size: 13px; cursor: pointer; }
@@ -320,6 +382,10 @@
         .card-group { border-radius: 10px; padding: 4px 8px; margin: 0 -8px; outline: 2px dashed transparent; outline-offset: -2px; transition: background .12s; }
         .card-group.drop-active { outline-color: var(--accent); background: var(--accent-soft); }
         .card-group.drop-active .empty.small { color: var(--accent); }
+        /* A card section is dragged by its header, and fades while it is being carried up or down. */
+        .card-section-head[draggable="true"] { cursor: grab; }
+        .card-section-head[draggable="true"]:active { cursor: grabbing; }
+        .card-group.dragging { opacity: .45; }
         .card.dragging { opacity: .4; }
 
         /* Right sidebar header row */
@@ -332,14 +398,42 @@
         .card.kind-file { --card-accent: #7c9cf5; border-left: 3px solid var(--card-accent); }
         .card:hover .icon.edit:hover { color: var(--card-accent); }
 
-        /* "Add link" hover menu */
-        .add-menu { position: relative; display: inline-block; }
-        .add-dropdown { position: absolute; top: 100%; right: 0; padding: 6px 4px 4px; display: none; z-index: 20; min-width: 150px; }
-        .add-menu:hover .add-dropdown { display: block; }
-        .add-dropdown > * + * { margin-top: 2px; }
-        .add-dropdown { background: transparent; }
-        .add-item { display: block; width: 100%; text-align: left; border: 1px solid var(--border); background: var(--panel); color: var(--text); padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,.12); }
-        .add-item:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+        /* The hover menus of a card-section header: "+" adds a card, "⇅" sorts the section. Both drop a
+           list of actions under a glyph, and like the header's other tools they stay out of the way
+           until the section is hovered — or until one is tabbed to, or its own menu is open, which
+           :focus-within covers both.
+
+           The list is built from buttons, not from a native <select>: a select's options take almost no
+           styling, so the ⇅ could never have been made to read like the "+" beside it. */
+        .menu { position: relative; display: inline-block; }
+        .card-section-head .menu { opacity: 0; transition: opacity .12s; }
+        .card-section-head:hover .menu, .card-section-head .menu:focus-within { opacity: 1; }
+        .icon.menu-btn { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px; }
+        .icon.menu-btn:hover { color: var(--accent); }
+        .menu:hover .icon.menu-btn { color: var(--accent); }
+        /* What holds the list off the glyph is the dropdown's own padding, not a margin: a strip of
+           nothing between the two would close the menu the moment the pointer crossed it. The panel is
+           one card behind the whole list, so the items read as a menu rather than as loose buttons. */
+        .menu-dropdown {
+            position: absolute; top: 100%; right: 0; z-index: 20; display: none;
+            padding: 4px; min-width: 176px;
+            background: var(--panel); border: 1px solid var(--border);
+            border-radius: 10px; box-shadow: 0 10px 28px rgba(0,0,0,.16);
+        }
+        .menu:hover .menu-dropdown, .menu:focus-within .menu-dropdown { display: block; }
+        .menu-item {
+            display: block; width: 100%; text-align: left;
+            border: none; background: transparent; color: var(--text);
+            padding: 7px 10px; border-radius: 7px; cursor: pointer;
+            font-size: 13px; line-height: 1.3; white-space: nowrap;
+        }
+        .menu-item:hover { background: var(--accent-soft); color: var(--accent); }
+        /* A heading over the sort actions: the ⇅ opens five ways of ordering the cards, and without a
+           word over them the list is five sentences with nothing saying what they have in common. */
+        .menu-title {
+            padding: 6px 10px 4px; font-size: 11px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+        }
 
         /* Card-section tools + description */
         .card-section-tools { display: flex; align-items: center; gap: 2px; }
@@ -387,6 +481,11 @@
         @media (max-width: 680px) { .note-split { grid-template-columns: 1fr; } }
 
 
+        /* The strip saying the text on screen is an unsaved draft put back, not the saved note. */
+        .draft-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 18px -2px; padding: 7px 11px; border: 1px solid #f5c451; border-radius: 8px; background: rgba(245, 196, 81, 0.12); font-size: 12px; color: var(--text); }
+        .draft-discard { border: none; background: none; padding: 0; color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; }
+        .draft-discard:hover { text-decoration: underline; }
+
         /* WYSIWYG note editor */
         .wysiwyg-toolbar { display: flex; flex-wrap: wrap; gap: 4px; padding: 10px 18px 0; }
         .tool { border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 7px; padding: 5px 9px; font-size: 13px; cursor: pointer; min-width: 30px; }
@@ -394,6 +493,9 @@
         .wysiwyg { margin: 12px 18px; flex: 1; min-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; background: var(--bg); font-size: 14px; line-height: 1.6; }
         .wysiwyg:focus { outline: none; border-color: var(--accent); }
         .wysiwyg:empty::before { content: "Start writing…"; color: var(--muted); }
+        /* A note being read: a page, not a field — and an empty one prompts nobody to write in it. */
+        .wysiwyg.reading { background: var(--panel); }
+        .wysiwyg.reading:empty::before { content: ""; }
         .wysiwyg h2 { font-size: 18px; margin: 8px 0; }
         .wysiwyg h3 { font-size: 16px; margin: 8px 0; }
         .wysiwyg p { margin: 6px 0; }
@@ -450,18 +552,45 @@
         .settings-section { padding: 14px 0; border-bottom: 1px solid var(--border); }
         .settings-section:last-child { border-bottom: none; }
         .settings-section h4 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-        .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
         .settings-row + .settings-row { margin-top: 14px; }
-        .settings-label { display: flex; flex-direction: column; gap: 2px; }
+        .settings-label { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; min-width: 0; }
         .settings-title { font-weight: 600; }
         .settings-hint { color: var(--muted); font-size: 12px; margin: 0; }
         .settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-        .theme-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-        .theme-opt { border: none; background: var(--panel); color: var(--text); padding: 7px 12px; cursor: pointer; font-size: 13px; border-left: 1px solid var(--border); }
+        .theme-toggle { display: inline-flex; flex: 0 0 auto; max-width: 100%; margin-left: auto; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+        .theme-opt { border: none; background: var(--panel); color: var(--text); padding: 7px 12px; cursor: pointer; font-size: 13px; white-space: nowrap; border-left: 1px solid var(--border); }
         .theme-opt:first-child { border-left: none; }
         .theme-opt:hover { color: var(--accent); }
         .theme-opt.active { background: var(--accent); color: #fff; }
+        .theme-opt:disabled { opacity: .45; cursor: default; }
+        .theme-opt:disabled:hover { color: var(--text); }
 
+
+        /* ---- Account and sync ---------------------------------------------------------------- */
+        /* The badge is a dot, not a banner: sync working is the normal state of the world, and sync
+           failing has lost nothing — the work is on this machine and will go up when it can. */
+        .sync-badge { font-size: 13px; line-height: 1; padding: 6px 8px; }
+        .sync-badge.sync-idle { color: var(--ok, #3fb950); }
+        .sync-badge.sync-running { color: var(--accent, #58a6ff); }
+        .sync-badge.sync-offline, .sync-badge.sync-error { color: var(--warn, #d29922); }
+        .sync-badge.sync-signed_out { color: var(--muted, #8b949e); }
+
+        .account-modal { width: min(420px, 92vw); }
+        .account-modal label { display: block; margin: 12px 18px 0; font-size: 13px; color: var(--muted, #8b949e); }
+        .account-modal label input { display: block; width: 100%; margin-top: 4px; padding: 8px 10px;
+            border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
+        .account-modal p { margin: 12px 18px; font-size: 13px; }
+        .account-modal p.muted { color: var(--muted, #8b949e); }
+        .account-modal p.error { color: var(--danger, #f85149); }
+        .account-modal .btn.link { margin: 0 18px 14px; padding: 0; background: none; border: none;
+            color: var(--accent, #58a6ff); cursor: pointer; font-size: 13px; }
+        .account-modal .btn.danger { margin: 0 18px 16px; color: var(--danger, #f85149); }
+        .account-modal .btn.google { display: block; width: calc(100% - 36px); margin: 14px 18px 0;
+            padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel);
+            color: var(--fg); cursor: pointer; font-size: 14px; }
+        .account-modal .btn.google:hover { background: var(--bg); }
+        .account-modal .row { display: flex; gap: 8px; padding: 12px 18px; }
     </style>
 </head>
 <body>

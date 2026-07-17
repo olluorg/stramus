@@ -5,10 +5,10 @@ import stramus.core.platform.CapturedTab
 /**
  * How a window's open tabs are sorted from the tabs sidebar.
  *
- * Unlike [SortMode], which only decides the order cards are *drawn* in, this one is an action rather
- * than a view: the browser's own tab strip is rearranged, so the new order is what the user sees in
- * the browser too, and it outlives the page. There is nothing to persist and nothing to undo — the
- * tabs simply are where the sort put them.
+ * An action rather than a view, as [CardSort] is: the browser's own tab strip is rearranged, so the
+ * new order is what the user sees in the browser too, and it outlives the page. There is nothing to
+ * persist, and — unlike a card sort, which can be taken back — nothing to undo: the tabs simply are
+ * where the sort put them.
  */
 internal enum class TabSort(val id: String) {
     TITLE("title"),

@@ -21,4 +21,12 @@ if (file("../korm").isDirectory) {
     includeBuild("../korm")
 }
 
-include("core", "ui-shared", "webapp", "extension")
+// The server and the wire format it speaks are always here. The browser side — everything below — is
+// included only when its source is actually present, because the server's container image copies in just
+// these two: building the Kotlin/JS modules there would pull down a whole Node toolchain to produce a
+// bundle the image does not serve.
+include("protocol", "server")
+
+listOf("core", "ui-shared", "webapp", "extension")
+    .filter { file(it).isDirectory }
+    .forEach { include(it) }

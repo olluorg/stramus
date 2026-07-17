@@ -77,8 +77,10 @@ private fun inline(src: String): String {
     return s
 }
 
+// No `target` — a link in a note opens where every other link in the app opens: this tab (see
+// `navigateTo`). `rel` stays: the note's text is the user's, but its links point outside the app.
 private fun anchor(href: String, text: String): String =
-    "<a href=\"$href\" target=\"_blank\" rel=\"noopener noreferrer\">$text</a>"
+    "<a href=\"$href\" rel=\"noopener noreferrer\">$text</a>"
 
 /**
  * Convert the WYSIWYG editor's DOM back to our markdown storage format. [root] is the contenteditable

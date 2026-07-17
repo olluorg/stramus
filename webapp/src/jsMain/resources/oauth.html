@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>stramus — signing in…</title>
+</head>
+<body>
+<p>Signing you in…</p>
+<script>
+    // Where Google lands after a sign-in. The token comes back in the URL fragment — which, being a
+    // fragment, was never sent to any server, not even the one that served this page.
+    //
+    // This window's only job is to hand it to the window that opened it and close. The message is addressed
+    // to this exact origin, and the app checks the origin of what it receives: a fragment is readable by
+    // whoever holds the window, and this is the one hop where it could be handed to the wrong holder.
+    (function () {
+        var params = new URLSearchParams(window.location.hash.slice(1));
+        var token = params.get("id_token");
+        if (window.opener) {
+            window.opener.postMessage({ type: "stramus.google", idToken: token }, window.location.origin);
+        }
+        window.close();
+    })();
+</script>
+</body>
+</html>

@@ -41,7 +41,10 @@ interface Strings {
     val collectionNamePrompt: String
     val collectionNameDefault: String
 
-    /** Tooltip on a section title, which collapses on a click and renames on a double click. */
+    /**
+     * Tooltip on a section title, which collapses on a click, renames on a double click, and is the
+     * handle the section is dragged by to be reordered in the sidebar.
+     */
     val renameHint: String
 
     /** Tooltip on a collection title, which is selected on a click and renamed on a double click. */
@@ -70,7 +73,13 @@ interface Strings {
     fun deletedCollection(title: String): String
     fun deletedCardSection(title: String): String
 
-    /** The button on the toast that puts the deleted thing back. */
+    /**
+     * A sort is offered back the same way a deletion is: it overwrites an order the user may have
+     * arranged by hand, and that order is the one thing it destroys.
+     */
+    val sortedCards: String
+
+    /** The button on the toast that puts the deleted thing — or the order a sort overwrote — back. */
     val undo: String
 
     // The search box: the dropdown's group headings, its rows, and the hint line under them
@@ -89,10 +98,10 @@ interface Strings {
     val hitOpenCollection: String
     val hitAskAi: String
 
-    /** The action rows themselves. */
+    /** The action rows themselves. [hitAskAiRow] names the assistant — see [AiProvider]. */
     fun hitWebSearch(query: String): String
     fun hitOpenUrl(query: String): String
-    fun hitAskAiRow(query: String): String
+    fun hitAskAiRow(assistant: String, query: String): String
 
     /** The × on a top site: stop counting this page among the ones the user lives in. */
     val forgetSite: String
@@ -100,15 +109,15 @@ interface Strings {
     /** The keys, spelled out under the list. */
     val searchHints: String
 
-    // The built-in model (Chrome's on-device AI)
+    // The built-in model (Chrome's on-device AI), in the conversation window
     val aiChip: String
-    val aiChipHint: String
-    val aiPlaceholder: String
     val aiHeading: String
+    val aiEmpty: String
+    val aiPlaceholder: String
+    val aiSend: String
     val aiThinking: String
     val aiCopy: String
     val aiSaveNote: String
-    val aiClose: String
     val aiUnavailable: String
     val aiFailed: String
 
@@ -118,8 +127,15 @@ interface Strings {
     /** What the model is told before the first question: where it is, and how to answer. */
     val aiSystemPrompt: String
 
-    // Settings: which model answers, and — when none does — why not
+    // Settings: who answers, which model that is, and — when none does — why not
     val aiSection: String
+    val aiAssistant: String
+    val aiAssistantHint: String
+    val aiProviderLocal: String
+
+    /** Said where a web chat is chosen: the question opens there, and it leaves this machine. */
+    fun aiWebChatHint(assistant: String): String
+
     val aiModel: String
     val aiModelReadyHint: String
     val aiModelDownloadableHint: String
@@ -133,11 +149,15 @@ interface Strings {
     fun resultsFor(query: String): String
     val noMatchingLinks: String
     val createCollectionToStart: String
+
+    /**
+     * The ⇅ menu in a card section's header, which rearranges that section's cards for good:
+     * [sortLinks] is its tooltip, [sortMenuTitle] the heading over the orders it offers.
+     */
     val sortLinks: String
+    val sortMenuTitle: String
     val addCardSection: String
-    val saveOpenTabs: String
     val pasteUrl: String
-    val addLink: String
     val addLinkItem: String
     val addNoteItem: String
     val addFileItem: String
@@ -145,6 +165,9 @@ interface Strings {
     val ungrouped: String
     val dragLinksHere: String
     val editDescription: String
+
+    /** Files dragged in from the desktop: what was passed over, and why. */
+    fun filesTooLarge(names: List<String>, maxMb: Int): String
 
     // The section PIN lock
     /** The action that puts an open section behind a PIN, and the heading of what a locked one offers. */
@@ -171,9 +194,14 @@ interface Strings {
     val pinNote: String
 
     // Read-only collections
-    /** The two ends of the toggle in the collection's header, and the badge a guarded one wears. */
+    /**
+     * The two ends of the toggle in the collection's header — the locking one is a bare 🔒, so its
+     * tooltip is the only place it says what it does — and the badge a guarded collection wears.
+     */
     val makeReadOnly: String
+    val makeReadOnlyHint: String
     val allowEditing: String
+    val allowEditingHint: String
     val readOnlyBadge: String
     val readOnlyHint: String
 
@@ -195,14 +223,13 @@ interface Strings {
     /** The window the app itself is open in, told apart from the user's other windows. */
     val thisWindow: String
     fun windowLabel(number: Int): String
-    val goToTab: String
     val closeTab: String
     /** The ⇅ menu in a window's header, which rearranges that window's tabs in the browser itself. */
     val sortTabs: String
     /**
-     * The two ⤓ — the one in a window's header, the one in the collection's toolbar — say the same
-     * thing: how many tabs the click would save, where they land, and whether the browser keeps them.
-     * [closing] is the "after saving tabs" setting, so the tooltip is the answer the user chose.
+     * The ⤓ in a window's header: how many tabs the click would save, where they land, and whether
+     * the browser keeps them. [closing] is the "after saving tabs" setting, so the tooltip is the
+     * answer the user chose.
      */
     fun saveTabsHint(count: Int, closing: Boolean): String
 
@@ -232,10 +259,27 @@ interface Strings {
     val fileLabel: String
     val renameCard: String
     val cardNamePrompt: String
+    val renameHeading: String
+
+    /** The link's address, which the rename box keeps folded away until it is asked for. */
+    val renameShowUrl: String
+    val renameHideUrl: String
+
+    // Renaming a link, where the browser's own model can take the rubbish out of the page's own title
+    val aiTitleCleaning: String
+    val aiTitleUse: String
+    val aiTitleUseHint: String
+
+    /** What the model is told before it is shown a title: clean it, and invent nothing. */
+    val aiTitleSystemPrompt: String
 
     // Note editor
     val newNote: String
     val editNote: String
+    val viewNote: String
+
+    /** The button that turns a note being read into a note being written. */
+    val editNoteAction: String
     val sectionDescription: String
     val titlePlaceholder: String
     val noteDefaultTitle: String
@@ -250,6 +294,8 @@ interface Strings {
     val highlightPlaceholder: String
     val codePlaceholder: String
     val linkUrlPrompt: String
+    val draftRestored: String
+    val discardDraft: String
 
     // File modal
     val addFile: String
@@ -267,13 +313,37 @@ interface Strings {
     val themeDark: String
     val language: String
     val languageHint: String
+    val cardUrls: String
+    val cardUrlsHint: String
+    val cardUrlsShow: String
+    val cardUrlsHide: String
+
+    /** Settings: which collection the page opens on. */
+    val startupSection: String
+    val startView: String
+    val startViewHint: String
+    val startViewLast: String
+    val startViewFirst: String
+
     val export: String
     val exportHint: String
     val exportCsv: String
     val exportBookmarks: String
 
-    // Sort modes. Cards take all of them; a window's tabs are sorted by title, domain or URL.
-    val sortManual: String
+    val import: String
+    val importHint: String
+    val importFile: String
+
+    /** Where links whose file named no folder for them go — a section and a collection of this name. */
+    val importedTitle: String
+
+    /** What the import did: [added] links saved, [skipped] already there. */
+    fun importDone(added: Int, skipped: Int): String
+
+    /** A file with no link this app could take in — the wrong file, or one already fully imported. */
+    val importNothing: String
+
+    // Sort orders. A card section takes all of them; a window's tabs are sorted by title, domain or URL.
     val sortTitle: String
     val sortUrl: String
     val sortDomain: String
@@ -286,6 +356,39 @@ interface Strings {
      * text like any other on screen, and because the language it is written in is the one the user
      * arrived with — the app's, not SQLite's. See `StoreSeed`.
      */
+    // Account and synchronisation
+    val account: String
+    val accountSignedOutHint: String
+    val signIn: String
+    val signUp: String
+    val signOut: String
+    val email: String
+    val password: String
+    val sendCode: String
+    val codeSent: String
+    val codeFromEmail: String
+    val signInWithCode: String
+    val signInWithPassword: String
+    val syncNow: String
+    val syncIdle: String
+    val syncRunning: String
+    val syncOffline: String
+    val syncSignedOut: String
+    fun syncedAt(time: String): String
+    fun conflictCopies(count: Int): String
+    val joinAccountTitle: String
+    val joinAccountHint: String
+    val joinAccountKeep: String
+    val joinAccountDiscard: String
+    val deleteAccount: String
+    val deleteAccountHint: String
+    val deleteAccountConfirm: String
+    val syncUsage: String
+    val syncUsageHint: String
+    val optionOn: String
+    val optionOff: String
+    val signInWithGoogle: String
+
     val seed: StoreSeed
 }
 
@@ -302,7 +405,7 @@ private object EnStrings : Strings {
     override val sectionNameDefault = "New section"
     override val collectionNamePrompt = "Collection name"
     override val collectionNameDefault = "New collection"
-    override val renameHint = "Click to collapse, double-click to rename"
+    override val renameHint = "Click to collapse, double-click to rename, drag to reorder"
     override val renameCollectionHint = "Double-click to rename"
 
     override val newSectionHint = "Add a section to the sidebar"
@@ -323,6 +426,7 @@ private object EnStrings : Strings {
     override fun deletedSection(title: String) = "Section “$title” deleted"
     override fun deletedCollection(title: String) = "Collection “$title” deleted"
     override fun deletedCardSection(title: String) = "Section “$title” deleted"
+    override val sortedCards = "Cards sorted"
     override val undo = "Undo"
 
     override val searchPlaceholder = "Search, enter an address, or ask…"
@@ -341,19 +445,19 @@ private object EnStrings : Strings {
     // The engine is the browser's own — whichever the user set — so it is not named here.
     override fun hitWebSearch(query: String) = "Search the web for “$query”"
     override fun hitOpenUrl(query: String) = "Open $query"
-    override fun hitAskAiRow(query: String) = "Ask the AI: “$query”"
+    override fun hitAskAiRow(assistant: String, query: String) = "Ask $assistant: “$query”"
 
     override val forgetSite = "Stop suggesting this page"
     override val searchHints = "↑↓ choose · Enter open · Alt+Enter search the web · ⌘/Ctrl+Enter all results · Esc close"
 
     override val aiChip = "AI"
-    override val aiChipHint = "Asking the browser's built-in model — Esc to go back to search"
+    override val aiHeading = "Assistant"
+    override val aiEmpty = "Ask about the collection you have open, or about anything else."
     override val aiPlaceholder = "Ask a follow-up…"
-    override val aiHeading = "Answer"
+    override val aiSend = "Ask"
     override val aiThinking = "Thinking…"
     override val aiCopy = "Copy"
     override val aiSaveNote = "Save as note"
-    override val aiClose = "Back to search"
     override val aiUnavailable = "This browser has no built-in model available."
     override val aiFailed = "The model could not answer."
     override fun aiDownloading(percent: Int) = "Downloading the model — $percent%. This happens once."
@@ -361,6 +465,13 @@ private object EnStrings : Strings {
         "Answer briefly and to the point, in the language the question is asked in. Markdown is welcome."
 
     override val aiSection = "AI"
+    override val aiAssistant = "Assistant"
+    override val aiAssistantHint = "Who answers a question asked from the search box."
+    override val aiProviderLocal = "On-device"
+    override fun aiWebChatHint(assistant: String) =
+        "The question opens $assistant in this tab, already asked. It is sent to $assistant's servers — " +
+            "unlike the on-device model, which answers here and keeps everything on this machine."
+
     override val aiModel = "Model"
     override val aiModelReadyHint = "The browser's built-in model. Runs on this machine — no key, and nothing leaves it."
     override val aiModelDownloadableHint = "The browser will download it on the first question — a few hundred megabytes, once."
@@ -377,18 +488,20 @@ private object EnStrings : Strings {
     override fun resultsFor(query: String) = "Results for “$query”"
     override val noMatchingLinks = "No matching links."
     override val createCollectionToStart = "Create a collection to start saving links."
-    override val sortLinks = "Sort links"
+    override val sortLinks = "Sort this section's cards"
+    override val sortMenuTitle = "Sort by"
     override val addCardSection = "+ Section"
-    override val saveOpenTabs = "⤓ Save open tabs"
     override val pasteUrl = "Paste a URL"
-    override val addLink = "+ Add link ▾"
     override val addLinkItem = "🔗 Link"
     override val addNoteItem = "📝 Note"
     override val addFileItem = "📎 File"
     override val noLinksYet = "No links yet — add one, or drag one here."
     override val ungrouped = "Ungrouped"
-    override val dragLinksHere = "Drag links here."
+    override val dragLinksHere = "Drag links or files here."
     override val editDescription = "Edit description"
+
+    override fun filesTooLarge(names: List<String>, maxMb: Int) =
+        "Not saved — over $maxMb MB: ${names.joinToString(", ")}"
 
     override val protectSection = "Protect with a PIN"
     override val sectionProtection = "Section protection"
@@ -411,8 +524,10 @@ private object EnStrings : Strings {
         "it is entered, and their cards stay out of search and export. There is no way to reset a " +
         "forgotten PIN."
 
-    override val makeReadOnly = "🔒 Read-only"
+    override val makeReadOnly = "🔒"
+    override val makeReadOnlyHint = "Make read-only: nothing can then be added, changed or deleted here."
     override val allowEditing = "✎ Allow editing"
+    override val allowEditingHint = "Allow editing again."
     override val readOnlyBadge = "read-only"
     override val readOnlyHint = "Read-only: nothing here can be added, changed or deleted."
 
@@ -431,7 +546,6 @@ private object EnStrings : Strings {
     override val noMatchingTabs = "No matching tabs."
     override val thisWindow = "This window"
     override fun windowLabel(number: Int) = "Window $number"
-    override val goToTab = "Go to this tab"
     override val closeTab = "Close tab"
     override val sortTabs = "Sort this window's tabs"
     override fun saveTabsHint(count: Int, closing: Boolean) =
@@ -462,9 +576,24 @@ private object EnStrings : Strings {
     override val fileLabel = "file"
     override val renameCard = "Rename"
     override val cardNamePrompt = "Card title"
+    override val renameHeading = "Rename card"
+    override val renameShowUrl = "Show address"
+    override val renameHideUrl = "Hide address"
+
+    override val aiTitleCleaning = "Cleaning up the title…"
+    override val aiTitleUse = "Use"
+    override val aiTitleUseHint = "Put this title in the field. Nothing has been renamed yet."
+    override val aiTitleSystemPrompt = "You clean up the titles of web pages. You are given a page title " +
+        "and its address; reply with the title alone, with everything that is not the page's own name " +
+        "removed: the site's name trailing after a dash, a pipe or a bullet, unread counters like “(3)”, " +
+        "marketing tails, decorative symbols. Keep the words that are left exactly as they are — never " +
+        "translate, never rephrase, never add a word that is not already in the title. Reply with the " +
+        "title and nothing else."
 
     override val newNote = "New note"
     override val editNote = "Edit note"
+    override val viewNote = "Note"
+    override val editNoteAction = "✎ Edit"
     override val sectionDescription = "Section description"
     override val titlePlaceholder = "Title"
     override val noteDefaultTitle = "Note"
@@ -479,6 +608,8 @@ private object EnStrings : Strings {
     override val highlightPlaceholder = "highlight"
     override val codePlaceholder = "code"
     override val linkUrlPrompt = "Link URL"
+    override val draftRestored = "Unsaved draft restored"
+    override val discardDraft = "Reset"
 
     override val addFile = "Add file"
     override val chooseFile = "Choose a file…"
@@ -494,18 +625,75 @@ private object EnStrings : Strings {
     override val themeDark = "☾ Dark"
     override val language = "Language"
     override val languageHint = "The language of the interface."
+    override val cardUrls = "Card addresses"
+    override val cardUrlsHint = "Whether a link card shows its address under the title."
+    override val cardUrlsShow = "Show"
+    override val cardUrlsHide = "Hide"
+
+    override val startupSection = "Startup"
+    override val startView = "On open"
+    override val startViewHint = "Which collection is shown when stramus opens. A collection behind a " +
+        "PIN is never it — every reload locks its section back up."
+    override val startViewLast = "Last opened"
+    override val startViewFirst = "First collection"
+
     override val export = "Export"
     override val exportHint = "Download every saved link across all collections. A section still behind " +
         "its PIN is left out."
     override val exportCsv = "⤒ Export CSV"
     override val exportBookmarks = "⤒ Export bookmarks"
 
-    override val sortManual = "Manual"
+    override val import = "Import"
+    override val importHint = "Bring in a bookmarks file from any browser, or a CSV exported here. " +
+        "Folders become sections, collections and card sections; a link already saved where it would " +
+        "land is left alone."
+    override val importFile = "⤓ Choose a file"
+    override val importedTitle = "Imported"
+    override fun importDone(added: Int, skipped: Int) = when (skipped) {
+        0 -> "Imported $added links."
+        else -> "Imported $added links; $skipped were already saved."
+    }
+    override val importNothing = "No links to import in that file."
+
     override val sortTitle = "Title A–Z"
     override val sortUrl = "URL"
     override val sortDomain = "Domain"
     override val sortNewest = "Newest first"
     override val sortOldest = "Oldest first"
+
+    override val account = "Account"
+    override val accountSignedOutHint = "Sign in to keep your collections on every browser you use. Everything works without an account — it just stays on this machine."
+    override val signIn = "Sign in"
+    override val signUp = "Create account"
+    override val signOut = "Sign out"
+    override val email = "Email"
+    override val password = "Password"
+    override val sendCode = "Email me a code"
+    override val codeSent = "We sent a six-digit code to that address, if it has an account — or made one if it did not."
+    override val codeFromEmail = "Code from the email"
+    override val signInWithCode = "Sign in with a code instead"
+    override val signInWithPassword = "Sign in with a password instead"
+    override val syncNow = "Sync now"
+    override val syncIdle = "Synced"
+    override val syncRunning = "Syncing…"
+    override val syncOffline = "Waiting for the network"
+    override val syncSignedOut = "Not signed in"
+    override fun syncedAt(time: String) = "Synced at $time"
+    override fun conflictCopies(count: Int) =
+        if (count == 1) "A note was edited on two devices at once. Both versions were kept."
+        else "$count notes were edited on two devices at once. Both versions of each were kept."
+    override val joinAccountTitle = "This browser already has collections"
+    override val joinAccountHint = "You can add them to the account, or leave them behind and take what the account already holds."
+    override val joinAccountKeep = "Add them to the account"
+    override val joinAccountDiscard = "Use the account's collections"
+    override val deleteAccount = "Delete account"
+    override val deleteAccountHint = "Erases everything the server holds. What is on this machine stays."
+    override val deleteAccountConfirm = "Delete the account and everything the server holds? This cannot be undone."
+    override val syncUsage = "Sync browsing statistics"
+    override val syncUsageHint = "Which pages you open, and how often — what the search ranks by. Off means it stays on this machine."
+    override val optionOn = "On"
+    override val optionOff = "Off"
+    override val signInWithGoogle = "Continue with Google"
 
     override val seed = StoreSeed(
         sectionTitle = "Main",
@@ -520,7 +708,7 @@ private object EnStrings : Strings {
 
             ## Saving a page
             - Drag a tab from the right sidebar onto a collection, or use **⤓ Save open tabs** for a whole window at once.
-            - **+ Add link** takes a pasted address, a note, or a file.
+            - Hover a section's header and press its **+** to add a pasted address, a note, or a file straight into that section.
             - **+ Section** splits a large collection into groups — drop a card on one to move it in.
 
             ## Finding a page
@@ -551,7 +739,7 @@ private object RuStrings : Strings {
     override val sectionNameDefault = "Новый раздел"
     override val collectionNamePrompt = "Название коллекции"
     override val collectionNameDefault = "Новая коллекция"
-    override val renameHint = "Клик — свернуть, двойной клик — переименовать"
+    override val renameHint = "Клик — свернуть, двойной клик — переименовать, перетащить — поменять порядок"
     override val renameCollectionHint = "Двойной клик — переименовать"
 
     override val newSectionHint = "Создать раздел в боковой панели"
@@ -572,6 +760,7 @@ private object RuStrings : Strings {
     override fun deletedSection(title: String) = "Раздел «$title» удалён"
     override fun deletedCollection(title: String) = "Коллекция «$title» удалена"
     override fun deletedCardSection(title: String) = "Секция «$title» удалена"
+    override val sortedCards = "Карточки отсортированы"
     override val undo = "Вернуть"
 
     override val searchPlaceholder = "Поиск, адрес или вопрос…"
@@ -590,19 +779,19 @@ private object RuStrings : Strings {
     // Поисковик — тот, что выбран в браузере, поэтому здесь он не назван.
     override fun hitWebSearch(query: String) = "Искать в вебе: «$query»"
     override fun hitOpenUrl(query: String) = "Открыть $query"
-    override fun hitAskAiRow(query: String) = "Спросить ИИ: «$query»"
+    override fun hitAskAiRow(assistant: String, query: String) = "Спросить $assistant: «$query»"
 
     override val forgetSite = "Больше не предлагать эту страницу"
     override val searchHints = "↑↓ выбрать · Enter открыть · Alt+Enter — поиск в вебе · ⌘/Ctrl+Enter — все результаты · Esc закрыть"
 
     override val aiChip = "ИИ"
-    override val aiChipHint = "Вопрос встроенной модели браузера — Esc, чтобы вернуться к поиску"
+    override val aiHeading = "Помощник"
+    override val aiEmpty = "Спросите про открытую коллекцию — или про что угодно ещё."
     override val aiPlaceholder = "Спросить ещё…"
-    override val aiHeading = "Ответ"
+    override val aiSend = "Спросить"
     override val aiThinking = "Думает…"
     override val aiCopy = "Скопировать"
     override val aiSaveNote = "Сохранить заметкой"
-    override val aiClose = "Вернуться к поиску"
     override val aiUnavailable = "В этом браузере встроенная модель недоступна."
     override val aiFailed = "Модель не смогла ответить."
     override fun aiDownloading(percent: Int) = "Модель скачивается — $percent%. Это происходит один раз."
@@ -610,6 +799,13 @@ private object RuStrings : Strings {
         "Отвечай кратко и по делу, на языке вопроса. Markdown приветствуется."
 
     override val aiSection = "ИИ"
+    override val aiAssistant = "Помощник"
+    override val aiAssistantHint = "Кто отвечает на вопрос, заданный из строки поиска."
+    override val aiProviderLocal = "Локальный"
+    override fun aiWebChatHint(assistant: String) =
+        "Вопрос откроет $assistant в этой вкладке — уже отправленным сообщением. Он уходит на серверы " +
+            "сервиса, в отличие от локальной модели, которая отвечает здесь и ничего наружу не отправляет."
+
     override val aiModel = "Модель"
     override val aiModelReadyHint = "Встроенная модель браузера. Работает на этой машине — без ключей, ничего наружу не уходит."
     override val aiModelDownloadableHint = "Браузер скачает её при первом вопросе — несколько сотен мегабайт, один раз."
@@ -626,18 +822,20 @@ private object RuStrings : Strings {
     override fun resultsFor(query: String) = "Результаты по запросу «$query»"
     override val noMatchingLinks = "Ничего не найдено."
     override val createCollectionToStart = "Создайте коллекцию, чтобы сохранять ссылки."
-    override val sortLinks = "Сортировка ссылок"
+    override val sortLinks = "Отсортировать карточки этой секции"
+    override val sortMenuTitle = "Сортировать"
     override val addCardSection = "+ Раздел"
-    override val saveOpenTabs = "⤓ Сохранить вкладки"
     override val pasteUrl = "Вставьте ссылку"
-    override val addLink = "+ Добавить ссылку ▾"
     override val addLinkItem = "🔗 Ссылка"
     override val addNoteItem = "📝 Заметка"
     override val addFileItem = "📎 Файл"
     override val noLinksYet = "Пока нет ссылок — добавьте одну или перетащите сюда."
     override val ungrouped = "Без раздела"
-    override val dragLinksHere = "Перетащите ссылки сюда."
+    override val dragLinksHere = "Перетащите сюда ссылки или файлы."
     override val editDescription = "Изменить описание"
+
+    override fun filesTooLarge(names: List<String>, maxMb: Int) =
+        "Не сохранено — больше $maxMb МБ: ${names.joinToString(", ")}"
 
     override val protectSection = "Защитить PIN-кодом"
     override val sectionProtection = "Защита раздела"
@@ -659,8 +857,11 @@ private object RuStrings : Strings {
     override val pinNote = "PIN-код скрывает раздел целиком: пока он не введён, не видно даже названий " +
         "коллекций, а их карточки не попадают в поиск и экспорт. Забытый PIN-код восстановить нельзя."
 
-    override val makeReadOnly = "🔒 Только чтение"
+    override val makeReadOnly = "🔒"
+    override val makeReadOnlyHint = "Сделать только для чтения: ничего нельзя будет добавить, изменить " +
+        "или удалить."
     override val allowEditing = "✎ Разрешить правку"
+    override val allowEditingHint = "Снова разрешить правку."
     override val readOnlyBadge = "только чтение"
     override val readOnlyHint = "Только чтение: ничего нельзя добавить, изменить или удалить."
 
@@ -679,7 +880,6 @@ private object RuStrings : Strings {
     override val noMatchingTabs = "Вкладки не найдены."
     override val thisWindow = "Это окно"
     override fun windowLabel(number: Int) = "Окно $number"
-    override val goToTab = "Перейти к вкладке"
     override val closeTab = "Закрыть вкладку"
     override val sortTabs = "Отсортировать вкладки этого окна"
     override fun saveTabsHint(count: Int, closing: Boolean) =
@@ -710,9 +910,24 @@ private object RuStrings : Strings {
     override val fileLabel = "файл"
     override val renameCard = "Переименовать"
     override val cardNamePrompt = "Название карточки"
+    override val renameHeading = "Переименовать карточку"
+    override val renameShowUrl = "Показать адрес"
+    override val renameHideUrl = "Скрыть адрес"
+
+    override val aiTitleCleaning = "Чищу заголовок…"
+    override val aiTitleUse = "Взять"
+    override val aiTitleUseHint = "Подставить этот заголовок в поле. Карточка ещё не переименована."
+    override val aiTitleSystemPrompt = "Ты чистишь заголовки веб-страниц. Тебе дают заголовок страницы " +
+        "и её адрес; ответь одним только заголовком, убрав из него всё, что не является названием самой " +
+        "страницы: имя сайта после тире, вертикальной черты или точки-разделителя, счётчики вроде «(3)», " +
+        "рекламные хвосты, декоративные символы. Оставшиеся слова оставь ровно такими, какие они есть: " +
+        "не переводи, не переформулируй, не добавляй ни одного слова, которого не было в заголовке. " +
+        "В ответе — только заголовок."
 
     override val newNote = "Новая заметка"
     override val editNote = "Изменить заметку"
+    override val viewNote = "Заметка"
+    override val editNoteAction = "✎ Изменить"
     override val sectionDescription = "Описание раздела"
     override val titlePlaceholder = "Заголовок"
     override val noteDefaultTitle = "Заметка"
@@ -727,6 +942,8 @@ private object RuStrings : Strings {
     override val highlightPlaceholder = "выделение"
     override val codePlaceholder = "код"
     override val linkUrlPrompt = "Адрес ссылки"
+    override val draftRestored = "Восстановлен несохранённый черновик"
+    override val discardDraft = "Сбросить"
 
     override val addFile = "Добавить файл"
     override val chooseFile = "Выберите файл…"
@@ -742,18 +959,75 @@ private object RuStrings : Strings {
     override val themeDark = "☾ Ночь"
     override val language = "Язык"
     override val languageHint = "Язык интерфейса."
+    override val cardUrls = "Адреса на карточках"
+    override val cardUrlsHint = "Показывать ли под заголовком карточки-ссылки её адрес."
+    override val cardUrlsShow = "Показывать"
+    override val cardUrlsHide = "Скрывать"
+
+    override val startupSection = "Запуск"
+    override val startView = "При открытии"
+    override val startViewHint = "Какая коллекция показывается при открытии stramus. Коллекция под " +
+        "PIN-кодом не открывается никогда — при каждой перезагрузке её раздел снова запирается."
+    override val startViewLast = "Последняя открытая"
+    override val startViewFirst = "Главная"
+
     override val export = "Экспорт"
     override val exportHint = "Скачайте все сохранённые ссылки из всех коллекций. Разделы, PIN-код " +
         "которых не введён, в экспорт не попадают."
     override val exportCsv = "⤒ Экспорт CSV"
     override val exportBookmarks = "⤒ Экспорт закладок"
 
-    override val sortManual = "Вручную"
+    override val import = "Импорт"
+    override val importHint = "Загрузите файл закладок из любого браузера или CSV, экспортированный " +
+        "здесь. Папки станут разделами, коллекциями и секциями; ссылка, которая уже сохранена там, " +
+        "куда попала бы, останется одна."
+    override val importFile = "⤓ Выбрать файл"
+    override val importedTitle = "Импорт"
+    override fun importDone(added: Int, skipped: Int) = when (skipped) {
+        0 -> "Импортировано ссылок: $added."
+        else -> "Импортировано ссылок: $added. Уже было сохранено: $skipped."
+    }
+    override val importNothing = "В этом файле нет ссылок для импорта."
+
     override val sortTitle = "По названию"
     override val sortUrl = "По адресу"
     override val sortDomain = "По домену"
     override val sortNewest = "Сначала новые"
     override val sortOldest = "Сначала старые"
+
+    override val account = "Аккаунт"
+    override val accountSignedOutHint = "Войдите, чтобы коллекции были во всех браузерах, которыми вы пользуетесь. Без аккаунта всё работает точно так же — просто остаётся на этой машине."
+    override val signIn = "Войти"
+    override val signUp = "Создать аккаунт"
+    override val signOut = "Выйти"
+    override val email = "Почта"
+    override val password = "Пароль"
+    override val sendCode = "Прислать код на почту"
+    override val codeSent = "Мы отправили шестизначный код на этот адрес — а если аккаунта не было, завели его."
+    override val codeFromEmail = "Код из письма"
+    override val signInWithCode = "Войти по коду"
+    override val signInWithPassword = "Войти по паролю"
+    override val syncNow = "Синхронизировать"
+    override val syncIdle = "Синхронизировано"
+    override val syncRunning = "Синхронизация…"
+    override val syncOffline = "Ждём сеть"
+    override val syncSignedOut = "Вы не вошли"
+    override fun syncedAt(time: String) = "Синхронизировано в $time"
+    override fun conflictCopies(count: Int) =
+        if (count == 1) "Заметку правили на двух устройствах сразу. Обе версии сохранены."
+        else "Заметок, которые правили на двух устройствах сразу: $count. Обе версии каждой сохранены."
+    override val joinAccountTitle = "В этом браузере уже есть коллекции"
+    override val joinAccountHint = "Их можно добавить в аккаунт — или оставить здесь и взять то, что в аккаунте уже есть."
+    override val joinAccountKeep = "Добавить в аккаунт"
+    override val joinAccountDiscard = "Взять коллекции из аккаунта"
+    override val deleteAccount = "Удалить аккаунт"
+    override val deleteAccountHint = "Стирает всё, что хранит сервер. То, что на этой машине, остаётся."
+    override val deleteAccountConfirm = "Удалить аккаунт и всё, что хранит сервер? Это не отменить."
+    override val syncUsage = "Синхронизировать статистику посещений"
+    override val syncUsageHint = "Какие страницы вы открываете и как часто — то, по чему ранжируется поиск. Выключено — остаётся на этой машине."
+    override val optionOn = "Вкл"
+    override val optionOff = "Выкл"
+    override val signInWithGoogle = "Продолжить с Google"
 
     override val seed = StoreSeed(
         sectionTitle = "Главный",
@@ -768,7 +1042,7 @@ private object RuStrings : Strings {
 
             ## Как сохранить страницу
             - Перетащите вкладку из правой панели в коллекцию или нажмите **⤓ Сохранить вкладки**, чтобы убрать целое окно разом.
-            - **+ Добавить ссылку** — вставленный адрес, заметка или файл.
+            - Наведите курсор на заголовок раздела и нажмите **+** — вставленный адрес, заметка или файл попадут прямо в этот раздел.
             - **+ Раздел** делит большую коллекцию на группы: перетащите карточку на раздел, и она окажется в нём.
 
             ## Как найти страницу

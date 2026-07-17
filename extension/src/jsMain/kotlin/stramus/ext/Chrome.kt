@@ -76,11 +76,31 @@ internal external interface ChromeSearch {
     fun query(queryInfo: Json): Promise<Unit>
 }
 
+/**
+ * `chrome.runtime` — here, only for [getURL]: the address of a file inside the extension, on the
+ * extension's own origin (`chrome-extension://<id>/…`), which is not known until it is installed.
+ */
+internal external interface ChromeRuntime {
+    fun getURL(path: String): String
+}
+
+/**
+ * `chrome.identity` — the extension's own way through an OAuth flow. Chrome opens the window, follows the
+ * redirects, and hands back the URL the provider finally landed on; [getRedirectURL] is the address it will
+ * accept as that landing, and it exists only inside this extension.
+ */
+internal external interface ChromeIdentity {
+    fun getRedirectURL(): String
+    fun launchWebAuthFlow(options: dynamic): Promise<String>
+}
+
 internal external interface Chrome {
     val tabs: ChromeTabs
     val windows: ChromeWindows
     val history: ChromeHistory
     val search: ChromeSearch
+    val runtime: ChromeRuntime
+    val identity: ChromeIdentity
 }
 
 internal external val chrome: Chrome
