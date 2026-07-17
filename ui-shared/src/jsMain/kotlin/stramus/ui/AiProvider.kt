@@ -60,3 +60,9 @@ enum class AiProvider(val id: String) {
 
 /** Where the chosen assistant is kept between sessions. */
 internal const val AI_PROVIDER_PREF = "aiProvider"
+
+/**
+ * Where the tab triage's switch is kept. Absent means off — it is an experiment, and an install that
+ * has never been asked has not said yes.
+ */
+internal const val AI_TRIAGE_PREF = "aiTriage"

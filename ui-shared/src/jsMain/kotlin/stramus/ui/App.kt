@@ -28,6 +28,7 @@ import react.useEffectOnce
 import react.useMemo
 import react.useRef
 import react.useState
+import stramus.core.ai.TriageAssignment
 import stramus.core.db.StramusStore
 import stramus.core.db.openStramusStore
 import stramus.core.platform.GoogleSignIn
@@ -45,6 +46,7 @@ import stramus.core.platform.HistoryAccess
 import stramus.core.platform.HistoryEntry
 import stramus.core.platform.TabCapture
 import stramus.core.platform.WebSearchAccess
+import stramus.core.url.hostOf
 import web.cssom.ClassName
 import web.data.DropEffect
 import web.data.copy
@@ -338,9 +340,11 @@ private fun ChildrenBuilder.tabWindow(
     accepts: Boolean,
     active: Boolean,
     saveHint: String?,
+    triageHint: String?,
     onOver: () -> Unit,
     onDropHere: () -> Unit,
     onSave: () -> Unit,
+    onTriage: () -> Unit,
     onSort: (TabSort) -> Unit,
     content: ChildrenBuilder.() -> Unit,
 ) {
@@ -369,6 +373,17 @@ private fun ChildrenBuilder.tabWindow(
                         hint(saveHint)
                         onClick = { onSave() }
                         +"⤓"
+                    }
+                }
+                // Beside the ⤓ rather than in place of it: this window's tabs are saved into the open
+                // collection by one and read by the model into several by the other, and which of those
+                // the user wants is not something to decide for them.
+                if (triageHint != null) {
+                    button {
+                        className = ClassName("tab-triage")
+                        hint(triageHint)
+                        onClick = { onTriage() }
+                        +"✨"
                     }
                 }
                 select {
@@ -557,6 +572,9 @@ val App = FC<AppProps> { props ->
     // offers to ask it at all. Null until the question has been put to the browser (or there is no
     // model to put it to).
     var aiState by useState<AiAvailability?>(null)
+    // The window whose tabs the model is sorting, if the ✨ has been pressed: everything the triage
+    // window needs is derived from it, so closing it is forgetting one number.
+    var triageWindowId by useState<Int?>(null)
     var draggingCardId by useState<Uuid?>(null)
     var draggingCollectionId by useState<Uuid?>(null)
     // The section being dragged by its header, to be dropped on another section and take its place.
@@ -623,6 +641,10 @@ val App = FC<AppProps> { props ->
     // Saving a window's tabs into a collection closes them, as dragging one there does: the tab has
     // been put away, and leaving it open would be to have it in two places. Unset means the default.
     var closeSavedTabs by useState(prefGet("closeSavedTabs") != "0")
+    // The ✨ that sorts a window with the built-in model: off until asked for, and `!= "1"` rather than
+    // `== "0"` above precisely because it is off by default — an install that has never heard of it has
+    // no preference stored, and no preference means no.
+    var aiTriage by useState(prefGet(AI_TRIAGE_PREF) == "1")
     // Who the user asked to be answered by: the browser's own model, in a window over the page, or one
     // of the web chats — which cannot answer here, so the question opens there instead. What actually
     // answers is [aiProvider] below: a browser with no model to run cannot honour a choice of the local
@@ -1097,6 +1119,76 @@ val App = FC<AppProps> { props ->
             if (closeSavedTabs) tabs.forEach { tc.closeTab(it.id) }
             reloadCards(collection.id)
             openTabs = tc.currentTabs()
+        }
+    }
+
+    /**
+     * Carry out a plan the user has read: what [TabTriageModal] proposed, corrected as they saw fit.
+     *
+     * There is no confirmation here, unlike [saveTabs] — the preview *was* the question, and asking
+     * again after the user has gone through the plan row by row would only teach them to click past it.
+     * The tabs are closed on the same standing setting (`closeSavedTabs`) that the ⤓ obeys: what the
+     * plan changes is where a tab lands, not what saving one means.
+     *
+     * A collection the plan invents is created in the sidebar section the plan names for it — what
+     * the preview drew it under, and what the user could overrule there. [sectionId] is the fallback
+     * for when the plan names none. A card section the plan invents is created inside its collection — the model names them, it cannot make them, and the
+     * names have already survived `cleanName` and the user's eye. Each is created once however many
+     * tabs were sent to it: `madeCollections` is what keeps the second tab of a new "Kotlin" out of a
+     * second collection called "Kotlin", and `madeSections` does the same for the dividers. A section
+     * is keyed by its collection as well as its name, because a section belongs to its collection —
+     * two collections may both have a "Docs", and they are not the same divider.
+     */
+    fun applyTriage(plan: List<TriageAssignment>, sectionId: Uuid) {
+        val s = store ?: return
+        val tc = tabCapture ?: return
+        if (plan.isEmpty()) return
+        val byId = openTabs.associateBy { it.id }
+        scope.launch {
+            val madeCollections = mutableMapOf<String, Uuid>()
+            val madeSections = mutableMapOf<Pair<Uuid, String>, Uuid>()
+            plan.forEach { assignment ->
+                // A tab the user closed in the browser while reading the plan is simply not saved: the
+                // plan is a proposal about tabs, and this one is not there any more.
+                val tab = byId[assignment.tabId] ?: return@forEach
+                val collectionId = assignment.collectionId
+                    ?: madeCollections[assignment.collectionTitle]
+                    // Created in the section the plan says, which is the one the user saw it drawn
+                    // under and could change. [sectionId] is only the fallback now — it used to be
+                    // the rule, and that is how a new "Электроника" ended up under "Работа" merely
+                    // because a work collection happened to be open.
+                    ?: s.collections.create(
+                        assignment.collectionTitle,
+                        sections.firstOrNull { it.title == assignment.groupTitle }?.id ?: sectionId,
+                    ).id.also { madeCollections[assignment.collectionTitle] = it }
+                val cardSectionId = assignment.sectionId
+                    ?: assignment.sectionTitle?.let { title ->
+                        madeSections.getOrPut(collectionId to title) {
+                            s.cardSections.create(collectionId, title, null).id
+                        }
+                    }
+                s.cards.add(
+                    collectionId,
+                    tab.title.ifBlank { hostOf(tab.url) },
+                    tab.url,
+                    tab.favicon ?: faviconFor(tab.url),
+                    cardSectionId,
+                )
+            }
+            if (closeSavedTabs) {
+                // Closed by URL, not by the ids in the plan: the plan holds one row per *page*, the
+                // duplicates having been collapsed into it (see `preGroup`), and the second tab of a
+                // page that has just been saved is as saved as the first. Closing only the plan's own
+                // ids would leave it open — the one thing "keep the first tab" must not get wrong.
+                val saved = plan.mapNotNull { byId[it.tabId]?.url }.toSet()
+                openTabs.filter { it.url in saved }.forEach { tc.closeTab(it.id) }
+            }
+            if (madeCollections.isNotEmpty()) collections = s.collections.all()
+            // Only the open collection is redrawn — the plan will have filled several, and the others
+            // are read when the user goes to them.
+            selectedId?.let { reloadCards(it) }
+            openTabs = tc.currentTabs()
+            triageWindowId = null
         }
     }
 
@@ -2569,12 +2661,23 @@ val App = FC<AppProps> { props ->
                                         saveHint = targetCollection?.let {
                                             t.saveTabsHint(allWindowTabs.size, closeSavedTabs)
                                         },
+                                        // The ✨ needs no collection selected — it decides that itself,
+                                        // and may make one — only a model on this machine and tabs to
+                                        // read. It is offered even where the model is still to be
+                                        // downloaded: the window shows the download rather than hanging.
+                                        // Off unless switched on in the settings, and then only
+                                        // where there is a model on this machine to do it and tabs
+                                        // to do it to.
+                                        triageHint = t.triageTabs.takeIf {
+                                            aiTriage && aiLocalAvailable == true && allWindowTabs.isNotEmpty()
+                                        },
                                         onOver = { hoverTabs(windowId, null) },
                                         // Dropped on the window but on none of its tabs: append (-1).
                                         onDropHere = { moveTabTo(windowId, -1) },
                                         onSave = {
                                             targetCollection?.let { target -> saveTabs(allWindowTabs, target) }
                                         },
+                                        onTriage = { triageWindowId = windowId },
                                         onSort = { by -> sortTabs(windowId, by) },
                                     ) {
                                         ul {
@@ -2759,6 +2862,11 @@ val App = FC<AppProps> { props ->
                     closeSavedTabs = close
                     prefSet("closeSavedTabs", if (close) "1" else "0")
                 }
+                this.aiTriage = aiTriage
+                onAiTriageChange = { on ->
+                    aiTriage = on
+                    prefSet(AI_TRIAGE_PREF, if (on) "1" else "0")
+                }
                 // Who is answering — the one actually answering, which on a browser without a model of
                 // its own is not the one that was chosen. The local option is offered until the browser
                 // has said it cannot run it; until then it is only unknown, not refused.
@@ -2882,6 +2990,56 @@ val App = FC<AppProps> { props ->
                     }
                 }
                 onClose = ::exitAi
+            }
+        }
+
+        val triageStore = store
+        val triageTabs = triageWindowId?.let { id -> openTabs.filter { it.windowId == id } }.orEmpty()
+        // Only the collections a card could actually be saved into: a read-only one, and one behind a
+        // PIN, are not the model's to propose — nor even to be told about. Read out here rather than in
+        // the builder below, where `collections` is the prop being set.
+        val triageTargets = collections.filter { it.id !in hiddenCollectionIds && !it.readOnly }
+        // The groups those collections live in, for the same reason: read out here, where `sections`
+        // still means App's own state rather than the prop being set.
+        val triageSidebarSections = sections.filter { it.id !in lockedSectionIds }
+        // The model is offered this regardless of who the user chose to answer their *questions* (see
+        // [AiProvider]): a window of tabs is read on this machine or not at all, and a web chat is never
+        // handed one. So the gate is the local model's own availability, nothing else.
+        if (aiTriage && aiAssistant != null && triageStore != null && triageTabs.isNotEmpty() && aiLocalAvailable == true) {
+            // Where a collection the plan invents goes when the model names no section for it: the
+            // default one, and never the section the user happens to be standing in.
+            //
+            // It was the standing-in one, and that was wrong twice over. It put a new "Электроника"
+            // under "Работа" for no better reason than that a work collection was open — and, worse,
+            // it reached the model: an invented collection is described to the next batch under this
+            // section (see `triage`), so where the user was browsing quietly bent what the model
+            // answered next. Sorting a window of tabs is not about the page the user is looking at,
+            // and nothing about that page belongs in it.
+            val triageSection = sections.firstOrNull { !it.deletable && it.id !in lockedSectionIds }
+                ?: sections.firstOrNull { it.id !in lockedSectionIds }
+            if (triageSection != null) {
+                TabTriageModal {
+                    strings = t
+                    assistant = aiAssistant
+                    tabs = triageTabs
+                    intoCollections = triageTargets
+                    savedCards = triageStore.cards
+                    savedSections = triageStore.cardSections
+                    sidebarSections = triageSidebarSections
+                    newCollectionsIn = triageSection.title
+                    closesTabs = closeSavedTabs
+                    canSaveSummary = targetCollection != null
+                    onSaveSummary = { title, content ->
+                        targetCollection?.let { target ->
+                            scope.launch {
+                                triageStore.cards.addNote(target.id, title, content)
+                                reloadCards(target.id)
+                            }
+                        }
+                    }
+                    onApply = { plan -> applyTriage(plan, triageSection.id) }
+                    onClose = { triageWindowId = null }
+                }
             }
         }
 

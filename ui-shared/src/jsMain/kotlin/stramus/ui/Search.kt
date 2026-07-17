@@ -10,6 +10,7 @@ import stramus.core.platform.HistoryEntry
 import stramus.core.repo.UsageStat
 import kotlin.math.ln
 import kotlin.uuid.ExperimentalUuidApi
+import stramus.core.url.hostOf
 
 /** How many rows the dropdown offers at most, actions aside. Beyond that it is a list, not a choice. */
 private const val MAX_HITS = 8

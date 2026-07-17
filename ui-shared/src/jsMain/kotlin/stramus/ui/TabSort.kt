@@ -1,6 +1,7 @@
 package stramus.ui
 
 import stramus.core.platform.CapturedTab
+import stramus.core.url.hostOf
 
 /**
  * How a window's open tabs are sorted from the tabs sidebar.

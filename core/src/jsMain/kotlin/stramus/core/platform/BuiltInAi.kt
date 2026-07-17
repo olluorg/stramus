@@ -78,6 +78,17 @@ private class BuiltInSession(private val session: dynamic) : AiSession {
         }
     }
 
+    override suspend fun askJson(question: String, schema: String): String {
+        val options: dynamic = js("({})")
+        // The schema is carried as text so that `core`'s common code — where the schemas are written —
+        // needs no JS object to describe one; this is the one place that has to be JS anyway.
+        options.responseConstraint = JSON.parse<Any>(schema)
+        return session.prompt(question, options).unsafeCast<Promise<String>>().await()
+    }
+
+    override suspend fun clone(): AiSession =
+        BuiltInSession(session.clone().unsafeCast<Promise<dynamic>>().await())
+
     override fun close() {
         runCatching { session.destroy() }
     }

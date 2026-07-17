@@ -19,6 +19,35 @@ interface AiSession {
      */
     fun ask(question: String): Flow<String>
 
+    /**
+     * Ask, and get one answer that is JSON of the shape [schema] describes (a JSON Schema, as text).
+     *
+     * The difference from [ask] is not the streaming, it is the *constraint*: the browser holds the
+     * model to the shape while it writes, so what comes back parses or the call throws. A small model
+     * asked in prose for a structure answers with a preamble, a code fence and an apology around it,
+     * none of which can be told from the answer by looking at it — so nothing that has to be acted on
+     * is asked for in prose. What the shape does not constrain is the content, which is the caller's
+     * to check: see `planFrom` in [stramus.core.ai].
+     *
+     * Not streamed, because half of a JSON document is not JSON: there is nothing to draw until it
+     * is finished.
+     */
+    suspend fun askJson(question: String, schema: String): String
+
+    /**
+     * A second session framed exactly as this one was — the same system prompt — but with none of what
+     * has been said in it.
+     *
+     * This is how a great many independent questions are asked of one model without the answers piling
+     * up: a session remembers, and remembering is what runs it out of context. Asking each question in
+     * a clone of a common session costs a fraction of what opening a session from scratch does, and the
+     * context each question sees is the same size as the first one's — which is what makes the number
+     * of questions a matter of time rather than of a limit. See `triage` in [stramus.core.ai].
+     *
+     * The clone is the caller's to [close].
+     */
+    suspend fun clone(): AiSession
+
     /** Give the model back. A session left open holds its context — and its memory — until it is closed. */
     fun close()
 }
