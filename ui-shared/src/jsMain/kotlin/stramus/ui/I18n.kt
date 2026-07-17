@@ -27,6 +27,12 @@ enum class Lang(val id: String, val label: String) {
  */
 interface Strings {
     // Common
+    val on: String
+    val off: String
+
+    /** The badge on a feature that is not finished, and is opted into knowing that. */
+    val experimental: String
+
     val settings: String
     val close: String
     val cancel: String
@@ -126,6 +132,47 @@ interface Strings {
 
     /** What the model is told before the first question: where it is, and how to answer. */
     val aiSystemPrompt: String
+
+    // Sorting a window of tabs into collections with the built-in model, and the preview that stands
+    // between the model's plan and the store
+    val aiTriageSetting: String
+    val aiTriageSettingHint: String
+    val triageTabs: String
+    val triageHeading: String
+    val triageSummaryHeading: String
+    val triageSummaryTitle: String
+    val triageNew: String
+    val triageUnsorted: String
+    val triageUnsortedHint: String
+    val triageSkip: String
+    val triageMoveHint: String
+    val triageDuplicate: String
+    val triageDuplicateHint: String
+
+    /** Said on a collection the plan would create: where it would appear. */
+    fun triageNewHint(section: String): String
+
+    /** Said on a card section the plan would create inside a collection. */
+    val triageNewSectionHint: String
+
+    /** The picker on a collection the plan would create: which sidebar section to create it in. */
+    val triageGroupHint: String
+
+    /** The section picker on a row, and its "leave it ungrouped" option. */
+    val triageSectionHint: String
+    val triageNoSection: String
+
+    /** The run works down the sites one at a time; this is how far it has got. */
+    fun triageProgress(done: Int, total: Int): String
+
+    /** What is already saved from this site — the reason a row may not be worth ticking. */
+    fun triageRelated(site: String, count: Int): String
+
+    /** The button that applies the plan. It says how many, and whether the tabs will be closed with it. */
+    fun triageApply(count: Int, closesTabs: Boolean): String
+
+    /** What the model is told before it is shown the sites: what it is sorting, and into what. */
+    val aiTriageSystemPrompt: String
 
     // Settings: who answers, which model that is, and — when none does — why not
     val aiSection: String
@@ -393,6 +440,9 @@ interface Strings {
 }
 
 private object EnStrings : Strings {
+    override val on = "On"
+    override val off = "Off"
+    override val experimental = "experimental"
     override val settings = "Settings"
     override val close = "Close"
     override val cancel = "Cancel"
@@ -463,6 +513,37 @@ private object EnStrings : Strings {
     override fun aiDownloading(percent: Int) = "Downloading the model — $percent%. This happens once."
     override val aiSystemPrompt = "You are the assistant inside stramus, a bookmark and tab manager. " +
         "Answer briefly and to the point, in the language the question is asked in. Markdown is welcome."
+
+    override val aiTriageSetting = "Sort tabs with the built-in model"
+    override val aiTriageSettingHint = "Adds ✨ to a window of tabs: the model reads them and proposes " +
+        "a collection for each, for you to check before anything is saved. Everything stays on this " +
+        "machine. It takes a minute or two on a large window, and it leaves out whatever it cannot place."
+    override val triageTabs = "Sort into collections"
+    override val triageHeading = "Sort tabs into collections"
+    override val triageSummaryHeading = "What this session was about"
+    override val triageSummaryTitle = "Session summary"
+    override val triageNew = "new"
+    override fun triageNewHint(section: String) = "There is no such collection yet — it will be created in \"$section\"."
+    override val triageNewSectionHint = "There is no such section in this collection yet — it will be created."
+    override val triageGroupHint = "Which sidebar section this new collection will be created in"
+    override val triageSectionHint = "Which section inside the collection this tab goes under"
+    override val triageNoSection = "No section"
+    override fun triageProgress(done: Int, total: Int) = "Sorting sites — $done of $total…"
+    override val triageUnsorted = "Not sorted"
+    override val triageUnsortedHint = "The model had nothing to say about these. Pick a collection, or leave them open."
+    override val triageSkip = "Don't save"
+    override val triageMoveHint = "Which collection this tab goes into"
+    override val triageDuplicate = "saved already"
+    override val triageDuplicateHint = "This page is already in a collection. Tick it to save it again."
+    override fun triageRelated(site: String, count: Int) = "Already saved from $site ($count):"
+    override fun triageApply(count: Int, closesTabs: Boolean) =
+        if (closesTabs) "Save ($count) and close" else "Save ($count)"
+    override val aiTriageSystemPrompt = "You sort a user's open browser tabs into their collections. " +
+        "You are given tabs and the collections that exist. For every tab, answer with the one " +
+        "collection it belongs in — reuse an existing name wherever the tab fits it, and only invent " +
+        "a short name (one or two words) when it fits none. Within a collection you may name a " +
+        "section, reusing the existing ones too. Tabs of one site may belong to different " +
+        "collections. Answer with nothing but the required JSON."
 
     override val aiSection = "AI"
     override val aiAssistant = "Assistant"
@@ -727,6 +808,9 @@ private object EnStrings : Strings {
 }
 
 private object RuStrings : Strings {
+    override val on = "Вкл"
+    override val off = "Выкл"
+    override val experimental = "эксперимент"
     override val settings = "Настройки"
     override val close = "Закрыть"
     override val cancel = "Отмена"
@@ -797,6 +881,38 @@ private object RuStrings : Strings {
     override fun aiDownloading(percent: Int) = "Модель скачивается — $percent%. Это происходит один раз."
     override val aiSystemPrompt = "Ты — помощник внутри stramus, менеджера закладок и вкладок. " +
         "Отвечай кратко и по делу, на языке вопроса. Markdown приветствуется."
+
+    override val aiTriageSetting = "Разбирать вкладки встроенной моделью"
+    override val aiTriageSettingHint = "Добавляет ✨ к окну вкладок: модель читает их и предлагает " +
+        "коллекцию для каждой — вы проверяете до того, как что-либо сохранится. Всё остаётся на этой " +
+        "машине. На большом окне занимает минуту-другую, а то, что не смогла определить, оставляет вам."
+    override val triageTabs = "Разобрать по коллекциям"
+    override val triageHeading = "Разобрать вкладки по коллекциям"
+    override val triageSummaryHeading = "О чём была эта сессия"
+    override val triageSummaryTitle = "Итог сессии"
+    override val triageNew = "новая"
+    override fun triageNewHint(section: String) = "Такой коллекции ещё нет — она будет создана в разделе «$section»."
+    override val triageNewSectionHint = "Такой секции в этой коллекции ещё нет — она будет создана."
+    override val triageGroupHint = "В каком разделе сайдбара будет создана новая коллекция"
+    override val triageSectionHint = "В какую секцию коллекции попадёт вкладка"
+    override val triageNoSection = "Без секции"
+    override fun triageProgress(done: Int, total: Int) = "Разбирает сайты — $done из $total…"
+    override val triageUnsorted = "Не разобрано"
+    override val triageUnsortedHint =
+        "Про эти вкладки модель ничего не сказала. Выберите коллекцию или оставьте их открытыми."
+    override val triageSkip = "Не сохранять"
+    override val triageMoveHint = "В какую коллекцию попадёт вкладка"
+    override val triageDuplicate = "уже сохранено"
+    override val triageDuplicateHint = "Эта страница уже есть в коллекции. Отметьте, чтобы сохранить ещё раз."
+    override fun triageRelated(site: String, count: Int) = "С $site уже сохранено ($count):"
+    override fun triageApply(count: Int, closesTabs: Boolean) =
+        if (closesTabs) "Сохранить ($count) и закрыть" else "Сохранить ($count)"
+    override val aiTriageSystemPrompt = "Ты раскладываешь открытые вкладки браузера по коллекциям " +
+        "пользователя. Тебе дают вкладки и список существующих коллекций. Для каждой вкладки назови одну " +
+        "коллекцию, которой он принадлежит: переиспользуй существующее название везде, где сайт в него " +
+        "укладывается, и придумывай новое короткое название (одно-два слова) только если не подходит " +
+        "ни одно. Внутри коллекции можешь указать секцию — тоже переиспользуя существующие. Вкладки " +
+        "одного сайта могут относиться к разным коллекциям. В ответе — только требуемый JSON."
 
     override val aiSection = "ИИ"
     override val aiAssistant = "Помощник"

@@ -52,6 +52,15 @@ external interface SettingsModalProps : Props {
     var closeSavedTabs: Boolean
     var onCloseSavedTabsChange: (Boolean) -> Unit
 
+    /**
+     * Whether the ✨ that sorts a window's tabs with the built-in model is offered at all. Off until
+     * asked for: it is the one thing here that hands a window of titles to a model and takes minutes
+     * doing it, and what it hands back is a proposal that is right about *most* of a window on a good
+     * day. That is worth having and it is not worth defaulting to.
+     */
+    var aiTriage: Boolean
+    var onAiTriageChange: (Boolean) -> Unit
+
     /** Who answers a question from the search box: "local" | "chatgpt" | "gemini" | "claude". */
     var aiProvider: String
     var onAiProviderChange: (String) -> Unit
@@ -258,6 +267,36 @@ val SettingsModal = FC<SettingsModalProps> { props ->
                                         +label
                                     }
                                 }
+                        }
+                    }
+
+                    // Only where there is a model to do it: on a browser without one the switch would
+                    // turn on a button that could never appear.
+                    if (props.aiLocalAvailable) {
+                        div {
+                            className = ClassName("settings-row")
+                            div {
+                                className = ClassName("settings-label")
+                                span {
+                                    className = ClassName("settings-title")
+                                    +s.aiTriageSetting
+                                    // Said plainly, and next to the name rather than buried in the
+                                    // hint: what this turns on is not finished, and the user is
+                                    // agreeing to that and not merely to a feature.
+                                    span { className = ClassName("settings-badge"); +s.experimental }
+                                }
+                                span { className = ClassName("settings-hint"); +s.aiTriageSettingHint }
+                            }
+                            div {
+                                className = ClassName("theme-toggle")
+                                listOf(true to s.on, false to s.off).forEach { (on, label) ->
+                                    button {
+                                        className = ClassName(if (props.aiTriage == on) "theme-opt active" else "theme-opt")
+                                        onClick = { props.onAiTriageChange(on) }
+                                        +label
+                                    }
+                                }
+                            }
                         }
                     }
                 }

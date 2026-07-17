@@ -1,6 +1,7 @@
 package stramus.ui
 
 import react.dom.html.HTMLAttributes
+import stramus.core.url.hostOf
 
 // Minimal typed view of the global `window` — the wrappers' web.window.Window is strict about
 // URL/WindowTarget types, and kotlinx-browser has no js-target artifact, so a tiny external keeps
@@ -334,12 +335,6 @@ internal fun downloadFile(filename: String, mime: String, content: String) {
     doc.body.appendChild(a)
     a.click()
     doc.body.removeChild(a)
-}
-
-/** Best-effort host extraction from a raw URL string, without constructing a JS URL. */
-internal fun hostOf(url: String): String {
-    val afterProto = if ("://" in url) url.substringAfter("://") else url
-    return afterProto.substringBefore('/').substringBefore('?').removePrefix("www.").ifBlank { url }
 }
 
 /**

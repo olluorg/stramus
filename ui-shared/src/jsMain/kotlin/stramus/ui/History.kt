@@ -8,6 +8,7 @@ import react.dom.html.ReactHTML.li
 import react.dom.html.ReactHTML.span
 import react.dom.html.ReactHTML.ul
 import stramus.core.platform.HistoryEntry
+import stramus.core.url.hostOf
 import web.cssom.ClassName
 
 /** How many visited pages the history pane asks the browser for — the last few days of browsing. */

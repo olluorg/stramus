@@ -13,6 +13,7 @@ import react.useEffect
 import react.useState
 import stramus.core.repo.CachedIcon
 import stramus.core.repo.FaviconRepository
+import stramus.core.url.hostOf
 import web.cssom.ClassName
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine

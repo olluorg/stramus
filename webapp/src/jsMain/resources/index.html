@@ -208,7 +208,7 @@
            here would be a sentence ("Sort by date added") behind a one-glyph button. The glyph is then
            centred in that square — text-align-last is what a select listens to, the button takes the
            plain one. */
-        .tab-sort, .tab-save {
+        .tab-sort, .tab-save, .tab-triage {
             appearance: none; -webkit-appearance: none;
             box-sizing: border-box; width: 20px; height: 20px;
             border: 1px solid transparent; background: transparent; color: var(--muted);
@@ -216,12 +216,12 @@
             text-align: center; text-align-last: center;
             cursor: pointer; opacity: 0; transition: opacity .12s, color .12s;
         }
-        .tab-window:hover .tab-sort, .tab-window:hover .tab-save,
-        .tab-sort:focus, .tab-save:focus { opacity: 1; }
+        .tab-window:hover .tab-sort, .tab-window:hover .tab-save, .tab-window:hover .tab-triage,
+        .tab-sort:focus, .tab-save:focus, .tab-triage:focus { opacity: 1; }
         /* ...but the menu that drops out of it is a list of sentences, and reads from the left. */
         .tab-sort option { text-align: left; text-align-last: left; }
-        .tab-sort:hover, .tab-save:hover { color: var(--accent); border-color: var(--border); }
-        .tab-sort:focus, .tab-save:focus { outline: none; border-color: var(--accent); }
+        .tab-sort:hover, .tab-save:hover, .tab-triage:hover { color: var(--accent); border-color: var(--border); }
+        .tab-sort:focus, .tab-save:focus, .tab-triage:focus { outline: none; border-color: var(--accent); }
         .tab-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
         .tab {
             display: flex; align-items: center; gap: 8px;
@@ -349,6 +349,68 @@
         .ai-input { flex: 1; min-width: 0; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 8px; padding: 9px 12px; font-size: 14px; }
         .ai-input:focus { outline: none; border-color: var(--accent); }
         .ai-input:disabled { opacity: .6; }
+
+        /* The model's plan for a window of tabs, shown before any of it is done: the groups scroll on
+           their own, so the button that carries it out stays where it is. Every row can be unticked or
+           sent somewhere else — this window is the whole point of the feature, not a confirmation. */
+        .triage-modal { max-width: 760px; }
+        /* The shell (.modal) is already a column capped at 88vh, so this only has to take what is left
+           and scroll it — as .ai-log does. A max-height of its own here would fight the shell's. */
+        .triage-body { flex: 1; min-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding: 16px 18px; }
+        /* flex: none on both — a column flex child shrinks before its parent scrolls, so without this
+           a group of twenty tabs is squashed to a sliver instead of pushing the body into its scroll. */
+        .triage-summary { flex: none; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; position: relative; }
+        .triage-summary-head { margin-bottom: 6px; font-weight: 700; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+        .triage-summary:hover .ai-turn-tools, .triage-summary .ai-turn-tools:focus-within { opacity: 1; }
+        /* How far down the sites the run has got. A line rather than a spinner: the groups below fill
+           in under it as each site lands, so there is always something to read while it works. */
+        .triage-progress { flex: none; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); font-size: 13px; }
+        /* The plan is drawn as the sidebar's own tree — section, collection, divider — so the three
+           levels must read as depth, not as three kinds of identical box. The outermost carries the
+           frame; the ones inside it are marked by indent and a rule running down the branch. */
+        .triage-branch { flex: none; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+        .triage-branch-head { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: var(--bg); border-bottom: 1px solid var(--border); }
+        .triage-branch-title { font-weight: 700; font-size: 13px; letter-spacing: .03em; text-transform: uppercase; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .triage-branch-head .count { margin-left: auto; }
+        /* A collection inside its section: no frame of its own, just the branch line and the indent. */
+        .triage-group { flex: none; margin: 8px 8px 8px 14px; border-left: 2px solid var(--border); border-radius: 0; overflow: hidden; }
+        .triage-group + .triage-group { margin-top: 10px; }
+        .triage-group-head { display: flex; align-items: center; gap: 8px; padding: 4px 12px 4px 10px; background: transparent; border-bottom: none; }
+        .triage-group-title { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        /* A collection that does not exist yet: the one thing in a plan that unticking a row cannot
+           take back, so it is marked rather than left to be discovered afterwards. */
+        .triage-new { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 1px 5px; }
+        .triage-group-head .count { margin-left: auto; }
+        /* The tabs the model had nothing to say about. Not an error — they are simply the user's to place. */
+        .triage-unsorted { flex: none; margin: 0; border: 1px dashed var(--border); border-radius: 10px; overflow: hidden; }
+        .triage-unsorted > .triage-group-head { padding: 9px 12px; background: var(--bg); border-bottom: 1px dashed var(--border); }
+        .triage-tabs { list-style: none; margin: 0; padding: 2px 6px 6px 10px; display: flex; flex-direction: column; gap: 2px; }
+        .triage-tab { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 8px; }
+        .triage-tab:hover { background: var(--bg); }
+        /* Out of the plan, but still on screen: a row the user can see they are not saving, and tick back. */
+        .triage-tab.skipped { opacity: .5; }
+        .triage-pick { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; cursor: pointer; }
+        .triage-tab-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+        .triage-dup { flex: none; font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 1px 5px; }
+        /* Two pickers on a row — the collection, then the section within it — so both are narrow, and
+           the title beside them keeps what is left. The section one is only there where the collection
+           has dividers at all. */
+        .triage-target { flex: none; max-width: 150px; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 6px; padding: 3px 6px; font-size: 12px; }
+        .triage-target:focus { outline: none; border-color: var(--accent); }
+        .triage-section-pick { max-width: 120px; color: var(--muted); }
+        /* On a collection the plan would create: which sidebar section to create it in. It is the
+           model's proposal until the user says otherwise, so it sits in the head, quiet and small. */
+        .triage-group-pick { max-width: 130px; margin-left: 4px; color: var(--muted); font-size: 11px; }
+        /* A divider inside a collection group: subordinate to the group head above it, and clearly not
+           another group — it is indented, quieter, and carries no border of its own. */
+        .triage-section-head { display: flex; align-items: center; gap: 8px; padding: 6px 12px 2px 22px; }
+        .triage-section-title { font-size: 12px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .triage-section-head .count { margin-left: auto; }
+        .triage-section-head + .triage-tabs { padding-top: 0; }
+        /* What is saved from this site already, said once per site: the reason a row may not be worth
+           ticking. It reads as a footnote to the rows above it, not as one of them. */
+        .triage-related { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 6px 6px 30px; color: var(--muted); font-size: 11px; }
+        .triage-related-card { border: 1px solid var(--border); border-radius: 6px; padding: 1px 5px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         /* Renaming a card: the title in a field, the page it names under it, and — for a link, where the
            browser has a model of its own — that title with the rubbish taken out, offered on a button. */
@@ -557,6 +619,9 @@
         .settings-label { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; min-width: 0; }
         .settings-title { font-weight: 600; }
         .settings-hint { color: var(--muted); font-size: 12px; margin: 0; }
+        /* On a setting that turns on something unfinished. Beside the name, not inside the hint: it is
+           part of what the switch is, and the hint is where the reading stops. */
+        .settings-badge { margin-left: 8px; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; vertical-align: 2px; }
         .settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
         .theme-toggle { display: inline-flex; flex: 0 0 auto; max-width: 100%; margin-left: auto; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
         .theme-opt { border: none; background: var(--panel); color: var(--text); padding: 7px 12px; cursor: pointer; font-size: 13px; white-space: nowrap; border-left: 1px solid var(--border); }

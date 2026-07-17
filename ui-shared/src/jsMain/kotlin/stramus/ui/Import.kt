@@ -5,6 +5,7 @@ package stramus.ui
 import stramus.core.db.StramusStore
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
+import stramus.core.url.hostOf
 
 /**
  * One link out of an imported file, with the place the file said it belongs in: [section] →
