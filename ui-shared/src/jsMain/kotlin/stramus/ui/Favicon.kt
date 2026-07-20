@@ -181,16 +181,34 @@ private fun readAsDataUri(blobPromise: dynamic, done: (String?) -> Unit) {
     )
 }
 
-/** Shown when a site has no reachable icon and none was ever cached: a neutral globe. */
-private val placeholderIcon: String = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
-    """
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#9aa4b2" stroke-width="1.4">
-        <circle cx="12" cy="12" r="9"/>
-        <path d="M3 12h18"/>
-        <path d="M12 3c2.6 2.7 2.6 15.3 0 18c-2.6-2.7-2.6-15.3 0-18z"/>
-    </svg>
-    """.trimIndent(),
-)
+/**
+ * Shown when a site has no reachable icon and none was ever cached: a tile in the host's own colour
+ * with its first letter on it, rather than one more anonymous globe. The colour is a stable hash of
+ * the host, so the same site is always the same tile and a page of iconless links reads as distinct
+ * rows instead of a column of identical placeholders.
+ *
+ * It is an SVG `data:` URI like any other icon source, so the caller draws it into the same `<img>`
+ * with no special case — a tab, a card, a history row all get it for free.
+ */
+private val letterPlaceholders = mutableMapOf<String, String>()
+
+private fun letterPlaceholder(host: String): String = letterPlaceholders.getOrPut(host) {
+    val letter = host.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString() ?: "•"
+    // A stable hue per host: fold the characters onto the colour wheel. Saturation and lightness are
+    // fixed so every tile belongs to one family and the white letter stays readable on all of them —
+    // and so the same colour works on the light and the dark theme without knowing which is on.
+    val hue = host.fold(0) { acc, c -> (acc * 31 + c.code) and 0x7fffffff } % 360
+    "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
+        """
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <rect width="24" height="24" rx="5" fill="hsl($hue, 58%, 52%)"/>
+            <text x="12" y="12.5" text-anchor="middle" dominant-baseline="central"
+                  font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+                  font-size="13" font-weight="600" fill="#ffffff">$letter</text>
+        </svg>
+        """.trimIndent(),
+    )
+}
 
 external interface FaviconProps : Props {
     /** The page the icon stands for; its host is the cache key. */
@@ -212,6 +230,9 @@ external interface FaviconProps : Props {
 val Favicon = FC<FaviconProps> { props ->
     val host = hostOf(props.url)
     val stored = props.favicon?.takeIf { it.isNotBlank() }
+    // The stand-in for this host, drawn when it has no reachable icon of its own. Computed here so
+    // both the "gave up" and the "no source to even try" branches below reach for the same tile.
+    val fallback = letterPlaceholder(host)
 
     var data by useState<String?> { cached[host]?.dataUri }
     var broken by useState(false)
@@ -234,13 +255,13 @@ val Favicon = FC<FaviconProps> { props ->
     img {
         className = ClassName(props.className ?: "fav")
         src = when {
-            broken -> placeholderIcon
+            broken -> fallback
             data != null -> data!!
             // Nothing cached yet: draw the best source directly while the fetch that will cache it
             // runs. It has to be a source of the *platform's* chain — in the extension the icon comes
             // from the browser's own store, and an `<img>` pointing anywhere else would be the one
             // request to an icon service the extension is built not to make.
-            else -> iconSources.sourcesFor(props.url, stored).firstOrNull() ?: placeholderIcon
+            else -> iconSources.sourcesFor(props.url, stored).firstOrNull() ?: fallback
         }
         alt = ""
         draggable = false // let the card or tab row be the drag source, not the image

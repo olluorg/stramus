@@ -1959,6 +1959,10 @@ val App = FC<AppProps> { props ->
                                         onCommit = { name -> renameSection(section, name) }
                                         onCancel = { renamingId = null }
                                     }
+                                } else if (section.title.isBlank()) {
+                                    // A section left without a name is still there to be found and clicked:
+                                    // it says so, rather than showing an empty header that reads as nothing.
+                                    span { className = ClassName("untitled"); +t.untitled }
                                 } else {
                                     +section.title
                                 }
@@ -2120,6 +2124,8 @@ val App = FC<AppProps> { props ->
                                                     onCommit = { name -> renameCollection(c, name) }
                                                     onCancel = { renamingId = null }
                                                 }
+                                            } else if (c.title.isBlank()) {
+                                                span { className = ClassName("untitled"); +t.untitled }
                                             } else {
                                                 +c.title
                                             }

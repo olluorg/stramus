@@ -56,6 +56,9 @@ interface Strings {
     /** Tooltip on a collection title, which is selected on a click and renamed on a double click. */
     val renameCollectionHint: String
 
+    /** Stands in, in the sidebar, for a section or collection that has been left without a name. */
+    val untitled: String
+
     /**
      * Tooltips on the buttons that add and remove. A `+` or a `×` says what will happen but not to
      * what — and the two `+`s (a collection, a card section) are the same glyph for different things.
@@ -372,6 +375,9 @@ interface Strings {
     val startViewLast: String
     val startViewFirst: String
 
+    /** The settings sidebar's name for the pane that holds both export and import. */
+    val dataSection: String
+
     val export: String
     val exportHint: String
     val exportCsv: String
@@ -457,13 +463,14 @@ private object EnStrings : Strings {
     override val collectionNameDefault = "New collection"
     override val renameHint = "Click to collapse, double-click to rename, drag to reorder"
     override val renameCollectionHint = "Double-click to rename"
+    override val untitled = "Untitled"
 
     override val newSectionHint = "Add a section to the sidebar"
     override val addCollectionHint = "Add a collection to this section"
     override val deleteSectionHint = "Delete this section and the collections in it"
     override val deleteCollectionHint = "Delete this collection and its cards"
-    override val addCardSectionHint = "Add a section to this collection"
-    override val deleteCardSectionHint = "Delete this section — its cards stay in the collection, ungrouped"
+    override val addCardSectionHint = "Add a group to this collection"
+    override val deleteCardSectionHint = "Delete this group — its cards stay in the collection, ungrouped"
     override val addCardHint = "Add a link — or, from the menu, a note or a file"
     override val deleteCardHint = "Delete this card"
 
@@ -472,10 +479,10 @@ private object EnStrings : Strings {
     override fun confirmDeleteCollection(title: String, cards: Int) =
         "“$title” holds $cards saved items. Delete the collection?"
     override fun confirmDeleteCardSection(title: String, cards: Int) =
-        "“$title” holds $cards cards. Delete the section? The cards stay, ungrouped."
+        "“$title” holds $cards cards. Delete the group? The cards stay, ungrouped."
     override fun deletedSection(title: String) = "Section “$title” deleted"
     override fun deletedCollection(title: String) = "Collection “$title” deleted"
-    override fun deletedCardSection(title: String) = "Section “$title” deleted"
+    override fun deletedCardSection(title: String) = "Group “$title” deleted"
     override val sortedCards = "Cards sorted"
     override val undo = "Undo"
 
@@ -524,10 +531,10 @@ private object EnStrings : Strings {
     override val triageSummaryTitle = "Session summary"
     override val triageNew = "new"
     override fun triageNewHint(section: String) = "There is no such collection yet — it will be created in \"$section\"."
-    override val triageNewSectionHint = "There is no such section in this collection yet — it will be created."
+    override val triageNewSectionHint = "There is no such group in this collection yet — it will be created."
     override val triageGroupHint = "Which sidebar section this new collection will be created in"
-    override val triageSectionHint = "Which section inside the collection this tab goes under"
-    override val triageNoSection = "No section"
+    override val triageSectionHint = "Which group inside the collection this tab goes under"
+    override val triageNoSection = "No group"
     override fun triageProgress(done: Int, total: Int) = "Sorting sites — $done of $total…"
     override val triageUnsorted = "Not sorted"
     override val triageUnsortedHint = "The model had nothing to say about these. Pick a collection, or leave them open."
@@ -569,9 +576,9 @@ private object EnStrings : Strings {
     override fun resultsFor(query: String) = "Results for “$query”"
     override val noMatchingLinks = "No matching links."
     override val createCollectionToStart = "Create a collection to start saving links."
-    override val sortLinks = "Sort this section's cards"
+    override val sortLinks = "Sort this group's cards"
     override val sortMenuTitle = "Sort by"
-    override val addCardSection = "+ Section"
+    override val addCardSection = "+ Group"
     override val pasteUrl = "Paste a URL"
     override val addLinkItem = "🔗 Link"
     override val addNoteItem = "📝 Note"
@@ -675,7 +682,7 @@ private object EnStrings : Strings {
     override val editNote = "Edit note"
     override val viewNote = "Note"
     override val editNoteAction = "✎ Edit"
-    override val sectionDescription = "Section description"
+    override val sectionDescription = "Group description"
     override val titlePlaceholder = "Title"
     override val noteDefaultTitle = "Note"
     override val toolBold = "Bold"
@@ -718,6 +725,8 @@ private object EnStrings : Strings {
     override val startViewLast = "Last opened"
     override val startViewFirst = "First collection"
 
+    override val dataSection = "Data"
+
     override val export = "Export"
     override val exportHint = "Download every saved link across all collections. A section still behind " +
         "its PIN is left out."
@@ -726,7 +735,7 @@ private object EnStrings : Strings {
 
     override val import = "Import"
     override val importHint = "Bring in a bookmarks file from any browser, or a CSV exported here. " +
-        "Folders become sections, collections and card sections; a link already saved where it would " +
+        "Folders become sections, collections and groups; a link already saved where it would " +
         "land is left alone."
     override val importFile = "⤓ Choose a file"
     override val importedTitle = "Imported"
@@ -790,7 +799,7 @@ private object EnStrings : Strings {
             ## Saving a page
             - Drag a tab from the right sidebar onto a collection, or use **⤓ Save open tabs** for a whole window at once.
             - Hover a section's header and press its **+** to add a pasted address, a note, or a file straight into that section.
-            - **+ Section** splits a large collection into groups — drop a card on one to move it in.
+            - **+ Group** splits a large collection into groups — drop a card on one to move it in.
 
             ## Finding a page
             - The search box at the top looks through all of it at once: what you saved, the tabs you have open, and where you have been.
@@ -825,13 +834,14 @@ private object RuStrings : Strings {
     override val collectionNameDefault = "Новая коллекция"
     override val renameHint = "Клик — свернуть, двойной клик — переименовать, перетащить — поменять порядок"
     override val renameCollectionHint = "Двойной клик — переименовать"
+    override val untitled = "Без названия"
 
     override val newSectionHint = "Создать раздел в боковой панели"
     override val addCollectionHint = "Добавить коллекцию в этот раздел"
     override val deleteSectionHint = "Удалить раздел вместе с его коллекциями"
     override val deleteCollectionHint = "Удалить коллекцию вместе с её карточками"
-    override val addCardSectionHint = "Добавить раздел в эту коллекцию"
-    override val deleteCardSectionHint = "Удалить раздел — его карточки останутся в коллекции, без раздела"
+    override val addCardSectionHint = "Добавить секцию в эту коллекцию"
+    override val deleteCardSectionHint = "Удалить секцию — её карточки останутся в коллекции, без секции"
     override val addCardHint = "Добавить ссылку — или, из меню, заметку либо файл"
     override val deleteCardHint = "Удалить карточку"
 
@@ -940,13 +950,13 @@ private object RuStrings : Strings {
     override val createCollectionToStart = "Создайте коллекцию, чтобы сохранять ссылки."
     override val sortLinks = "Отсортировать карточки этой секции"
     override val sortMenuTitle = "Сортировать"
-    override val addCardSection = "+ Раздел"
+    override val addCardSection = "+ Секция"
     override val pasteUrl = "Вставьте ссылку"
     override val addLinkItem = "🔗 Ссылка"
     override val addNoteItem = "📝 Заметка"
     override val addFileItem = "📎 Файл"
     override val noLinksYet = "Пока нет ссылок — добавьте одну или перетащите сюда."
-    override val ungrouped = "Без раздела"
+    override val ungrouped = "Без секции"
     override val dragLinksHere = "Перетащите сюда ссылки или файлы."
     override val editDescription = "Изменить описание"
 
@@ -999,7 +1009,7 @@ private object RuStrings : Strings {
     override val closeTab = "Закрыть вкладку"
     override val sortTabs = "Отсортировать вкладки этого окна"
     override fun saveTabsHint(count: Int, closing: Boolean) =
-        "Сохранить вкладки этого окна ($count) в открытую коллекцию, без раздела — " +
+        "Сохранить вкладки этого окна ($count) в открытую коллекцию, без секции — " +
             if (closing) "и закрыть их" else "и оставить их открытыми"
 
     override fun confirmSaveTabs(count: Int, collection: String, closing: Boolean) =
@@ -1044,7 +1054,7 @@ private object RuStrings : Strings {
     override val editNote = "Изменить заметку"
     override val viewNote = "Заметка"
     override val editNoteAction = "✎ Изменить"
-    override val sectionDescription = "Описание раздела"
+    override val sectionDescription = "Описание секции"
     override val titlePlaceholder = "Заголовок"
     override val noteDefaultTitle = "Заметка"
     override val toolBold = "Жирный"
@@ -1086,6 +1096,8 @@ private object RuStrings : Strings {
         "PIN-кодом не открывается никогда — при каждой перезагрузке её раздел снова запирается."
     override val startViewLast = "Последняя открытая"
     override val startViewFirst = "Главная"
+
+    override val dataSection = "Данные"
 
     override val export = "Экспорт"
     override val exportHint = "Скачайте все сохранённые ссылки из всех коллекций. Разделы, PIN-код " +
@@ -1159,7 +1171,7 @@ private object RuStrings : Strings {
             ## Как сохранить страницу
             - Перетащите вкладку из правой панели в коллекцию или нажмите **⤓ Сохранить вкладки**, чтобы убрать целое окно разом.
             - Наведите курсор на заголовок раздела и нажмите **+** — вставленный адрес, заметка или файл попадут прямо в этот раздел.
-            - **+ Раздел** делит большую коллекцию на группы: перетащите карточку на раздел, и она окажется в нём.
+            - **+ Секция** делит большую коллекцию на группы: перетащите карточку на секцию, и она окажется в ней.
 
             ## Как найти страницу
             - Поиск сверху ищет сразу везде: в сохранённом, в открытых вкладках и в истории.

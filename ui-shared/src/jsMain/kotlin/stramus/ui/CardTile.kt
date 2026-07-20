@@ -13,6 +13,7 @@ import react.dom.html.ReactHTML.span
 import react.memo
 import stramus.core.model.Card
 import stramus.core.model.CardKind
+import stramus.core.url.hostOf
 import web.cssom.ClassName
 import web.data.AllowedEffect
 import web.data.DropEffect
@@ -104,11 +105,12 @@ private fun <T : HTMLElement> HTMLAttributes<T>.cardTileBody(props: CardTileProp
     val card = props.card
     val strings = props.strings
 
-    // The second line of the tile: where a link keeps its URL, a note its first words, a file the
-    // kind of file it is. A link's URL is the one the user can turn off — null then, and the tile
-    // is the title alone.
+    // The second line of the tile: where a link keeps its address, a note its first words, a file the
+    // kind of file it is. A link always shows one — the card is meant to be scanned by where it goes,
+    // not by its title alone — the full URL when the user asked for it (the `cardUrls` setting), the
+    // bare host otherwise.
     val subtitle = when (card.kind) {
-        CardKind.LINK -> card.url.takeIf { props.showUrl }
+        CardKind.LINK -> if (props.showUrl) card.url else hostOf(card.url)
         CardKind.NOTE -> (card.content ?: "").replace("\n", " ").ifBlank { strings.emptyNote }
         CardKind.FILE -> card.mime ?: strings.fileLabel
     }

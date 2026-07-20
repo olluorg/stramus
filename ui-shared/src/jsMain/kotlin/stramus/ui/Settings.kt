@@ -1,5 +1,6 @@
 package stramus.ui
 
+import react.ChildrenBuilder
 import react.FC
 import react.Props
 import react.dom.html.ReactHTML.button
@@ -12,6 +13,7 @@ import react.dom.html.ReactHTML.option
 import react.dom.html.ReactHTML.p
 import react.dom.html.ReactHTML.select
 import react.dom.html.ReactHTML.span
+import react.useState
 import stramus.core.platform.AiAvailability
 import web.cssom.ClassName
 
@@ -88,6 +90,22 @@ external interface SettingsModalProps : Props {
     var onClose: () -> Unit
 }
 
+/**
+ * The panes of the settings page, in sidebar order. Each carries the glyph and title its nav button
+ * wears; which pane is showing is [SettingsModal]'s only piece of local state. Some panes are not
+ * always there — [TABS] only where the host has tabs to settle — so the list is filtered per host
+ * before it is drawn.
+ */
+private enum class SettingsTab(val icon: String, val title: (Strings) -> String) {
+    APPEARANCE("🎨", { it.appearance }),
+    ACCOUNT("👤", { it.account }),
+    STARTUP("🚀", { it.startupSection }),
+    TABS("🗂", { it.tabsSection }),
+    SECURITY("🔒", { it.security }),
+    AI("✨", { it.aiSection }),
+    DATA("💾", { it.dataSection }),
+}
+
 /** What the settings page says about the model: which one, and whether it can actually answer. */
 private fun aiStatusOf(name: String?, state: AiAvailability?, s: Strings): Pair<String, String> = when {
     name == null -> s.aiModelNone to s.aiModelNoneHint
@@ -98,11 +116,266 @@ private fun aiStatusOf(name: String?, state: AiAvailability?, s: Strings): Pair<
 }
 
 /**
+ * A settings row whose control is the theme picker's segmented button strip: a label on the left,
+ * one button per [choices] entry on the right, the one equal to [current] worn active. The workhorse
+ * of this page — theme, language, and every on/off question are all this same shape.
+ */
+private fun <T> ChildrenBuilder.toggleRow(
+    title: String,
+    hint: String,
+    current: T,
+    choices: List<Pair<T, String>>,
+    onPick: (T) -> Unit,
+    titleExtra: (ChildrenBuilder.() -> Unit)? = null,
+) {
+    div {
+        className = ClassName("settings-row")
+        div {
+            className = ClassName("settings-label")
+            span {
+                className = ClassName("settings-title")
+                +title
+                titleExtra?.invoke(this)
+            }
+            span { className = ClassName("settings-hint"); +hint }
+        }
+        div {
+            className = ClassName("theme-toggle")
+            choices.forEach { (value, label) ->
+                button {
+                    className = ClassName(if (current == value) "theme-opt active" else "theme-opt")
+                    onClick = { onPick(value) }
+                    +label
+                }
+            }
+        }
+    }
+}
+
+private fun ChildrenBuilder.appearancePane(props: SettingsModalProps, s: Strings) {
+    div {
+        className = ClassName("settings-section")
+        h4 { +s.appearance }
+
+        toggleRow(
+            s.theme, s.themeHint, props.theme,
+            listOf("auto" to s.themeAuto, "light" to s.themeLight, "dark" to s.themeDark),
+            props.onThemeChange,
+        )
+
+        toggleRow(
+            s.language, s.languageHint, props.lang,
+            Lang.entries.map { it.id to it.label },
+            props.onLangChange,
+        )
+
+        toggleRow(
+            s.cardUrls, s.cardUrlsHint, props.showCardUrls,
+            listOf(false to s.cardUrlsHide, true to s.cardUrlsShow),
+            props.onShowCardUrlsChange,
+        )
+    }
+}
+
+// Collections are things the user chose to keep. The statistics are a trace of what they did —
+// which pages, how often — and that is a different kind of thing to hand a server. So it is a
+// question, asked once, answered "no" until they say otherwise.
+private fun ChildrenBuilder.accountPane(props: SettingsModalProps, s: Strings) {
+    div {
+        className = ClassName("settings-section")
+        h4 { +s.account }
+        toggleRow(
+            s.syncUsage, s.syncUsageHint, props.syncUsage,
+            listOf(false to s.optionOff, true to s.optionOn),
+            props.onSyncUsageChange,
+        )
+    }
+}
+
+private fun ChildrenBuilder.startupPane(props: SettingsModalProps, s: Strings) {
+    div {
+        className = ClassName("settings-section")
+        h4 { +s.startupSection }
+        toggleRow(
+            s.startView, s.startViewHint, props.startView,
+            StartView.entries.map { it.id to it.label(s) },
+            props.onStartViewChange,
+        )
+    }
+}
+
+// Only reached where there are tabs to save: the web app cannot see the browser's, and the ⤓ that
+// this settles is not on its screen.
+private fun ChildrenBuilder.tabsPane(props: SettingsModalProps, s: Strings) {
+    div {
+        className = ClassName("settings-section")
+        h4 { +s.tabsSection }
+
+        toggleRow(
+            s.closeSavedTabs, s.closeSavedTabsHint, props.closeSavedTabs,
+            listOf(true to s.closeSavedTabsClose, false to s.closeSavedTabsKeep),
+            props.onCloseSavedTabsChange,
+        )
+
+        // Only where there is a model to do it: on a browser without one the switch would turn on a
+        // button that could never appear.
+        if (props.aiLocalAvailable) {
+            toggleRow(
+                s.aiTriageSetting, s.aiTriageSettingHint, props.aiTriage,
+                listOf(true to s.on, false to s.off),
+                props.onAiTriageChange,
+                // Said plainly, and next to the name rather than buried in the hint: what this turns
+                // on is not finished, and the user is agreeing to that and not merely to a feature.
+                titleExtra = { span { className = ClassName("settings-badge"); +s.experimental } },
+            )
+        }
+    }
+}
+
+private fun ChildrenBuilder.securityPane(props: SettingsModalProps, s: Strings) {
+    div {
+        className = ClassName("settings-section")
+        h4 { +s.security }
+        div {
+            className = ClassName("settings-row")
+            div {
+                className = ClassName("settings-label")
+                span { className = ClassName("settings-title"); +s.autoLock }
+                span { className = ClassName("settings-hint"); +s.autoLockHint }
+            }
+            select {
+                className = ClassName("control")
+                value = props.autoLockMinutes.toString()
+                onChange = { e -> props.onAutoLockChange(e.target.value.toIntOrNull() ?: DEFAULT_AUTO_LOCK_MINUTES) }
+                AUTO_LOCK_CHOICES.forEach { minutes ->
+                    option {
+                        value = minutes.toString()
+                        +(if (minutes == 0) s.autoLockNever else s.autoLockMinutes(minutes))
+                    }
+                }
+            }
+        }
+    }
+}
+
+// It is nobody's business but the user's what is answering them — and whether it answers here or
+// somewhere on the web. So this is where that is chosen, and where the built-in model says which one
+// it is, where it runs, and — when it cannot answer at all — why not.
+private fun ChildrenBuilder.aiPane(props: SettingsModalProps, s: Strings) {
+    div {
+        className = ClassName("settings-section")
+        h4 { +s.aiSection }
+        val provider = AiProvider.from(props.aiProvider)
+        div {
+            className = ClassName("settings-row")
+            div {
+                className = ClassName("settings-label")
+                span { className = ClassName("settings-title"); +s.aiAssistant }
+                span { className = ClassName("settings-hint"); +s.aiAssistantHint }
+            }
+            div {
+                // Four options: wider than the theme picker's two, but the same control.
+                className = ClassName("theme-toggle")
+                AiProvider.entries.forEach { option ->
+                    // A model this browser cannot run is not a choice to offer — it is greyed out,
+                    // and the row underneath says what is wrong with it.
+                    val dead = option == AiProvider.LOCAL && !props.aiLocalAvailable
+                    button {
+                        className = ClassName(if (provider == option) "theme-opt active" else "theme-opt")
+                        disabled = dead
+                        onClick = { props.onAiProviderChange(option.id) }
+                        +option.label(s)
+                    }
+                }
+            }
+        }
+
+        // What there is to say about the built-in model: which one it is, and — when it cannot
+        // answer — why not, which is *also* said when it is not the one answering, since that is the
+        // whole reason a web chat is. The web chats themselves have nothing to report: they are the
+        // user's own accounts, and all this app does with them is open one.
+        if (provider == AiProvider.LOCAL || !props.aiLocalAvailable) {
+            val (title, hint) = aiStatusOf(props.aiName, props.aiState, s)
+            div {
+                className = ClassName("settings-row")
+                div {
+                    className = ClassName("settings-label")
+                    span { className = ClassName("settings-title"); +s.aiModel }
+                    span { className = ClassName("settings-hint"); +hint }
+                }
+                span { className = ClassName("ai-model"); +title }
+            }
+        }
+        if (provider != AiProvider.LOCAL) {
+            div {
+                className = ClassName("settings-row")
+                div {
+                    className = ClassName("settings-label")
+                    span { className = ClassName("settings-title"); +provider.label(s) }
+                    span { className = ClassName("settings-hint"); +s.aiWebChatHint(provider.label(s)) }
+                }
+            }
+        }
+    }
+}
+
+private fun ChildrenBuilder.dataPane(props: SettingsModalProps, s: Strings) {
+    // ---- Export ----
+    div {
+        className = ClassName("settings-section")
+        h4 { +s.export }
+        p { className = ClassName("settings-hint"); +s.exportHint }
+        div {
+            className = ClassName("settings-actions")
+            button { className = ClassName("btn"); onClick = { props.onExportCsv() }; +s.exportCsv }
+            button { className = ClassName("btn"); onClick = { props.onExportBookmarks() }; +s.exportBookmarks }
+        }
+    }
+
+    // ---- Import: the way back in, and the way in from another browser ----
+    //
+    // The button is a <label> over a hidden file input — the only way to open the file dialog without
+    // one, and the reason this reads as a button while the input itself is never seen.
+    div {
+        className = ClassName("settings-section")
+        h4 { +s.import }
+        p { className = ClassName("settings-hint"); +s.importHint }
+        div {
+            className = ClassName("settings-actions")
+            label {
+                className = ClassName("btn")
+                +s.importFile
+                input {
+                    type = FILE_INPUT_TYPE
+                    className = ClassName("hidden-file-input")
+                    accept = ".html,.htm,.csv,text/html,text/csv"
+                    onChange = { e ->
+                        readPickedText(e.target) { name, text -> props.onImport(name, text) }
+                    }
+                }
+            }
+        }
+        props.importStatus?.let { status ->
+            p { className = ClassName("settings-hint"); +status }
+        }
+    }
+}
+
+/**
  * The settings "page": a modal opened from the left sidebar footer. Groups app-wide preferences and
- * data export (theme, language, CSV export, bookmarks export) that used to live in the content toolbar.
+ * data export (theme, language, CSV export, bookmarks export) that used to live in the content
+ * toolbar. Its own left sidebar names the panes; only the chosen one is drawn.
  */
 val SettingsModal = FC<SettingsModalProps> { props ->
     val s = props.strings
+
+    // The tabs actually on offer for this host: everything, minus the ones that would settle nothing
+    // here (the web app has no browser tabs to close, so it shows no Tabs pane).
+    val tabs = SettingsTab.entries.filter { it != SettingsTab.TABS || props.hasTabs }
+    var active by useState(SettingsTab.APPEARANCE)
+    // A host that dropped the active pane out from under us (unlikely — hasTabs is fixed per host, but
+    // cheap to be safe): fall back to the first pane there is.
+    if (active !in tabs) active = tabs.first()
 
     modalShell(props.onClose, "modal settings-modal") {
         div {
@@ -112,328 +385,30 @@ val SettingsModal = FC<SettingsModalProps> { props ->
         }
 
         div {
-            className = ClassName("settings-body")
+            className = ClassName("settings-layout")
 
-            // ---- Appearance ----
             div {
-                className = ClassName("settings-section")
-                h4 { +s.appearance }
-                div {
-                    className = ClassName("settings-row")
-                    div {
-                        className = ClassName("settings-label")
-                        span { className = ClassName("settings-title"); +s.theme }
-                        span { className = ClassName("settings-hint"); +s.themeHint }
-                    }
-                    div {
-                        className = ClassName("theme-toggle")
-                        listOf("auto" to s.themeAuto, "light" to s.themeLight, "dark" to s.themeDark)
-                            .forEach { (id, label) ->
-                                button {
-                                    className = ClassName(if (props.theme == id) "theme-opt active" else "theme-opt")
-                                    onClick = { props.onThemeChange(id) }
-                                    +label
-                                }
-                            }
-                    }
-                }
-
-                // ---- Language ----
-                div {
-                    className = ClassName("settings-row")
-                    div {
-                        className = ClassName("settings-label")
-                        span { className = ClassName("settings-title"); +s.language }
-                        span { className = ClassName("settings-hint"); +s.languageHint }
-                    }
-                    div {
-                        // Same segmented control as the theme picker — two options fit comfortably.
-                        className = ClassName("theme-toggle")
-                        Lang.entries.forEach { lang ->
-                            button {
-                                className =
-                                    ClassName(if (props.lang == lang.id) "theme-opt active" else "theme-opt")
-                                onClick = { props.onLangChange(lang.id) }
-                                +lang.label
-                            }
-                        }
-                    }
-                }
-
-                // ---- Whether a card says where it goes ----
-                div {
-                    className = ClassName("settings-row")
-                    div {
-                        className = ClassName("settings-label")
-                        span { className = ClassName("settings-title"); +s.cardUrls }
-                        span { className = ClassName("settings-hint"); +s.cardUrlsHint }
-                    }
-                    div {
-                        // The theme picker's segmented control once more: two ways, one chosen.
-                        className = ClassName("theme-toggle")
-                        listOf(false to s.cardUrlsHide, true to s.cardUrlsShow).forEach { (show, label) ->
-                            button {
-                                className = ClassName(
-                                    if (props.showCardUrls == show) "theme-opt active" else "theme-opt",
-                                )
-                                onClick = { props.onShowCardUrlsChange(show) }
-                                +label
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ---- What leaves this machine ----
-            // Collections are things the user chose to keep. The statistics are a trace of what they did —
-            // which pages, how often — and that is a different kind of thing to hand a server. So it is a
-            // question, asked once, answered "no" until they say otherwise.
-            div {
-                className = ClassName("settings-section")
-                h4 { +s.account }
-                div {
-                    className = ClassName("settings-row")
-                    div {
-                        className = ClassName("settings-label")
-                        span { className = ClassName("settings-title"); +s.syncUsage }
-                        span { className = ClassName("settings-hint"); +s.syncUsageHint }
-                    }
-                    div {
-                        className = ClassName("theme-toggle")
-                        listOf(false to s.optionOff, true to s.optionOn).forEach { (on, label) ->
-                            button {
-                                className = ClassName(
-                                    if (props.syncUsage == on) "theme-opt active" else "theme-opt",
-                                )
-                                onClick = { props.onSyncUsageChange(on) }
-                                +label
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ---- Startup: the collection the page comes back to ----
-            div {
-                className = ClassName("settings-section")
-                h4 { +s.startupSection }
-                div {
-                    className = ClassName("settings-row")
-                    div {
-                        className = ClassName("settings-label")
-                        span { className = ClassName("settings-title"); +s.startView }
-                        span { className = ClassName("settings-hint"); +s.startViewHint }
-                    }
-                    div {
-                        // The theme picker's control again: two ways to open, one chosen.
-                        className = ClassName("theme-toggle")
-                        StartView.entries.forEach { view ->
-                            button {
-                                className =
-                                    ClassName(if (props.startView == view.id) "theme-opt active" else "theme-opt")
-                                onClick = { props.onStartViewChange(view.id) }
-                                +view.label(s)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ---- Tabs: what saving a window's worth of them leaves behind ----
-            //
-            // Only where there are tabs to save: the web app cannot see the browser's, and the ⤓ that
-            // this settles is not on its screen.
-            if (props.hasTabs) {
-                div {
-                    className = ClassName("settings-section")
-                    h4 { +s.tabsSection }
-                    div {
-                        className = ClassName("settings-row")
-                        div {
-                            className = ClassName("settings-label")
-                            span { className = ClassName("settings-title"); +s.closeSavedTabs }
-                            span { className = ClassName("settings-hint"); +s.closeSavedTabsHint }
-                        }
-                        div {
-                            // The same segmented control as the theme picker: two ways, one chosen.
-                            className = ClassName("theme-toggle")
-                            listOf(true to s.closeSavedTabsClose, false to s.closeSavedTabsKeep)
-                                .forEach { (close, label) ->
-                                    button {
-                                        className = ClassName(
-                                            if (props.closeSavedTabs == close) "theme-opt active" else "theme-opt",
-                                        )
-                                        onClick = { props.onCloseSavedTabsChange(close) }
-                                        +label
-                                    }
-                                }
-                        }
-                    }
-
-                    // Only where there is a model to do it: on a browser without one the switch would
-                    // turn on a button that could never appear.
-                    if (props.aiLocalAvailable) {
-                        div {
-                            className = ClassName("settings-row")
-                            div {
-                                className = ClassName("settings-label")
-                                span {
-                                    className = ClassName("settings-title")
-                                    +s.aiTriageSetting
-                                    // Said plainly, and next to the name rather than buried in the
-                                    // hint: what this turns on is not finished, and the user is
-                                    // agreeing to that and not merely to a feature.
-                                    span { className = ClassName("settings-badge"); +s.experimental }
-                                }
-                                span { className = ClassName("settings-hint"); +s.aiTriageSettingHint }
-                            }
-                            div {
-                                className = ClassName("theme-toggle")
-                                listOf(true to s.on, false to s.off).forEach { (on, label) ->
-                                    button {
-                                        className = ClassName(if (props.aiTriage == on) "theme-opt active" else "theme-opt")
-                                        onClick = { props.onAiTriageChange(on) }
-                                        +label
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ---- Security: how long an unlocked section stays open ----
-            div {
-                className = ClassName("settings-section")
-                h4 { +s.security }
-                div {
-                    className = ClassName("settings-row")
-                    div {
-                        className = ClassName("settings-label")
-                        span { className = ClassName("settings-title"); +s.autoLock }
-                        span { className = ClassName("settings-hint"); +s.autoLockHint }
-                    }
-                    select {
-                        className = ClassName("control")
-                        value = props.autoLockMinutes.toString()
-                        onChange = { e -> props.onAutoLockChange(e.target.value.toIntOrNull() ?: DEFAULT_AUTO_LOCK_MINUTES) }
-                        AUTO_LOCK_CHOICES.forEach { minutes ->
-                            option {
-                                value = minutes.toString()
-                                +(if (minutes == 0) s.autoLockNever else s.autoLockMinutes(minutes))
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ---- Who answers the search box's "ask the AI" ----
-            //
-            // It is nobody's business but the user's what is answering them — and whether it answers
-            // here or somewhere on the web. So this is where that is chosen, and where the built-in
-            // model says which one it is, where it runs, and — when it cannot answer at all — why not.
-            div {
-                className = ClassName("settings-section")
-                h4 { +s.aiSection }
-                val provider = AiProvider.from(props.aiProvider)
-                div {
-                    className = ClassName("settings-row")
-                    div {
-                        className = ClassName("settings-label")
-                        span { className = ClassName("settings-title"); +s.aiAssistant }
-                        span { className = ClassName("settings-hint"); +s.aiAssistantHint }
-                    }
-                    div {
-                        // Four options: wider than the theme picker's two, but the same control.
-                        className = ClassName("theme-toggle")
-                        AiProvider.entries.forEach { option ->
-                            // A model this browser cannot run is not a choice to offer — it is greyed
-                            // out, and the row underneath says what is wrong with it.
-                            val dead = option == AiProvider.LOCAL && !props.aiLocalAvailable
-                            button {
-                                className =
-                                    ClassName(if (provider == option) "theme-opt active" else "theme-opt")
-                                disabled = dead
-                                onClick = { props.onAiProviderChange(option.id) }
-                                +option.label(s)
-                            }
-                        }
-                    }
-                }
-
-                // What there is to say about the built-in model: which one it is, and — when it cannot
-                // answer — why not, which is *also* said when it is not the one answering, since that
-                // is the whole reason a web chat is. The web chats themselves have nothing to report:
-                // they are the user's own accounts, and all this app does with them is open one.
-                if (provider == AiProvider.LOCAL || !props.aiLocalAvailable) {
-                    val (title, hint) = aiStatusOf(props.aiName, props.aiState, s)
-                    div {
-                        className = ClassName("settings-row")
-                        div {
-                            className = ClassName("settings-label")
-                            span { className = ClassName("settings-title"); +s.aiModel }
-                            span { className = ClassName("settings-hint"); +hint }
-                        }
-                        span { className = ClassName("ai-model"); +title }
-                    }
-                }
-                if (provider != AiProvider.LOCAL) {
-                    div {
-                        className = ClassName("settings-row")
-                        div {
-                            className = ClassName("settings-label")
-                            span { className = ClassName("settings-title"); +provider.label(s) }
-                            span { className = ClassName("settings-hint"); +s.aiWebChatHint(provider.label(s)) }
-                        }
-                    }
-                }
-            }
-
-            // ---- Data export ----
-            div {
-                className = ClassName("settings-section")
-                h4 { +s.export }
-                p { className = ClassName("settings-hint"); +s.exportHint }
-                div {
-                    className = ClassName("settings-actions")
+                className = ClassName("settings-nav")
+                tabs.forEach { tab ->
                     button {
-                        className = ClassName("btn")
-                        onClick = { props.onExportCsv() }
-                        +s.exportCsv
-                    }
-                    button {
-                        className = ClassName("btn")
-                        onClick = { props.onExportBookmarks() }
-                        +s.exportBookmarks
+                        className = ClassName(if (tab == active) "settings-nav-item active" else "settings-nav-item")
+                        onClick = { active = tab }
+                        span { className = ClassName("settings-nav-icon"); +tab.icon }
+                        +tab.title(s)
                     }
                 }
             }
 
-            // ---- Data import: the way back in, and the way in from another browser ----
-            //
-            // The button is a <label> over a hidden file input — the only way to open the file dialog
-            // without one, and the reason this reads as a button while the input itself is never seen.
             div {
-                className = ClassName("settings-section")
-                h4 { +s.import }
-                p { className = ClassName("settings-hint"); +s.importHint }
-                div {
-                    className = ClassName("settings-actions")
-                    label {
-                        className = ClassName("btn")
-                        +s.importFile
-                        input {
-                            type = FILE_INPUT_TYPE
-                            className = ClassName("hidden-file-input")
-                            accept = ".html,.htm,.csv,text/html,text/csv"
-                            onChange = { e ->
-                                readPickedText(e.target) { name, text -> props.onImport(name, text) }
-                            }
-                        }
-                    }
-                }
-                props.importStatus?.let { status ->
-                    p { className = ClassName("settings-hint"); +status }
+                className = ClassName("settings-body")
+                when (active) {
+                    SettingsTab.APPEARANCE -> appearancePane(props, s)
+                    SettingsTab.ACCOUNT -> accountPane(props, s)
+                    SettingsTab.STARTUP -> startupPane(props, s)
+                    SettingsTab.TABS -> tabsPane(props, s)
+                    SettingsTab.SECURITY -> securityPane(props, s)
+                    SettingsTab.AI -> aiPane(props, s)
+                    SettingsTab.DATA -> dataPane(props, s)
                 }
             }
         }
