@@ -28,7 +28,11 @@ import react.useEffectOnce
 import react.useMemo
 import react.useRef
 import react.useState
+import stramus.core.ai.SkillDef
 import stramus.core.ai.TriageAssignment
+import stramus.core.ai.parseSkill
+import stramus.core.ai.sectionCards
+import stramus.core.ai.skillUrl
 import stramus.core.db.StramusStore
 import stramus.core.db.openStramusStore
 import stramus.core.platform.GoogleSignIn
@@ -42,6 +46,7 @@ import stramus.core.model.Section
 import stramus.core.platform.AiAssistant
 import stramus.core.platform.AiAvailability
 import stramus.core.platform.CapturedTab
+import stramus.core.platform.ContentFetch
 import stramus.core.platform.HistoryAccess
 import stramus.core.platform.HistoryEntry
 import stramus.core.platform.TabCapture
@@ -120,6 +125,15 @@ private fun startCollection(collections: List<Collection>, sections: List<Sectio
 /** Which modal is open. [existing] non-null = editing/viewing that card; null = creating a new one. */
 private data class NoteModal(val collectionId: Uuid, val cardSectionId: Uuid?, val existing: Card?)
 private data class FileModal(val collectionId: Uuid, val cardSectionId: Uuid?, val existing: Card?)
+
+/** The skill editor is open — creating one in [cardSectionId] of [collectionId], or editing [existing]. */
+private data class SkillEditorModal(val collectionId: Uuid, val cardSectionId: Uuid?, val existing: Card?)
+
+/**
+ * A skill is running: what to run ([def]), its name, and the section it belongs to — [cardSectionId]
+ * (null = the ungrouped area). It runs over the cards of that section alone, not the whole collection.
+ */
+private data class SkillRunModal(val def: SkillDef, val title: String, val cardSectionId: Uuid?)
 /**
  * Renaming a card. [fromSearch] = the tile was one of the search results, and the rename has to be
  * written back to two places at once: the results on screen, and the collection the card lives in.
@@ -210,6 +224,9 @@ private fun ChildrenBuilder.addMenu(
     onLink: () -> Unit,
     onNote: () -> Unit,
     onFile: () -> Unit,
+    // Null where the browser has no model of its own: a skill it could never run is not offered to be
+    // made. Where it can, "✨ Skill" joins the same menu as the link, note and file.
+    onSkill: (() -> Unit)? = null,
 ) {
     // A bare "+", like the ✎ and × beside it: the header is a strip, not a toolbar, and it carries one
     // of these per section. What the click does is left to the tooltip.
@@ -217,6 +234,7 @@ private fun ChildrenBuilder.addMenu(
         menuItem(strings.addLinkItem, onLink)
         menuItem(strings.addNoteItem, onNote)
         menuItem(strings.addFileItem, onFile)
+        if (onSkill != null) menuItem(strings.addSkillItem, onSkill)
     }
 }
 
@@ -518,6 +536,13 @@ external interface AppProps : Props {
      * on this machine; null in the web app, which has nothing to read but the public icon services.
      */
     var iconSources: IconSources?
+
+    /**
+     * Reading the pages behind a collection's links, for a skill that summarises them (see
+     * [stramus.core.platform.ContentFetch]). Present in the extension; null in the web app, and then a
+     * fetching skill falls back to the collection's own text.
+     */
+    var contentFetch: ContentFetch?
 }
 
 val App = FC<AppProps> { props ->
@@ -525,6 +550,7 @@ val App = FC<AppProps> { props ->
     val historyAccess = props.historyAccess
     val ai = props.ai
     val webSearch = props.webSearch
+    val contentFetch = props.contentFetch
 
     // Before the first icon is drawn, and idempotent: whoever renders the app decides, once, where its
     // icons may be read from. Left alone, they come from the icon services (see [NetworkIcons]).
@@ -600,6 +626,8 @@ val App = FC<AppProps> { props ->
     var contentDropActive by useState(false)
     var noteModal by useState<NoteModal?>(null)
     var fileModal by useState<FileModal?>(null)
+    var skillEditor by useState<SkillEditorModal?>(null)
+    var skillRun by useState<SkillRunModal?>(null)
     var renameModal by useState<RenameModal?>(null)
     var descModal by useState<DescModal?>(null)
     var pinDialog by useState<PinDialog?>(null)
@@ -1471,13 +1499,28 @@ val App = FC<AppProps> { props ->
             CardKind.LINK -> openPage(card.url, card.title)
             CardKind.NOTE -> noteModal = NoteModal(card.collectionId, card.cardSectionId, card)
             CardKind.FILE -> fileModal = FileModal(card.collectionId, card.cardSectionId, card)
+            // A skill runs when it is clicked — that is what a skill card is for. It runs over its own
+            // section, so its group is carried with it. One that reads back as no skill (a stripped or
+            // foreign card) does nothing rather than something wrong.
+            CardKind.SKILL -> {
+                val def = parseSkill(card)
+                if (def != null) skillRun = SkillRunModal(def, card.title, card.cardSectionId)
+            }
         }
     }
 
     // The ✎ on a tile asks for the box, it does not do the renaming: the box is where the title is
     // edited, and — for a link, on a machine whose browser has a model of its own — where the same title
     // with the rubbish taken out of it is offered. See [RenameCardModal].
-    val onCardRenameRequest = useCallback { card: Card -> renameModal = RenameModal(card, fromSearch = false) }
+    // A skill's ✎ opens its editor, not the rename box: what one edits about a skill is its prompt and
+    // its source, not only its name. Every other card renames.
+    val onCardRenameRequest = useCallback { card: Card ->
+        if (card.kind == CardKind.SKILL) {
+            skillEditor = SkillEditorModal(card.collectionId, card.cardSectionId, card)
+        } else {
+            renameModal = RenameModal(card, fromSearch = false)
+        }
+    }
     val onResultRenameRequest = useCallback { card: Card -> renameModal = RenameModal(card, fromSearch = true) }
 
     val onCardRename = useCallback(store, hiddenCollectionIds) { card: Card, title: String ->
@@ -2373,6 +2416,11 @@ val App = FC<AppProps> { props ->
                         },
                         onNote = { noteModal = NoteModal(current.id, sectionId, null) },
                         onFile = { fileModal = FileModal(current.id, sectionId, null) },
+                        onSkill = if (ai != null) {
+                            { skillEditor = SkillEditorModal(current.id, sectionId, null) }
+                        } else {
+                            null
+                        },
                     )
 
                     // The ⇅ beside it puts that same group's cards in order. Sorting belongs to a
@@ -2790,6 +2838,44 @@ val App = FC<AppProps> { props ->
                         reloadCards(m.collectionId)
                     }
                     fileModal = null
+                }
+            }
+        }
+        skillEditor?.let { m ->
+            SkillEditor {
+                strings = t
+                existing = m.existing
+                fetchAvailable = contentFetch != null
+                onSave = { title, source, prompt ->
+                    val s = store
+                    if (s != null) scope.launch {
+                        val existing = m.existing
+                        if (existing != null) s.cards.updateSkill(existing.id, title, skillUrl(source), prompt)
+                        else s.cards.addSkill(m.collectionId, title, skillUrl(source), prompt, m.cardSectionId)
+                        reloadCards(m.collectionId)
+                    }
+                    skillEditor = null
+                }
+                onClose = { skillEditor = null }
+            }
+        }
+        skillRun?.let { running ->
+            val aiAssistant = ai
+            if (aiAssistant != null) {
+                // Aliased before the builder: inside it, `cards`/`contentFetch` would find the prop of
+                // the same name, not these — the shadowing that turns an assignment into a self-assign.
+                // The skill runs over its own section's cards, not the whole open collection.
+                val runCards = sectionCards(cards, running.cardSectionId)
+                val runFetch = contentFetch
+                SkillRun {
+                    strings = t
+                    assistant = aiAssistant
+                    def = running.def
+                    title = running.title
+                    this.cards = runCards
+                    this.contentFetch = runFetch
+                    systemPrompt = t.skillSystemPrompt
+                    onClose = { skillRun = null }
                 }
             }
         }

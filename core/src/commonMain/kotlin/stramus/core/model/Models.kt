@@ -56,11 +56,22 @@ data class CardSection(
     val collapsed: Boolean,
 )
 
-/** What a [Card] holds: a bookmarked link, a markdown note, or an uploaded file. */
+/**
+ * What a [Card] holds: a bookmarked link, a markdown note, an uploaded file, or a *skill* — a saved,
+ * clickable AI action.
+ *
+ * A [SKILL] card is not data the user filed; it is a small program over the section it sits in.
+ * Clicked, it runs the browser's on-device model over a source of the user's own (this section's cards,
+ * or the pages behind their links, fetched) and shows the answer. It reuses the card fields rather than a
+ * table of its own: [Card.url] carries `skill:<source>` and [Card.content] the prompt — see
+ * [stramus.core.ai.parseSkill]. A client too old to know the kind reads it back as a [LINK] (see
+ * [from]) — a harmless `skill:…` bookmark rather than a broken card.
+ */
 enum class CardKind(val id: String) {
     LINK("link"),
     NOTE("note"),
     FILE("file"),
+    SKILL("skill"),
     ;
 
     companion object {

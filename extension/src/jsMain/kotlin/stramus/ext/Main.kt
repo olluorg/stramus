@@ -18,6 +18,10 @@ fun main() {
         App.create {
             tabCapture = ChromeTabCapture
             historyAccess = ChromeHistoryAccess
+            // Reading the pages behind a collection's links, for a skill that summarises them. This is
+            // the one capability that reaches the network, and the reason a fetching skill is offered
+            // in the extension but not on the plain web page (which cannot read another origin).
+            contentFetch = ChromeContentFetch
             // The user's own search engine, whichever it is: chrome.search asks the browser rather
             // than hardcoding one.
             webSearch = ChromeWebSearch

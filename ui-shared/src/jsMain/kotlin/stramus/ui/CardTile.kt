@@ -11,6 +11,8 @@ import react.dom.html.ReactHTML.div
 import react.dom.html.ReactHTML.img
 import react.dom.html.ReactHTML.span
 import react.memo
+import stramus.core.ai.SkillSource
+import stramus.core.ai.parseSkill
 import stramus.core.model.Card
 import stramus.core.model.CardKind
 import stramus.core.url.hostOf
@@ -113,6 +115,9 @@ private fun <T : HTMLElement> HTMLAttributes<T>.cardTileBody(props: CardTileProp
         CardKind.LINK -> if (props.showUrl) card.url else hostOf(card.url)
         CardKind.NOTE -> (card.content ?: "").replace("\n", " ").ifBlank { strings.emptyNote }
         CardKind.FILE -> card.mime ?: strings.fileLabel
+        // A skill's second line is what it runs over, not where it points — its `url` is `skill:…`,
+        // which is machinery, not an address to show.
+        CardKind.SKILL -> strings.skillSourceShort(fetch = parseSkill(card)?.source == SkillSource.FETCH)
     }
 
     className = ClassName(
@@ -155,6 +160,7 @@ private fun <T : HTMLElement> HTMLAttributes<T>.cardTileBody(props: CardTileProp
             favicon = card.favicon
         }
         CardKind.NOTE -> span { className = ClassName("glyph"); +"📝" }
+        CardKind.SKILL -> span { className = ClassName("glyph"); +"✨" }
         // The card carries a downscaled preview, never the file itself — the bytes stay in the
         // database until the file is opened. No preview (not an image, or one that would not
         // decode) means a glyph.

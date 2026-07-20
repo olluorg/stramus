@@ -136,6 +136,35 @@ interface Strings {
     /** What the model is told before the first question: where it is, and how to answer. */
     val aiSystemPrompt: String
 
+    // Skills — saved AI actions filed as cards, run over a collection or the pages behind its links
+    val skillNew: String
+    val skillEdit: String
+    val skillTitleLabel: String
+    val skillTitlePlaceholder: String
+    val skillSourceLabel: String
+    val skillSourceSection: String
+    val skillSourceSectionHint: String
+    val skillSourceFetch: String
+    val skillSourceFetchHint: String
+
+    /** Said under the fetch option where this host cannot reach the network (the plain web app). */
+    val skillSourceFetchUnavailable: String
+    val skillPromptLabel: String
+    val skillPromptPlaceholder: String
+
+    /** The prompt a new skill starts with, so the box is never blank to a first-time user. */
+    val skillDefaultPrompt: String
+    val skillSave: String
+
+    /** The skill card's second line — which source it runs over. */
+    fun skillSourceShort(fetch: Boolean): String
+
+    /** What the model is told before a skill's prompt: what it is doing, and how to answer. */
+    val skillSystemPrompt: String
+
+    /** Reading the pages a fetching skill runs over, before the model is asked anything. */
+    fun skillFetching(done: Int, total: Int): String
+
     // Sorting a window of tabs into collections with the built-in model, and the preview that stands
     // between the model's plan and the store
     val aiTriageSetting: String
@@ -211,6 +240,7 @@ interface Strings {
     val addLinkItem: String
     val addNoteItem: String
     val addFileItem: String
+    val addSkillItem: String
     val noLinksYet: String
     val ungrouped: String
     val dragLinksHere: String
@@ -521,6 +551,26 @@ private object EnStrings : Strings {
     override val aiSystemPrompt = "You are the assistant inside stramus, a bookmark and tab manager. " +
         "Answer briefly and to the point, in the language the question is asked in. Markdown is welcome."
 
+    override val skillNew = "New skill"
+    override val skillEdit = "Edit skill"
+    override val skillTitleLabel = "Name"
+    override val skillTitlePlaceholder = "News digest"
+    override val skillSourceLabel = "Runs over"
+    override val skillSourceSection = "This section"
+    override val skillSourceSectionHint = "The titles, links and notes in this section. Stays on this device."
+    override val skillSourceFetch = "The pages behind these links"
+    override val skillSourceFetchHint = "Fetches this section's linked pages and reads their text. Reaches the network."
+    override val skillSourceFetchUnavailable = "Not available here — the web app cannot read other sites."
+    override val skillPromptLabel = "Prompt"
+    override val skillPromptPlaceholder = "What should the model do with it?"
+    override val skillDefaultPrompt = "Give me a short digest of the most important things here."
+    override val skillSave = "Save"
+    override fun skillSourceShort(fetch: Boolean) = if (fetch) "Skill · reads the pages" else "Skill · this section"
+    override val skillSystemPrompt = "You are running a saved skill inside stramus, a bookmark and tab manager. " +
+        "Follow the instruction, using only what you are given below it. Answer in the language of the instruction. " +
+        "Markdown is welcome."
+    override fun skillFetching(done: Int, total: Int) = "Reading pages — $done of $total…"
+
     override val aiTriageSetting = "Sort tabs with the built-in model"
     override val aiTriageSettingHint = "Adds ✨ to a window of tabs: the model reads them and proposes " +
         "a collection for each, for you to check before anything is saved. Everything stays on this " +
@@ -583,6 +633,7 @@ private object EnStrings : Strings {
     override val addLinkItem = "🔗 Link"
     override val addNoteItem = "📝 Note"
     override val addFileItem = "📎 File"
+    override val addSkillItem = "✨ Skill"
     override val noLinksYet = "No links yet — add one, or drag one here."
     override val ungrouped = "Ungrouped"
     override val dragLinksHere = "Drag links or files here."
@@ -892,6 +943,26 @@ private object RuStrings : Strings {
     override val aiSystemPrompt = "Ты — помощник внутри stramus, менеджера закладок и вкладок. " +
         "Отвечай кратко и по делу, на языке вопроса. Markdown приветствуется."
 
+    override val skillNew = "Новый навык"
+    override val skillEdit = "Правка навыка"
+    override val skillTitleLabel = "Название"
+    override val skillTitlePlaceholder = "Сводка новостей"
+    override val skillSourceLabel = "Работает над"
+    override val skillSourceSection = "Этой секцией"
+    override val skillSourceSectionHint = "Заголовки, ссылки и заметки этой секции. Остаётся на устройстве."
+    override val skillSourceFetch = "Страницами по этим ссылкам"
+    override val skillSourceFetchHint = "Скачивает страницы по ссылкам этой секции и читает их текст. Обращается к сети."
+    override val skillSourceFetchUnavailable = "Здесь недоступно — веб-приложение не может читать другие сайты."
+    override val skillPromptLabel = "Промпт"
+    override val skillPromptPlaceholder = "Что модель должна с этим сделать?"
+    override val skillDefaultPrompt = "Дай короткую сводку самого важного здесь."
+    override val skillSave = "Сохранить"
+    override fun skillSourceShort(fetch: Boolean) = if (fetch) "Навык · читает страницы" else "Навык · эта секция"
+    override val skillSystemPrompt = "Ты выполняешь сохранённый навык внутри stramus, менеджера закладок и вкладок. " +
+        "Следуй инструкции, опираясь только на то, что дано под ней. Отвечай на языке инструкции. " +
+        "Markdown приветствуется."
+    override fun skillFetching(done: Int, total: Int) = "Читаю страницы — $done из $total…"
+
     override val aiTriageSetting = "Разбирать вкладки встроенной моделью"
     override val aiTriageSettingHint = "Добавляет ✨ к окну вкладок: модель читает их и предлагает " +
         "коллекцию для каждой — вы проверяете до того, как что-либо сохранится. Всё остаётся на этой " +
@@ -955,6 +1026,7 @@ private object RuStrings : Strings {
     override val addLinkItem = "🔗 Ссылка"
     override val addNoteItem = "📝 Заметка"
     override val addFileItem = "📎 Файл"
+    override val addSkillItem = "✨ Навык"
     override val noLinksYet = "Пока нет ссылок — добавьте одну или перетащите сюда."
     override val ungrouped = "Без секции"
     override val dragLinksHere = "Перетащите сюда ссылки или файлы."

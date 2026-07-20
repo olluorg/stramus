@@ -196,6 +196,16 @@ interface CardRepository {
     /** Update a note card's title and markdown body. */
     suspend fun updateNote(id: Uuid, title: String, content: String)
 
+    /**
+     * Create a skill card — a saved AI action. [source] is `skill:<source>` (see
+     * [stramus.core.ai.skillUrl]) and [prompt] the instruction the model is given; both are stored in
+     * the card's own fields, so a skill needs no table of its own.
+     */
+    suspend fun addSkill(collectionId: Uuid, title: String, source: String, prompt: String, cardSectionId: Uuid? = null): Card
+
+    /** Update a skill card's title, source and prompt. */
+    suspend fun updateSkill(id: Uuid, title: String, source: String, prompt: String)
+
     suspend fun rename(id: Uuid, title: String)
     suspend fun delete(id: Uuid)
 

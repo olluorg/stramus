@@ -900,6 +900,12 @@ internal class KormiumCardRepository(
     override suspend fun addNote(collectionId: Uuid, title: String, content: String, cardSectionId: Uuid?): Card =
         insert(collectionId, cardSectionId, CardKind.NOTE, title, url = "", favicon = null, content = content, mime = null)
 
+    // A skill reuses the card's own fields: `url` carries which source it runs over (`skill:collection`,
+    // `skill:fetch`), `content` the prompt. No new column, and so nothing for the sync codec or the
+    // server to learn — a skill travels between devices as an ordinary card.
+    override suspend fun addSkill(collectionId: Uuid, title: String, source: String, prompt: String, cardSectionId: Uuid?): Card =
+        insert(collectionId, cardSectionId, CardKind.SKILL, title, url = source, favicon = null, content = prompt, mime = null)
+
     override suspend fun addFile(
         collectionId: Uuid,
         title: String,
@@ -984,6 +990,19 @@ internal class KormiumCardRepository(
                 CardRow().apply {
                     this.title = title
                     this.content = content
+                    this.updatedAt = Clock.System.now()
+                },
+            ) { where { Cards.id eq id } }
+        }
+    }
+
+    override suspend fun updateSkill(id: Uuid, title: String, source: String, prompt: String) {
+        db.suspendTransaction {
+            Cards.update(
+                CardRow().apply {
+                    this.title = title
+                    this.url = source
+                    this.content = prompt
                     this.updatedAt = Clock.System.now()
                 },
             ) { where { Cards.id eq id } }

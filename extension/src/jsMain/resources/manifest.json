@@ -14,7 +14,8 @@
     "identity"
   ],
   "host_permissions": [
-    "http://localhost:8090/*"
+    "http://localhost:8090/*",
+    "<all_urls>"
   ],
   "minimum_chrome_version": "138",
   "icons": {
