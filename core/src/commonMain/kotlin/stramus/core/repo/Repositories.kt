@@ -22,6 +22,12 @@ data class DeletedCardSection(
     val cardIds: List<Uuid>,
 )
 
+data class DeletedCard(
+    val card: Card,
+    /** The file card's bytes, if it had any — null for a link or a note. */
+    internal val blob: String?,
+)
+
 data class DeletedCollection(
     val collection: Collection,
     val cardSections: List<CardSection>,
@@ -197,7 +203,15 @@ interface CardRepository {
     suspend fun updateNote(id: Uuid, title: String, content: String)
 
     suspend fun rename(id: Uuid, title: String)
-    suspend fun delete(id: Uuid)
+
+    /**
+     * Delete a card — the file bytes go with it. Returns what was taken, for [restore]; null if there
+     * is no such card.
+     */
+    suspend fun delete(id: Uuid): DeletedCard?
+
+    /** Put a deleted card, and its file bytes if it had any, back where it was. */
+    suspend fun restore(deleted: DeletedCard)
 
     /**
      * Move [id] into [toCollectionId], into the group [cardSectionId] (null = ungrouped), at

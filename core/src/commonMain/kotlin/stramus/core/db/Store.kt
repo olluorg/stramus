@@ -37,6 +37,7 @@ import stramus.core.repo.CachedIcon
 import stramus.core.repo.CardRepository
 import stramus.core.repo.CardSectionRepository
 import stramus.core.repo.CollectionRepository
+import stramus.core.repo.DeletedCard
 import stramus.core.repo.DeletedCardSection
 import stramus.core.repo.DeletedCollection
 import stramus.core.repo.DeletedSection
@@ -998,7 +999,10 @@ internal class KormiumCardRepository(
         }
     }
 
-    override suspend fun delete(id: Uuid) {
+    override suspend fun delete(id: Uuid): DeletedCard? {
+        val row = db.suspendAutocommit { Cards.findOne { where { Cards.id eq id } } } ?: return null
+        // The bytes are read out before they are deleted: an undone deletion has to open the file again.
+        val blob = db.suspendAutocommit { CardBlobs.findOne { where { CardBlobs.cardId eq id } }?.data }
         db.suspendTransaction {
             if (syncing()) {
                 // A tombstone, and the bytes left where they are: an undo has to be able to open the file
@@ -1008,6 +1012,21 @@ internal class KormiumCardRepository(
             } else {
                 CardBlobs.deleteWhere { where { CardBlobs.cardId eq id } }
                 Cards.deleteWhere { where { Cards.id eq id } }
+            }
+        }
+        return DeletedCard(row.toModel(), blob)
+    }
+
+    override suspend fun restore(deleted: DeletedCard) {
+        db.suspendTransaction {
+            // The row may still be there as a tombstone (a signed-in database deletes by marking), so it
+            // is replaced rather than inserted — the card that comes back keeps its id and its place, with
+            // a fresh `updatedAt` so the undo beats the deletion on the server.
+            Cards.deleteWhere { where { Cards.id eq deleted.card.id } }
+            Cards.insert(deleted.card.toRow())
+            CardBlobs.deleteWhere { where { CardBlobs.cardId eq deleted.card.id } }
+            deleted.blob?.let { bytes ->
+                CardBlobs.insert(CardBlobRow().apply { this.cardId = deleted.card.id; this.data = bytes })
             }
         }
     }

@@ -93,9 +93,9 @@ private const val UNDO_MS = 30_000
 internal fun key(id: Uuid): Key = id.toString().unsafeCast<Key>()
 
 /**
- * A deletion the user can still take back: what to tell them, and what to run if they do. Nothing but
- * a section, a collection or a card section gets one — deleting a single card is one click to undo by
- * hand, deleting a section is not.
+ * A deletion the user can still take back: what to tell them, and what to run if they do. Every
+ * deletion gets one — a card, a card section, a collection or a section — offered on the toast and,
+ * for the most recent one, on Ctrl/Cmd+Z as well.
  */
 private data class Undo(val message: String, val restore: suspend () -> Unit)
 
@@ -1511,7 +1511,14 @@ val App = FC<AppProps> { props ->
         // The card goes, and with it any unsaved text kept for it — a draft outlives the editor, but
         // it must not outlive the note.
         if (card.kind == CardKind.NOTE) clearNoteDraft(cardDraftKey(card.id))
-        scope.launch { s.cards.delete(card.id); reloadCards(card.collectionId) }
+        scope.launch {
+            val deleted = s.cards.delete(card.id) ?: return@launch
+            reloadCards(card.collectionId)
+            undo = Undo(t.deletedCard(card.title)) {
+                s.cards.restore(deleted)
+                reloadCards(card.collectionId)
+            }
+        }
     }
 
     val onCardStartDrag = useCallback { card: Card -> draggingCardId = card.id }
@@ -1561,9 +1568,14 @@ val App = FC<AppProps> { props ->
     val onResultDelete = useCallback(store, query, selectedId, hiddenCollectionIds) { card: Card ->
         val s = store ?: return@useCallback
         scope.launch {
-            s.cards.delete(card.id)
+            val deleted = s.cards.delete(card.id) ?: return@launch
             searchResults = s.cards.search(query.trim())
             reloadCards(selectedId)
+            undo = Undo(t.deletedCard(card.title)) {
+                s.cards.restore(deleted)
+                searchResults = s.cards.search(query.trim())
+                reloadCards(selectedId)
+            }
         }
     }
 
@@ -1752,6 +1764,26 @@ val App = FC<AppProps> { props ->
         val u = undo ?: return
         undo = null
         scope.launch { u.restore() }
+    }
+
+    // Ctrl/Cmd+Z takes back whatever was just deleted, the same as clicking the toast's Undo button —
+    // the offer is on screen for anyone who looks, but reaching for the shortcut is not remembering to
+    // look. The listener is registered once, so it reads the current undoDelete through a ref rather
+    // than closing over the first render's (stale) one — see [Modals.modalShell] for the same idiom.
+    val undoDeleteRef = useRef(::undoDelete)
+    undoDeleteRef.current = ::undoDelete
+    useEffectOnce {
+        val stopWatching = onKeyStroke { event ->
+            if ((event.ctrlKey || event.metaKey) && event.key.lowercase() == "z" && !isTyping(event)) {
+                event.preventDefault()
+                undoDeleteRef.current?.invoke()
+            }
+        }
+        try {
+            awaitCancellation()
+        } finally {
+            stopWatching()
+        }
     }
 
     fun deleteSection(section: Section) {

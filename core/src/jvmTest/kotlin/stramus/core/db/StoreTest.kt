@@ -175,6 +175,21 @@ class StoreTest {
         store.collections.restore(deleted)
         assertEquals(listOf("Getting started", "second", "third"), store.collections.all().map { it.title })
     }
+
+    @Test
+    fun `an undone card deletion puts it back where it was, not at the end`() = runTest {
+        val store = openStore()
+        val collection = store.collections.all().single().id
+        store.cards.byCollection(collection).forEach { store.cards.delete(it.id) } // drop the seeded note
+        listOf("a", "b", "c").forEach { store.cards.add(collection, it, "https://example.org/$it", null) }
+
+        val b = store.cards.byCollection(collection).first { it.title == "b" }
+        val deleted = store.cards.delete(b.id)!!
+        assertEquals(listOf("a", "c"), store.cards.byCollection(collection).titles())
+
+        store.cards.restore(deleted)
+        assertEquals(listOf("a", "b", "c"), store.cards.byCollection(collection).titles())
+    }
 }
 
 private fun List<Card>.titles(): List<String> = map { it.title }

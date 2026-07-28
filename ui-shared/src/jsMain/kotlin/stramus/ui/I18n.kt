@@ -84,6 +84,7 @@ interface Strings {
     fun deletedSection(title: String): String
     fun deletedCollection(title: String): String
     fun deletedCardSection(title: String): String
+    fun deletedCard(title: String): String
 
     /**
      * A sort is offered back the same way a deletion is: it overwrites an order the user may have
@@ -487,6 +488,7 @@ private object EnStrings : Strings {
     override fun deletedSection(title: String) = "Section “$title” deleted"
     override fun deletedCollection(title: String) = "Collection “$title” deleted"
     override fun deletedCardSection(title: String) = "Group “$title” deleted"
+    override fun deletedCard(title: String) = "“$title” deleted"
     override val sortedCards = "Cards sorted"
     override val undo = "Undo"
 
@@ -859,6 +861,7 @@ private object RuStrings : Strings {
     override fun deletedSection(title: String) = "Раздел «$title» удалён"
     override fun deletedCollection(title: String) = "Коллекция «$title» удалена"
     override fun deletedCardSection(title: String) = "Секция «$title» удалена"
+    override fun deletedCard(title: String) = "«$title» удалена"
     override val sortedCards = "Карточки отсортированы"
     override val undo = "Вернуть"
 
