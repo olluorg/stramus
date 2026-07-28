@@ -270,7 +270,6 @@ interface Strings {
     val openTabs: String
     val showTabs: String
     val hideTabs: String
-    val tabsButton: String
     val noOpenTabs: String
     val searchTabs: String
     val noMatchingTabs: String
@@ -634,7 +633,6 @@ private object EnStrings : Strings {
     override val openTabs = "Open tabs"
     override val showTabs = "Show open tabs"
     override val hideTabs = "Hide open tabs"
-    override val tabsButton = "⧉ Tabs"
     override val noOpenTabs = "No open tabs to save."
     override val searchTabs = "Search tabs…"
     override val noMatchingTabs = "No matching tabs."
@@ -1008,7 +1006,6 @@ private object RuStrings : Strings {
     override val openTabs = "Открытые вкладки"
     override val showTabs = "Показать открытые вкладки"
     override val hideTabs = "Скрыть открытые вкладки"
-    override val tabsButton = "⧉ Вкладки"
     override val noOpenTabs = "Нет открытых вкладок."
     override val searchTabs = "Поиск по вкладкам…"
     override val noMatchingTabs = "Вкладки не найдены."

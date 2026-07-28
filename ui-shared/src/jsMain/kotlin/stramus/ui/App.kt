@@ -2297,14 +2297,6 @@ val App = FC<AppProps> { props ->
                         state = syncUi
                         onOpen = { accountOpen = true }
                     }
-                    if (hasRightSidebar && rightCollapsed) {
-                        button {
-                            className = ClassName("btn")
-                            hint(t.showTabs)
-                            onClick = { rightCollapsed = false; prefSet("rightCollapsed", "0") }
-                            +t.tabsButton
-                        }
-                    }
                 }
             }
 
