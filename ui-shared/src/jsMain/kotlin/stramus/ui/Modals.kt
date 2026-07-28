@@ -59,9 +59,15 @@ internal fun ChildrenBuilder.modalShell(onClose: () -> Unit, panelClass: String,
         }
     }
 
+    // A click's target follows mouseup, not mousedown: dragging a text selection from inside the
+    // panel out over the backdrop and releasing there fires a "click" on the backdrop (their nearest
+    // common ancestor), which looks identical to an outside click unless the press is tracked too.
+    val pressedBackdrop = useRef(false)
+
     div {
         className = ClassName("modal-backdrop")
-        onClick = { onClose() }
+        onMouseDown = { pressedBackdrop.current = it.target == it.currentTarget }
+        onClick = { if (pressedBackdrop.current == true) onClose() }
         div {
             className = ClassName(panelClass)
             // Clicks inside the panel must not fall through to the backdrop's close handler.
