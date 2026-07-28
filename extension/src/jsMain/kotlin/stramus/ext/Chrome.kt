@@ -44,6 +44,7 @@ internal external interface ChromeEvent {
 
 internal external interface ChromeTabs {
     fun query(queryInfo: Json): Promise<Array<ChromeTab>>
+    fun create(createProperties: Json): Promise<ChromeTab>
     fun remove(tabId: Int): Promise<Unit>
     fun update(tabId: Int, updateProperties: Json): Promise<Unit>
     fun move(tabId: Int, moveProperties: Json): Promise<Unit>

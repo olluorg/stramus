@@ -56,4 +56,11 @@ interface TabCapture {
 
     /** Subscribe to tab open/close/move/navigate changes so the list stays live; returns an unsubscribe. */
     fun onTabsChanged(listener: () -> Unit): () -> Unit
+
+    /**
+     * Open [url] as a new background tab — the current one (stramus) stays in front. This is how a
+     * whole group of cards reopens at once: each becomes a tab, the way it would have been before the
+     * session that saved them closed.
+     */
+    suspend fun createTab(url: String)
 }

@@ -1012,6 +1012,27 @@ val App = FC<AppProps> { props ->
         }
     }
 
+    /**
+     * Open every link card of a group at once, each as its own tab — a note or a file has no page to
+     * open, so those are skipped. This is what "restore the session" means for a group that was saved
+     * from one: [openPage] replaces the current tab, which is right for a single link but would just
+     * leave the last card up here, so a real new tab is opened per card instead — in the background
+     * when the extension can do that, or foreground (the browser's own call) when it can't.
+     */
+    fun openAllCards(cardsInGroup: List<Card>) {
+        val links = cardsInGroup.filter { it.kind == CardKind.LINK }
+        if (links.isEmpty()) return
+        links.forEach { recordUse(it.url, it.title) }
+        usageVersion += 1
+
+        val tc = tabCapture
+        if (tc != null) {
+            scope.launch { links.forEach { tc.createTab(it.url) } }
+        } else {
+            links.forEach { openUrl(it.url) }
+        }
+    }
+
     // ---- The section PIN lock ----
 
     // The typed PIN is checked against the section's stored hash and then forgotten; what is
@@ -2395,6 +2416,20 @@ val App = FC<AppProps> { props ->
                         }
                     }
 
+                    // Unlike the tools above, this opens rather than writes — a read-only collection
+                    // gets it too, which is the whole point for session recovery: the group that was
+                    // saved read-only comes back exactly the same way a read-write one does.
+                    fun ChildrenBuilder.groupOpenAllButton(groupCards: List<Card>) {
+                        val linkCount = groupCards.count { it.kind == CardKind.LINK }
+                        if (linkCount == 0) return
+                        button {
+                            className = ClassName("icon open-all")
+                            hint(t.openAllHint(linkCount))
+                            onClick = { e -> e.stopPropagation(); openAllCards(groupCards) }
+                            +"↗"
+                        }
+                    }
+
                     run {
                         // Cards, tabs and history entries can all be dropped into a group; collections
                         // cannot, and a read-only collection takes none of the three.
@@ -2424,10 +2459,13 @@ val App = FC<AppProps> { props ->
                                     +t.ungrouped
                                     span { className = ClassName("count"); +" ${ungrouped.size}" }
                                 }
-                                if (editable) div {
+                                if (editable || ungrouped.any { it.kind == CardKind.LINK }) div {
                                     className = ClassName("card-section-tools")
-                                    groupAddMenu(null)
-                                    groupSortMenu(null)
+                                    groupOpenAllButton(ungrouped)
+                                    if (editable) {
+                                        groupAddMenu(null)
+                                        groupSortMenu(null)
+                                    }
                                 }
                             }
                             if (ungrouped.isNotEmpty()) {
@@ -2518,27 +2556,30 @@ val App = FC<AppProps> { props ->
                                         }
                                         span { className = ClassName("count"); +" ${groupCards.size}" }
                                     }
-                                    if (editable) div {
+                                    if (editable || groupCards.any { it.kind == CardKind.LINK }) div {
                                         className = ClassName("card-section-tools")
-                                        groupAddMenu(cs.id)
-                                        groupSortMenu(cs.id)
-                                        button {
-                                            className = ClassName("icon edit")
-                                            hint(t.editDescription)
-                                            onClick = { e ->
-                                                e.stopPropagation()
-                                                descModal = DescModal(cs.id, cs.title, cs.description ?: "")
+                                        groupOpenAllButton(groupCards)
+                                        if (editable) {
+                                            groupAddMenu(cs.id)
+                                            groupSortMenu(cs.id)
+                                            button {
+                                                className = ClassName("icon edit")
+                                                hint(t.editDescription)
+                                                onClick = { e ->
+                                                    e.stopPropagation()
+                                                    descModal = DescModal(cs.id, cs.title, cs.description ?: "")
+                                                }
+                                                +"✎"
                                             }
-                                            +"✎"
-                                        }
-                                        button {
-                                            className = ClassName("icon del")
-                                            hint(t.deleteCardSectionHint)
-                                            onClick = { e ->
-                                                e.stopPropagation()
-                                                deleteCardSection(cs, current.id)
+                                            button {
+                                                className = ClassName("icon del")
+                                                hint(t.deleteCardSectionHint)
+                                                onClick = { e ->
+                                                    e.stopPropagation()
+                                                    deleteCardSection(cs, current.id)
+                                                }
+                                                +"×"
                                             }
-                                            +"×"
                                         }
                                     }
                                 }

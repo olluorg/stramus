@@ -518,6 +518,10 @@
         .icon.edit { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; padding: 0 4px; opacity: 0; }
         .card-section-head:hover .icon.edit { opacity: 1; }
         .icon.edit:hover { color: var(--accent); }
+        /* Unlike edit/del, open-all reads rather than writes, so it shows on a read-only collection too. */
+        .icon.open-all { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; padding: 0 4px; opacity: 0; }
+        .card-section-head:hover .icon.open-all { opacity: 1; }
+        .icon.open-all:hover { color: var(--accent); }
         .card-section-desc { margin: -2px 0 12px; color: var(--muted); font-size: 13px; }
         .card-section-desc p { margin: 4px 0; }
         .card-section-desc ul { margin: 4px 0; padding-left: 20px; }

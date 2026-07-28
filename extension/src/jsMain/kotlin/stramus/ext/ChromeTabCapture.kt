@@ -69,6 +69,12 @@ object ChromeTabCapture : TabCapture {
         }
     }
 
+    override suspend fun createTab(url: String) {
+        // Background, not active: reopening a group is not meant to march the user's focus through
+        // every tab it creates — they land behind, the way "open all bookmarks" leaves the folder up.
+        chrome.tabs.create(json("url" to url, "active" to false)).await()
+    }
+
     override fun onTabsChanged(listener: () -> Unit): () -> Unit {
         val callback: (Any?) -> Unit = { listener() }
         val events = with(chrome.tabs) {

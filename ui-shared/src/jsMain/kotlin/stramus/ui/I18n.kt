@@ -73,6 +73,9 @@ interface Strings {
     val addCardHint: String
     val deleteCardHint: String
 
+    /** The group's "open all" button — [count] is how many of its cards are links, the rest skipped. */
+    fun openAllHint(count: Int): String
+
     // Deleting, and the way back from it. Only what holds something is asked about — deleting an
     // empty section is nothing to stop the user over — but everything deleted can be undone.
     fun confirmDeleteSection(title: String, cards: Int): String
@@ -473,6 +476,7 @@ private object EnStrings : Strings {
     override val deleteCardSectionHint = "Delete this group — its cards stay in the collection, ungrouped"
     override val addCardHint = "Add a link — or, from the menu, a note or a file"
     override val deleteCardHint = "Delete this card"
+    override fun openAllHint(count: Int) = "Open all $count cards as new tabs"
 
     override fun confirmDeleteSection(title: String, cards: Int) =
         "“$title” and its collections hold $cards saved items. Delete the section?"
@@ -844,6 +848,7 @@ private object RuStrings : Strings {
     override val deleteCardSectionHint = "Удалить секцию — её карточки останутся в коллекции, без секции"
     override val addCardHint = "Добавить ссылку — или, из меню, заметку либо файл"
     override val deleteCardHint = "Удалить карточку"
+    override fun openAllHint(count: Int) = "Открыть все карточки ($count) в новых вкладках"
 
     override fun confirmDeleteSection(title: String, cards: Int) =
         "В разделе «$title» и его коллекциях сохранено элементов: $cards. Удалить раздел?"
