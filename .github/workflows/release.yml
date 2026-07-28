@@ -44,9 +44,15 @@ jobs:
 
       # Package the loadable extension directory. Source maps are dropped to keep the
       # artifact lean and Web-Store-friendly; the manifest + bundle + wasm are kept.
+      # Manual runs (workflow_dispatch) have no tag to read a version from, so the
+      # manifest is the source of truth there; tag pushes already validated the two agree.
       - name: Package extension ZIP
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION=$(jq -r .version extension/src/jsMain/resources/manifest.json)
+          fi
           OUT="stramus-extension-${VERSION}.zip"
           echo "ZIP=$OUT" >> "$GITHUB_ENV"
           cd extension/build/dist/js/productionExecutable
@@ -58,7 +64,17 @@ jobs:
           done
           zip -r "$GITHUB_WORKSPACE/$OUT" . -x '*.map' -x '*.LICENSE.txt'
 
+      # GitHub Releases require a tag, which a manual run doesn't have — upload the
+      # ZIP as a workflow artifact instead so the build stays inspectable/downloadable.
+      - name: Upload build artifact
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ZIP }}
+          path: ${{ env.ZIP }}
+
       - name: Create GitHub Release
+        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ env.ZIP }}
