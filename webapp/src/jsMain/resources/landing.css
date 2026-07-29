@@ -1,0 +1,250 @@
+/*
+ * The front page at stramus.space, and nothing else — every rule here is under `.lp`.
+ *
+ * It borrows the app's palette rather than declaring one: the custom properties (--bg, --panel, --border,
+ * --text, --muted, --accent) are set in index.html, follow the OS preference, and are overridden by the
+ * theme the user chose in the app. So the landing page is dark for somebody who keeps the app dark, and it
+ * cannot drift out of step with it — there is only ever one set of colours.
+ *
+ * Only the web app loads this. The extension shares index.html but has no front page: it is installed by
+ * the time it runs.
+ */
+
+/* The app fills the window exactly; the landing page is as tall as its content. */
+#root:has(.lp) { height: auto; }
+
+.lp {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 24px 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 64px;
+}
+
+.lp h1, .lp h2, .lp h3 { margin: 0; letter-spacing: -0.01em; }
+.lp p { margin: 0; }
+
+/* Header ------------------------------------------------------------------------------------------ */
+
+.lp-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 20px 0;
+    flex-wrap: wrap;
+}
+.lp-brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; }
+.lp-brand img { width: 28px; height: 28px; border-radius: 6px; }
+
+.lp-nav { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.lp-nav a { color: var(--muted); text-decoration: none; font-size: 13px; }
+.lp-nav a:hover { color: var(--accent); }
+
+.lp-lang { display: flex; gap: 2px; border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
+.lp-lang button {
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.lp-lang button:hover { color: var(--accent); }
+.lp-lang button.lp-lang-on { background: var(--accent-soft); color: var(--accent); }
+
+/* Hero -------------------------------------------------------------------------------------------- */
+
+.lp-hero {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 40px;
+    align-items: start;
+    padding-top: 24px;
+}
+.lp-hero-text { display: flex; flex-direction: column; align-items: flex-start; gap: 20px; }
+.lp-hero h1 { font-size: clamp(30px, 5vw, 46px); line-height: 1.12; }
+.lp-lead { font-size: 16px; line-height: 1.6; color: var(--muted); max-width: 34em; }
+.lp-hint { font-size: 12px; line-height: 1.5; color: var(--muted); }
+.lp-hero-text .lp-hint { margin-top: -12px; }
+
+.lp-cta {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 11px 20px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.lp-cta:hover { border-color: var(--accent); color: var(--accent); }
+.lp-cta.lp-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.lp-cta.lp-primary:hover { filter: brightness(1.05); color: #fff; }
+
+/* The sign-in panel ------------------------------------------------------------------------------- */
+
+.lp-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.lp-card h2 { font-size: 18px; }
+
+.lp-card label { display: block; font-size: 12px; color: var(--muted); }
+.lp-card label input {
+    display: block;
+    width: 100%;
+    margin-top: 5px;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+}
+.lp-card label input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+
+.lp-btn {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 9px 14px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+.lp-btn:hover { border-color: var(--accent); color: var(--accent); }
+.lp-btn:disabled { opacity: 0.6; cursor: default; }
+.lp-btn.lp-primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.lp-btn.lp-primary:hover { filter: brightness(1.05); color: #fff; }
+.lp-btn.lp-google { width: 100%; }
+/* The way between the two doors: a link in everything but the element it is made of. */
+.lp-btn.lp-plain {
+    align-self: flex-start;
+    border: none;
+    background: none;
+    color: var(--muted);
+    padding: 0;
+    font-size: 12px;
+    text-decoration: underline;
+}
+.lp-btn.lp-plain:hover { color: var(--accent); }
+
+.lp-row { display: flex; gap: 8px; }
+.lp-row .lp-btn { flex: 1; }
+.lp-error { font-size: 12px; color: var(--danger); }
+
+/* The picture of the app -------------------------------------------------------------------------- */
+
+.lp-shot {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--bg);
+    /* Decoration, not documentation: nothing here is interactive and nothing may be read out as if it
+       were part of the app the user is in. */
+    user-select: none;
+}
+.lp-shot-side {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 14px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.lp-shot-brand { font-weight: 700; padding: 2px 8px 10px; }
+.lp-shot-sec {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    padding: 10px 8px 3px;
+}
+.lp-shot-col { font-size: 13px; padding: 6px 8px; border-radius: 8px; color: var(--text); }
+.lp-shot-col-on { background: var(--accent-soft); color: var(--accent); }
+
+.lp-shot-main { padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+.lp-shot-bar {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 9px 12px;
+    font-size: 13px;
+    color: var(--muted);
+}
+.lp-shot-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.lp-shot-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    min-height: 84px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 12px;
+}
+.lp-shot-dot { width: 16px; height: 16px; border-radius: 5px; background: var(--accent-soft); }
+
+/* Features and the two notes below them ------------------------------------------------------------ */
+
+.lp-features { display: flex; flex-direction: column; gap: 24px; }
+.lp-features h2 { font-size: 24px; }
+.lp-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+.lp-feature {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.lp-feature h3 { font-size: 15px; }
+.lp-feature p { font-size: 13px; line-height: 1.6; color: var(--muted); }
+
+.lp-band { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+.lp-band-item { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.lp-band-item h3 { font-size: 18px; }
+.lp-band-item p { font-size: 14px; line-height: 1.6; color: var(--muted); }
+.lp-link { color: var(--accent); text-decoration: none; font-size: 13px; }
+.lp-link:hover { text-decoration: underline; }
+
+.lp-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    border-top: 1px solid var(--border);
+    padding-top: 20px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+/* Narrow windows ----------------------------------------------------------------------------------- */
+
+@media (max-width: 860px) {
+    .lp { gap: 44px; padding: 0 16px 48px; }
+    .lp-hero { grid-template-columns: 1fr; gap: 28px; }
+    .lp-grid, .lp-band { grid-template-columns: 1fr; }
+    .lp-shot-grid { grid-template-columns: repeat(2, 1fr); }
+    /* The sidebar is the app's shape, not its content: on a phone the cards say more in the same width. */
+    .lp-shot { grid-template-columns: 1fr; }
+    .lp-shot-side { display: none; }
+}

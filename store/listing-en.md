@@ -50,5 +50,5 @@ handed to anyone.
 A PIN on a section keeps it off your screen; it is not encryption, and it does not hide the section
 from the server. The privacy policy says so plainly, and says what else an account means.
 
-Privacy policy: https://olluorg.github.io/stramus/privacy.html
+Privacy policy: https://stramus.space/privacy.html
 Source code: https://github.com/olluorg/stramus

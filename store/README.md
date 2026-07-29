@@ -26,9 +26,9 @@ why the store's own "name" and "short description" fields will be pre-filled and
 | Category | Productivity → Workflow & Planning |
 | Language | English (default), Russian |
 | Detailed description | [`listing-en.md`](listing-en.md), [`listing-ru.md`](listing-ru.md) |
-| Homepage URL | `https://olluorg.github.io/stramus/` |
+| Homepage URL | `https://stramus.space/` |
 | Support URL | `https://github.com/olluorg/stramus/issues` |
-| Privacy policy URL | `https://olluorg.github.io/stramus/privacy.html` |
+| Privacy policy URL | `https://stramus.space/privacy.html` |
 
 ### Graphic assets
 

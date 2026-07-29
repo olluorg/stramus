@@ -109,6 +109,13 @@ external interface AccountDialogProps : Props {
     var store: StramusStore
     /** Null where there is no way to reach Google — then that door is not offered. */
     var google: GoogleSignIn?
+
+    /**
+     * The account this browser has already been signed into elsewhere — on the landing page, before the
+     * database was open — when the dialog opens straight on the one question that sign-in could not answer
+     * on its own. Null for a dialog the user opened themselves, which starts at the sign-in form.
+     */
+    var joinPrompt: Uuid?
     /** Run after anything that changes the database, so the app redraws what the sync brought in. */
     var onSynced: () -> Unit
     var onState: (SyncUi) -> Unit
@@ -137,8 +144,9 @@ val AccountDialog = FC<AccountDialogProps> { props ->
     var error by useState<String?>(null)
 
     // Signing in on a browser that already has collections asks a question that has no safe default: are
-    // these the account's, or is the account's what should be here? Nobody but the user knows.
-    var joining by useState<Uuid?>(null)
+    // these the account's, or is the account's what should be here? Nobody but the user knows. It may
+    // already be waiting when the dialog opens: see [AccountDialogProps.joinPrompt].
+    var joining by useState(props.joinPrompt)
 
     fun fail(e: Throwable) {
         error = (e as? ApiException)?.message ?: e.message ?: "…"

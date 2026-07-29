@@ -3,10 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>stramus</title>
+    <title>stramus — tabs in collections</title>
+    <!-- What a link to this address shows when it is shared, and what a search engine reads. Only the
+         landing page is ever indexed: the app behind it is one address and no content of its own. -->
+    <meta name="description" content="Tab manager in the spirit of Toby: open tabs saved into collections, one search over everything you saved, everything open and everywhere you have been. Works in the browser, with or without an account.">
+    <link rel="canonical" href="https://stramus.space/">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="stramus — tabs in collections">
+    <meta property="og:description" content="Open tabs saved into collections, one search over everything, kept in your browser.">
+    <meta property="og:url" content="https://stramus.space/">
+    <meta property="og:image" content="https://stramus.space/logo-128.png">
+    <meta name="twitter:card" content="summary">
     <link rel="icon" type="image/png" sizes="32x32" href="logo-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="logo-16.png">
     <link rel="apple-touch-icon" sizes="128x128" href="logo-128.png">
+    <!-- The front page's own styles, and the one thing this file does not share with the extension's
+         copy of it: an extension is installed by the time it runs and has nothing to introduce. -->
+    <link rel="stylesheet" href="landing.css">
     <style>
         :root {
             --bg: #f6f7f9;

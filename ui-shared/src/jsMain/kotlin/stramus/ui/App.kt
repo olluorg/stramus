@@ -569,6 +569,13 @@ external interface AppProps : Props {
      * on this machine; null in the web app, which has nothing to read but the public icon services.
      */
     var iconSources: IconSources?
+
+    /**
+     * The client that already holds the conversation with the server, where somebody signed in before the
+     * app was on screen — the web app's landing page does exactly that. Null everywhere else, and then the
+     * app makes its own; either way the session itself lives in `localStorage`, not in the object.
+     */
+    var api: StramusApi?
 }
 
 val App = FC<AppProps> { props ->
@@ -586,10 +593,15 @@ val App = FC<AppProps> { props ->
     // The server, and this database's side of the conversation with it. Made once, and made whether or
     // not anyone is signed in: the badge has to be able to say "not signed in", and the account dialog
     // has to have something to sign in *with*.
-    val api = useMemo { StramusApi(serverBaseUrl()) }
+    val api = useMemo { props.api ?: StramusApi(serverBaseUrl()) }
     var engine by useState<SyncEngine?>(null)
     var syncUi by useState(SyncUi())
     var accountOpen by useState(false)
+
+    // Set when a session was signed in somewhere the database was not open yet — the landing page — and
+    // this browser turns out to have work of its own. Nobody but the user can say what happens to it, so
+    // the account dialog opens on that question and nothing moves until it is answered.
+    var joinPrompt by useState<Uuid?>(null)
 
     // Off unless the user says otherwise. The collections are things they chose to keep; this is a record
     // of where they have been, and that is not the same thing to put on a server.
@@ -1017,7 +1029,23 @@ val App = FC<AppProps> { props ->
         val e = engine ?: return@useEffect
 
         val me = runCatching { api.resume() }.getOrNull()
-        if (me != null && e.signedIn()) {
+        if (me != null && !e.signedIn()) {
+            // A session, but a database that has never belonged to it: the signing in happened before there
+            // was a database to sign in — on the landing page, which is a page and not the app. Attaching it
+            // is the same decision the account dialog makes, and it is made the same way. A first install has
+            // nothing but our own welcome note, so there is nothing to decide and nobody is asked.
+            val s = store
+            val hasLocalWork = s != null && !s.seeded &&
+                s.collections.all().any { collection -> s.cards.count(collection.id) > 0 }
+            if (hasLocalWork) {
+                joinPrompt = Uuid.parse(me.userId)
+                accountOpen = true
+            } else {
+                runCatching { e.signIn(Uuid.parse(me.userId), api.deviceId) }
+                syncUi = SyncUi(SyncStatus.IDLE, me.email)
+                runSync()
+            }
+        } else if (me != null && e.signedIn()) {
             syncUi = SyncUi(SyncStatus.IDLE, me.email)
             runSync()
         } else if (e.signedIn()) {
@@ -3105,9 +3133,13 @@ val App = FC<AppProps> { props ->
                 engine = liveEngine
                 store = liveStore
                 google = props.google
+                this.joinPrompt = joinPrompt
                 onSynced = { reloadAfterSync() }
                 onState = { syncUi = it }
-                onClose = { accountOpen = false }
+                onClose = {
+                    accountOpen = false
+                    joinPrompt = null
+                }
             }
         }
 

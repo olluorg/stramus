@@ -5,7 +5,8 @@
 
 Написан на Kotlin/JS (React через kotlin-wrappers). Данные лежат в SQLite, который крутится в браузере
 поверх IndexedDB — через [Kormium](https://github.com/olluorg/korm) и его движок `kormium-sqlite-js`.
-Никакого сервера и никаких аккаунтов: всё хранится локально в браузере.
+Всё хранится локально в браузере: сервер и аккаунт — необязательное дополнение, которое даёт те же
+коллекции на втором устройстве, и ничего больше.
 
 ## Что нужно для сборки
 
@@ -31,7 +32,37 @@
 ```
 
 Результат — статика в `webapp/build/dist/js/productionExecutable/`, её можно отдавать любым
-статическим сервером. Именно эта папка уезжает на GitHub Pages.
+статическим сервером. Именно эта папка уезжает на GitHub Pages, на домен <https://stramus.space>.
+
+### Лендинг и вход
+
+По адресу stramus.space отдаётся тот же бандл, но первым экраном — лендинг: что это, что умеет и две
+двери внутрь. Правило, по которому выбирается экран, живёт в `webapp/src/jsMain/kotlin/stramus/web/Main.kt`:
+
+- `#about` — всегда лендинг; это единственный способ вернуться на него из приложения;
+- есть сессия (в `localStorage` лежит refresh-токен) — сразу приложение;
+- иначе лендинг, но только до первого входа: любая из двух дверей ставит `stramus.landingSeen`, и
+  дальше открывается приложение.
+
+Вторая дверь — «Попробовать без аккаунта» — не хуже первой: приложение никогда не требовало сервера и
+не требует его сейчас (см. [`docs/sync-and-auth.md`](docs/sync-and-auth.md)). Вход на лендинге получает
+только сессию; привязывает её к локальной базе уже приложение (`App.kt`), и оно же задаёт единственный
+вопрос, на который вход ответить не может: браузеру с готовыми коллекциями — присоединить их к аккаунту
+или заменить тем, что в аккаунте. Свежую установку никто не спрашивает: там нет ничего, кроме нашей же
+приветственной заметки.
+
+Тексты лендинга — `webapp/src/jsMain/kotlin/stramus/web/LandingStrings.kt` (en/ru, переключатель в
+шапке), стили — `webapp/src/jsMain/resources/landing.css`. Палитра не своя: те же CSS-переменные, что у
+приложения, поэтому лендинг живёт в выбранной пользователем теме.
+
+### Домен
+
+`webapp/src/jsMain/resources/CNAME` — то, чем GitHub Pages держит домен: файл копируется в бандл, и
+деплой без него снял бы домен с сайта. DNS у регистратора: `A`/`AAAA` для вершины на адреса GitHub
+Pages (`185.199.108–111.153`) и `CNAME www → olluorg.github.io`.
+
+Серверу домен тоже нужно назвать — иначе браузер не выпустит к нему ни одного запроса от лендинга:
+`STRAMUS_ALLOWED_ORIGINS` должен содержать `https://stramus.space` (см. `compose.yaml`).
 
 ## Расширение для Chrome
 
@@ -60,9 +91,11 @@ extension/build/dist/js/productionExecutable/
 добавление ссылок, а иконки, за неимением браузера, у которого их можно спросить, берутся у публичных
 сервисов иконок.
 
-## Сервер синхронизации (в разработке)
+## Сервер синхронизации
 
-Пока не задеплоен: сервер поднимается локально, клиент по умолчанию ходит на `http://localhost:8090`.
+Адрес боевого сервера не лежит в исходниках: он приезжает из переменной `STRAMUS_SERVER_URL`
+(GitHub Actions → Variables) и запекается в бандл на сборке. В локальной сборке она пустая, и клиент
+ходит на `http://localhost:8090` — туда, где сервер поднимается вот так:
 
 ```bash
 ./gradlew :server:run          # порт 8090; база — файл stramus.db рядом
@@ -86,7 +119,7 @@ localStorage.setItem("stramus.server", "https://example.org")
 
 Нужен OAuth-клиент в Google Cloud Console (тип «Web application»). Разрешённые redirect URI:
 
-- веб-версия — `https://olluorg.github.io/stramus/oauth.html` (и `http://localhost:8080/oauth.html` для разработки);
+- веб-версия — `https://stramus.space/oauth.html` (и `http://localhost:8080/oauth.html` для разработки);
 - расширение — `https://<extension-id>.chromiumapp.org/`.
 
 Один и тот же client ID прописывается **и серверу** (`STRAMUS_GOOGLE_CLIENT_ID`), **и клиенту**:
@@ -100,7 +133,8 @@ localStorage.setItem("stramus.googleClientId", "…apps.googleusercontent.com")
 то, что токен выписан **именно этому** приложению (`aud`): без последней проверки любой человек со своим
 приложением в Google мог бы войти под кем угодно.
 
-Расширению нужен `host_permissions` на этот адрес (в `manifest.json` сейчас стоит localhost:8090).
+Расширению нужен `host_permissions` на этот адрес — сейчас в `manifest.json` стоят `localhost:8090`
+(разработка) и `api.stramus.space` (прод).
 
 Переменные окружения сервера:
 
@@ -109,13 +143,14 @@ localStorage.setItem("stramus.googleClientId", "…apps.googleusercontent.com")
 | `PORT`, `STRAMUS_DB`, `STRAMUS_BLOBS` | порт, файл базы, папка с байтами файлов |
 | `STRAMUS_JWT_SECRET` | подпись access-токенов |
 | `STRAMUS_ALLOWED_ORIGINS` | CORS: через запятую |
-| `STRAMUS_SMTP_HOST` / `_PORT` / `_USER` / `_PASSWORD` / `STRAMUS_MAIL_FROM` | почта для одноразовых кодов; без хоста коды печатаются в лог |
+| `STRAMUS_SMTP_HOST` / `_PORT` / `_USER` / `_PASSWORD` / `STRAMUS_MAIL_FROM` | почта для одноразовых кодов; без хоста в production эта дверь входа просто закрыта (501), а не открыта в лог |
 | `STRAMUS_GOOGLE_CLIENT_ID` | вход через Google; без него эта дверь просто отсутствует |
 | `STRAMUS_ENV=production` | боевой режим |
 
-В боевом режиме сервер **не стартует**, если остался дев-секрет, если в CORS остался localhost, если не
-задан SMTP-хост (иначе коды входа уезжали бы в лог, а лог — это доступ ко всем аккаунтам) или если
-соединение с почтой не шифруется.
+В боевом режиме сервер **не стартует**, если остался дев-секрет или если в CORS остался localhost.
+SMTP не обязателен: без него production стартует нормально, но `/v1/auth/code/*` отвечает 501 —
+пароль и вход через Google продолжают работать. Если SMTP всё же задан, соединение обязано быть
+шифрованным.
 
 Почта — обычный SMTP, а не API конкретного провайдера: Postmark, SES, Fastmail или свой релей
 подключаются сменой хоста, без единой строки кода.
@@ -130,13 +165,13 @@ localStorage.setItem("stramus.googleClientId", "…apps.googleusercontent.com")
 amd64 и arm64). Быстрый путь — [`compose.yaml`](compose.yaml) в корне репозитория:
 
 ```bash
-# отредактируйте environment (секрет, origins, SMTP), затем:
+# отредактируйте environment (секрет, origins; SMTP — по желанию), затем:
 docker compose up -d
 ```
 
 Всё состояние — база и байты файлов — лежит в одном томе `/data`; его и нужно бэкапить. Сервер отдаёт
 `/health` для оркестратора, работает от непривилегированного пользователя и в боевом режиме не стартует,
-пока не заданы секрет, origins и SMTP-хост — то есть падает громко, а не тихо раздаёт аккаунты.
+пока не заданы секрет и origins — то есть падает громко, а не тихо раздаёт аккаунты.
 
 Собрать образ локально: `docker build -t stramus-server .`
 
@@ -163,7 +198,7 @@ docker compose up -d
 Всё, что просит форма Web Store, лежит в [`store/`](store/README.md): чек-лист, тексты карточки на
 двух языках, обоснования разрешений и ответы про данные. Политика конфиденциальности — страница
 `webapp/src/jsMain/resources/privacy.html`, она уезжает на Pages вместе с веб-версией и живёт по
-адресу <https://olluorg.github.io/stramus/privacy.html>.
+адресу <https://stramus.space/privacy.html>.
 
 Название, краткое описание и подсказка на кнопке берутся не из `manifest.json`, а из
 `extension/src/jsMain/resources/_locales/{en,ru}/messages.json` — Web Store читает их из загруженного
@@ -205,7 +240,7 @@ Kormium подхватываются сразу, без публикации а�
 ## CI/CD
 
 - **CI** (`ci.yml`) — собирает оба бандла на каждый PR и push в `main`.
-- **Pages** (`pages.yml`) — деплоит веб-версию на <https://olluorg.github.io/stramus/> при push в `main`.
+- **Pages** (`pages.yml`) — деплоит веб-версию (лендинг + приложение) на <https://stramus.space> при push в `main`.
 - **Release** (`release.yml`) — по тегу собирает ZIP с расширением и вешает его на GitHub Release.
   Этот же ZIP и загружается в Web Store. Тег должен совпадать с `version` в `manifest.json` —
   workflow это проверяет и падает, если версии разошлись:
