@@ -103,13 +103,17 @@ class SmtpMailer(private val config: ServerConfig) : Mailer {
 }
 
 /**
- * The mailer the configuration asks for: a real one when there is a mail server to talk to, and the log
- * when there is not.
+ * The mailer the configuration asks for: a real one when there is a mail server to talk to, the log when
+ * there is not and this is a developer's machine, and [DisabledMailer] when there is not and this is
+ * production.
  *
  * A development machine has no relay and should not need one — the code goes to the log, and the developer
- * signs in. A production server without `STRAMUS_SMTP_HOST` would do the same thing, which would print
- * every sign-in code of every user into the log and hand the account to whoever can read it; so it refuses
- * to start instead (see [ServerConfig.requireProduction]).
+ * signs in. A production server without `STRAMUS_SMTP_HOST` doing the same thing would print every
+ * sign-in code of every user into the log and hand the account to whoever can read it; it refuses to send
+ * codes at all instead, and the password and Google doors carry on regardless (see [ServerConfig]).
  */
-fun mailerFor(config: ServerConfig): Mailer =
-    if (config.smtpHost.isNotBlank()) SmtpMailer(config) else LoggingMailer()
+fun mailerFor(config: ServerConfig): Mailer = when {
+    config.smtpHost.isNotBlank() -> SmtpMailer(config)
+    config.production -> DisabledMailer()
+    else -> LoggingMailer()
+}

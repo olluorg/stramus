@@ -23,6 +23,17 @@ class LoggingMailer : Mailer {
     }
 }
 
+/**
+ * Stands in for the mail door when no relay is configured in production: refuses rather than falling
+ * back to [LoggingMailer], which would print every sign-in code into a log anyone with server access can
+ * read. The password and Google doors are unaffected — this only closes the one door that needed mail.
+ */
+class DisabledMailer : Mailer {
+    override suspend fun sendLoginCode(email: String, code: String) {
+        throw AccountException(501, "signing in with a mailed code is not set up on this server")
+    }
+}
+
 /** Keeps what it was asked to send, for tests to read back. */
 class RecordingMailer : Mailer {
     private val sent = mutableListOf<Pair<String, String>>()

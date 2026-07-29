@@ -55,20 +55,24 @@ class MailerTest {
     }
 
     @Test
-    fun `with no mail server configured, the codes go to the log instead`() {
-        // Which is right on a developer's machine and a catastrophe in production — where the server refuses
-        // to start rather than do it. See ServerConfig.requireProduction.
+    fun `with no mail server configured, the codes go to the log on a developer's machine`() {
         assertTrue(mailerFor(ServerConfig()) is LoggingMailer)
         assertTrue(mailerFor(ServerConfig(smtpHost = "smtp.example.org")) is SmtpMailer)
     }
 
     @Test
-    fun `a production server will not start without a mail server`() {
-        val config = production().copy(smtpHost = "")
-        val failure = runCatching { config.requireProduction() }.exceptionOrNull()
+    fun `with no mail server configured, production closes the mailed-code door instead of logging`() {
+        assertTrue(mailerFor(production().copy(smtpHost = "", production = true)) is DisabledMailer)
+    }
+
+    @Test
+    fun `a production server starts without a mail server — it just cannot mail a code`() = runTest {
+        production().copy(smtpHost = "").requireProduction() // must not throw
+
+        val failure = runCatching { DisabledMailer().sendLoginCode("ada@example.org", "123456") }.exceptionOrNull()
         assertTrue(
-            failure?.message?.contains("STRAMUS_SMTP_HOST") == true,
-            "it should say which setting is missing, not merely fail: ${failure?.message}",
+            failure is AccountException && failure.status == 501,
+            "requesting a code should say the door is closed, not pretend to have sent one: $failure",
         )
     }
 

@@ -35,9 +35,9 @@ data class ServerConfig(
     val loginCodeTtl: Duration = 10.minutes,
 
     /**
-     * The mail relay the one-time codes go through. Blank means there is none, and the codes go to the log
-     * instead — which is right on a developer's machine and a catastrophe anywhere else, so production
-     * refuses to start without it.
+     * The mail relay the one-time codes go through. Blank means there is none: on a developer's machine the
+     * codes go to the log, and in production the mailed-code door is simply closed ([DisabledMailer]) rather
+     * than the server refusing to start — password and Google sign-in need no mail relay.
      */
     val smtpHost: String = "",
     val smtpPort: Int = 587,
@@ -126,10 +126,8 @@ data class ServerConfig(
         require(allowedOrigins.none { it.startsWith("http://localhost") }) {
             "STRAMUS_ALLOWED_ORIGINS still names localhost"
         }
-        require(smtpHost.isNotBlank()) {
-            "STRAMUS_SMTP_HOST is not set — sign-in codes would be printed to the log, " +
-                "which hands every account to anyone who can read it"
-        }
+        // No mail relay is not refused here: without STRAMUS_SMTP_HOST, mailerFor() hands out a
+        // DisabledMailer rather than logging codes, so the mailed-code door is closed, not insecure.
         require(smtpRequireTls) {
             "the mail connection is unencrypted — the SMTP password and every sign-in code would cross " +
                 "the network in the clear"
