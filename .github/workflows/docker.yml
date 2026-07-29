@@ -73,7 +73,10 @@ jobs:
           # A pushed image that does not run is worse than no image at all: it is a green tick on a broken
           # deploy, found out by whoever pulls it. So the thing that was just pushed is pulled back and asked
           # whether it is alive.
-          docker run -d --name check -p 8090:8090 -v "$(mktemp -d)":/data "$IMAGE:sha-$GITHUB_SHA"
+          # world-writable: the image runs as its own unprivileged user, whose uid the runner's mktemp
+          # does not know to match, and this directory dies with the runner anyway.
+          DATA_DIR="$(mktemp -d)" && chmod 777 "$DATA_DIR"
+          docker run -d --name check -p 8090:8090 -v "$DATA_DIR":/data "$IMAGE:sha-$GITHUB_SHA"
           for _ in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8090/health; then
               echo "the server answers"
