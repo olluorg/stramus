@@ -28,11 +28,13 @@ import stramus.core.sync.SyncEngine
 /**
  * Where the server lives.
  *
- * There is no deployed one yet, so this points at a developer's own. `localStorage` overrides it, which
- * is how the extension — which cannot be given an environment variable — is pointed somewhere else while
- * this is still being built.
+ * [DEFAULT_SERVER_URL] is baked in at build time from `STRAMUS_SERVER_URL` (see build.gradle.kts) — blank
+ * for a developer's own build, the deployed address for CI's. `localStorage` overrides either one, which is
+ * how the extension — which cannot be given an environment variable at runtime — is pointed somewhere else
+ * without a rebuild.
  */
-fun serverBaseUrl(): String = localStorage.getItem("stramus.server") ?: "http://localhost:8090"
+fun serverBaseUrl(): String =
+    localStorage.getItem("stramus.server") ?: DEFAULT_SERVER_URL.ifBlank { "http://localhost:8090" }
 
 /**
  * The OAuth client id of this application, as registered with Google — the same one the server checks the

@@ -40,6 +40,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Build production extension bundle
+        env:
+          STRAMUS_SERVER_URL: ${{ vars.STRAMUS_SERVER_URL }}
         run: ./gradlew :extension:jsBrowserDistribution --no-daemon
 
       # Package the loadable extension directory. Source maps are dropped to keep the

@@ -14,7 +14,8 @@
     "identity"
   ],
   "host_permissions": [
-    "http://localhost:8090/*"
+    "http://localhost:8090/*",
+    "https://stramus.space/*"
   ],
   "minimum_chrome_version": "138",
   "icons": {
