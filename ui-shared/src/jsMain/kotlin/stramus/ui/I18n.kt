@@ -374,6 +374,12 @@ interface Strings {
     val cardUrlsShow: String
     val cardUrlsHide: String
 
+    /** Settings: which side the sections/collections sidebar sits on, vs. the tabs/history one. */
+    val swapSidebars: String
+    val swapSidebarsHint: String
+    val swapSidebarsLeft: String
+    val swapSidebarsRight: String
+
     /** Settings: which collection the page opens on. */
     val startupSection: String
     val startView: String
@@ -725,6 +731,10 @@ private object EnStrings : Strings {
     override val cardUrlsHint = "Whether a link card shows its address under the title."
     override val cardUrlsShow = "Show"
     override val cardUrlsHide = "Hide"
+    override val swapSidebars = "Sidebar order"
+    override val swapSidebarsHint = "Which side the sections sidebar sits on, vs. the tabs/history one."
+    override val swapSidebarsLeft = "Sections left"
+    override val swapSidebarsRight = "Sections right"
 
     override val startupSection = "Startup"
     override val startView = "On open"
@@ -1099,6 +1109,10 @@ private object RuStrings : Strings {
     override val cardUrlsHint = "Показывать ли под заголовком карточки-ссылки её адрес."
     override val cardUrlsShow = "Показывать"
     override val cardUrlsHide = "Скрывать"
+    override val swapSidebars = "Порядок боковых панелей"
+    override val swapSidebarsHint = "С какой стороны сайдбар секций, а с какой — сайдбар вкладок/истории."
+    override val swapSidebarsLeft = "Секции слева"
+    override val swapSidebarsRight = "Секции справа"
 
     override val startupSection = "Запуск"
     override val startView = "При открытии"

@@ -642,6 +642,9 @@ val App = FC<AppProps> { props ->
     var showCardUrls by useState(prefGet("showCardUrls") == "1")
     var leftCollapsed by useState(prefGet("leftCollapsed") == "1")
     var rightCollapsed by useState(prefGet("rightCollapsed") == "1")
+    // Whether the sections sidebar and the tabs/history sidebar have traded sides. Purely a layout
+    // flip — everything each one shows and does stays exactly where it is otherwise.
+    var swapSidebars by useState(prefGet("swapSidebars") == "1")
     var rightPane by useState(RightPane.from(prefGet("rightPane")))
     var autoLockMinutes by useState(prefGet("autoLock")?.toIntOrNull() ?: DEFAULT_AUTO_LOCK_MINUTES)
     // What the page opens on: where the user left off, or the first collection. Read once, on the
@@ -1885,7 +1888,7 @@ val App = FC<AppProps> { props ->
     }
 
     div {
-        className = ClassName("app")
+        className = ClassName(if (swapSidebars) "app swapped" else "app")
 
         // A file dropped anywhere but a drop zone — the toolbar, the tab list, the gap between two
         // sections — is a file the *browser* would open, navigating the page to it and taking the app
@@ -1919,7 +1922,9 @@ val App = FC<AppProps> { props ->
                     className = ClassName("rail-toggle")
                     hint(t.expandSidebar)
                     onClick = { leftCollapsed = false; prefSet("leftCollapsed", "0") }
-                    +"»"
+                    // Points away from the edge this sidebar is anchored to — right normally, left once
+                    // it has traded places with the tabs sidebar and sits against the right edge instead.
+                    +(if (swapSidebars) "«" else "»")
                 }
                 button {
                     className = ClassName("rail-toggle settings-rail")
@@ -1947,7 +1952,9 @@ val App = FC<AppProps> { props ->
                         className = ClassName("icon collapse-btn")
                         hint(t.collapseSidebar)
                         onClick = { leftCollapsed = true; prefSet("leftCollapsed", "1") }
-                        +"«"
+                        // Points back towards the edge this sidebar collapses into. See the expand
+                        // button above for why the direction flips with [swapSidebars].
+                        +(if (swapSidebars) "»" else "«")
                     }
                 }
                 button {
@@ -2706,7 +2713,9 @@ val App = FC<AppProps> { props ->
                         className = ClassName("rail-toggle")
                         hint(t.showTabs)
                         onClick = { rightCollapsed = false; prefSet("rightCollapsed", "0") }
-                        +"«"
+                        // See the sections sidebar's own expand button for why this flips with
+                        // [swapSidebars]: it always points away from the edge this panel is anchored to.
+                        +(if (swapSidebars) "»" else "«")
                     }
                 }
             } else {
@@ -2747,7 +2756,7 @@ val App = FC<AppProps> { props ->
                             className = ClassName("icon collapse-btn")
                             hint(t.hideTabs)
                             onClick = { rightCollapsed = true; prefSet("rightCollapsed", "1") }
-                            +"»"
+                            +(if (swapSidebars) "«" else "»")
                         }
                     }
 
@@ -2961,6 +2970,12 @@ val App = FC<AppProps> { props ->
                 onShowCardUrlsChange = { show ->
                     showCardUrls = show
                     prefSet("showCardUrls", if (show) "1" else "0")
+                }
+                this.hasRightSidebar = hasRightSidebar
+                this.swapSidebars = swapSidebars
+                onSwapSidebarsChange = { swap ->
+                    swapSidebars = swap
+                    prefSet("swapSidebars", if (swap) "1" else "0")
                 }
                 this.syncUsage = syncUsage
                 onSyncUsageChange = { on ->

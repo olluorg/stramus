@@ -36,6 +36,13 @@ external interface SettingsModalProps : Props {
     var showCardUrls: Boolean
     var onShowCardUrlsChange: (Boolean) -> Unit
 
+    /** Whether the sections sidebar sits on the right instead of its usual left, and the tabs/history
+     *  sidebar on the left instead of its usual right. Only worth offering where there is a second
+     *  sidebar to swap places with. */
+    var hasRightSidebar: Boolean
+    var swapSidebars: Boolean
+    var onSwapSidebarsChange: (Boolean) -> Unit
+
     /** Whether the browsing statistics go up to the account with everything else. Off unless asked for. */
     var syncUsage: Boolean
     var onSyncUsageChange: (Boolean) -> Unit
@@ -174,6 +181,16 @@ private fun ChildrenBuilder.appearancePane(props: SettingsModalProps, s: Strings
             listOf(false to s.cardUrlsHide, true to s.cardUrlsShow),
             props.onShowCardUrlsChange,
         )
+
+        // Only worth offering where there is a second sidebar to trade places with — the web app's
+        // lone left sidebar has nothing to swap.
+        if (props.hasRightSidebar) {
+            toggleRow(
+                s.swapSidebars, s.swapSidebarsHint, props.swapSidebars,
+                listOf(false to s.swapSidebarsLeft, true to s.swapSidebarsRight),
+                props.onSwapSidebarsChange,
+            )
+        }
     }
 }
 

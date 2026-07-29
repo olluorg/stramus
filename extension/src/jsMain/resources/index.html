@@ -61,6 +61,18 @@
         }
         #root, .app { height: 100vh; }
         .app { display: flex; }
+        /* Settings: sections sidebar and tabs/history sidebar swap sides. Reversing the row keeps the
+           content pane in the middle without touching either sidebar's own markup. */
+        .app.swapped { flex-direction: row-reverse; }
+        .app.swapped .sidebar { border-right: none; border-left: 1px solid var(--border); }
+        .app.swapped .tabs { border-left: none; border-right: 1px solid var(--border); }
+        /* The collapse button always sits on the edge nearest the content pane, never the edge nearest
+           the window — regardless of which physical side each sidebar is anchored to. The tabs sidebar
+           is right-anchored by default, so its header starts reversed; swapping either sidebar over to
+           the opposite edge flips its header to match. */
+        .tabs .tabs-head { flex-direction: row-reverse; }
+        .app.swapped .tabs .tabs-head { flex-direction: row; }
+        .app.swapped .sidebar .brand { flex-direction: row-reverse; }
 
         .sidebar {
             width: 260px;
