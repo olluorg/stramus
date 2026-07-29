@@ -53,6 +53,15 @@
             --danger: #ef4444;
         }
         * { box-sizing: border-box; }
+        /* Rows that stand in for a button (a collection, an open tab, a card, a collapsible title) are
+           focusable so the keyboard can reach them, but native `<button>`/`<a>` elsewhere already have
+           their own browser-drawn focus ring — this ring is only for those stand-ins, and only for
+           keyboard focus (:focus-visible), so clicking one does not draw a ring a mouse user never asked
+           to see. */
+        .col:focus-visible, .tab:focus-visible, .card:focus-visible,
+        .section-title:focus-visible, .card-section-title:focus-visible {
+            outline: 2px solid var(--accent); outline-offset: 2px;
+        }
         html, body { margin: 0; height: 100%; }
         body {
             font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -103,9 +112,10 @@
         .section-head { display: flex; align-items: center; gap: 4px; padding: 6px 8px 2px; }
         .section-title { flex: 1; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .section-head .icon { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px; }
-        /* The tools of a section — add a collection, delete it — stay out of the way until it is hovered. */
+        /* The tools of a section — add a collection, delete it — stay out of the way until it is hovered,
+           or until one is reached by keyboard (:focus-within covers both). */
         .section-head .icon.add { opacity: 0; }
-        .section-head:hover .icon.add { opacity: 1; }
+        .section-head:hover .icon.add, .section-head:focus-within .icon.add { opacity: 1; }
         .section-head .icon:hover { color: var(--accent); }
         .section-head .icon.del:hover { color: var(--danger); }
         /* Collections are the children of their section: indented under its header and hung off a
@@ -130,9 +140,10 @@
             border: none; background: transparent; color: var(--muted);
             cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px; opacity: 0;
         }
-        .col:hover .icon.del, .card:hover .icon.del { opacity: 1; }
+        .col:hover .icon.del, .card:hover .icon.del,
+        .col:focus-within .icon.del, .card:focus-within .icon.del { opacity: 1; }
         /* The section's own × lives in its header, which is not a .col — without this it stays invisible. */
-        .section-head:hover .icon.del { opacity: 1; }
+        .section-head:hover .icon.del, .section-head:focus-within .icon.del { opacity: 1; }
         .icon.del:hover { color: var(--danger); }
 
         .content { flex: 1; padding: 24px 28px; overflow-y: auto; }
@@ -165,7 +176,7 @@
             box-shadow: 0 1px 2px rgba(16, 24, 40, .05);
             transition: border-color .12s, transform .12s, box-shadow .12s;
         }
-        .card:hover { border-color: var(--card-accent); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(16, 24, 40, .12); }
+        .card:hover, .card:focus-within { border-color: var(--card-accent); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(16, 24, 40, .12); }
         /* No chip behind the favicon: it sits straight on the card, so the tile is lighter and the eye
            lands on the title, not on a row of grey squares. */
         .fav { width: 24px; height: 24px; flex: 0 0 24px; border-radius: 5px; }
@@ -180,7 +191,7 @@
         }
         .card-url { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .card-tools { position: absolute; top: 6px; right: 6px; display: flex; align-items: center; gap: 2px; }
-        .card:hover .icon.edit { opacity: 1; }
+        .card:hover .icon.edit, .card:focus-within .icon.edit { opacity: 1; }
         /* On hover the tools sit over the title's tail; a chip behind each keeps them a clear target. */
         .card-tools .icon:hover { background: var(--bg); border-radius: 5px; }
 
@@ -268,7 +279,7 @@
         .tab.drop-target { outline: 2px solid var(--accent); outline-offset: -1px; }
         .tab .fav { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 4px; }
         .tab-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-        .tab:hover .icon.del { opacity: 1; }
+        .tab:hover .icon.del, .tab:focus-within .icon.del { opacity: 1; }
         .empty.small { padding: 16px 8px; font-size: 13px; text-align: left; }
 
         /* The right sidebar's pane switch: the open tabs, or the browsing history */
@@ -471,7 +482,7 @@
         .card-section-title { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-weight: 700; font-size: 13px; }
         .card-section-title .count { color: var(--muted); font-weight: 500; font-size: 12px; }
         .card-section-head .icon.del { opacity: 0; }
-        .card-section-head:hover .icon.del { opacity: 1; }
+        .card-section-head:hover .icon.del, .card-section-head:focus-within .icon.del { opacity: 1; }
 
         /* A card group (the ungrouped area, or one card section) is the drop zone for cards and tabs:
            the whole block, header and grid alike, so the drop never has to hit the header strip.
@@ -540,11 +551,11 @@
         /* Card-section tools + description */
         .card-section-tools { display: flex; align-items: center; gap: 2px; }
         .icon.edit { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; padding: 0 4px; opacity: 0; }
-        .card-section-head:hover .icon.edit { opacity: 1; }
+        .card-section-head:hover .icon.edit, .card-section-head:focus-within .icon.edit { opacity: 1; }
         .icon.edit:hover { color: var(--accent); }
         /* Unlike edit/del, open-all reads rather than writes, so it shows on a read-only collection too. */
         .icon.open-all { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; padding: 0 4px; opacity: 0; }
-        .card-section-head:hover .icon.open-all { opacity: 1; }
+        .card-section-head:hover .icon.open-all, .card-section-head:focus-within .icon.open-all { opacity: 1; }
         .icon.open-all:hover { color: var(--accent); }
         .card-section-desc { margin: -2px 0 12px; color: var(--muted); font-size: 13px; }
         .card-section-desc p { margin: 4px 0; }
@@ -620,7 +631,7 @@
            locked section, and the modal where its PIN is set. A locked section shows its name and its
            padlock and nothing else — no collections, no controls. */
         .section-head .icon.lock { opacity: 0; font-size: 13px; }
-        .section-head:hover .icon.lock { opacity: 1; }
+        .section-head:hover .icon.lock, .section-head:focus-within .icon.lock { opacity: 1; }
         .section.locked .section-title { cursor: pointer; color: var(--muted); }
         .section.locked .chevron { font-size: 12px; }
         /* The collection's read-only badge, next to its name in the header. */

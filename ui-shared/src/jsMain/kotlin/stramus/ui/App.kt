@@ -494,7 +494,11 @@ val TabRow = memo(
             // tab that has no title at all has only its URL to be known by.
             hint(tab.title.ifBlank { tab.url })
             draggable = true
+            tabIndex = 0
             onClick = { props.onGoTo(tab) }
+            onKeyDown = { e ->
+                if (e.key == "Enter" || e.key == " ") { e.preventDefault(); props.onGoTo(tab) }
+            }
             onDragStart = { e ->
                 // Some browsers require drag data to be set or they reject drops.
                 e.dataTransfer.setData("text/plain", tab.id.toString())
@@ -1874,6 +1878,20 @@ val App = FC<AppProps> { props ->
         }
     }
 
+    // An arrow key pressed with no card focused to move from puts the focus on the first one instead
+    // of doing nothing — see [focusFirstCardOnArrow] for what "no card" excludes (typing, a modal, a
+    // card already focused, which has its own meaning for arrows).
+    useEffectOnce {
+        val stopWatching = onKeyStroke { event ->
+            if (focusFirstCardOnArrow(event)) event.preventDefault()
+        }
+        try {
+            awaitCancellation()
+        } finally {
+            stopWatching()
+        }
+    }
+
     fun deleteSection(section: Section) {
         val s = store ?: return
         scope.launch {
@@ -2027,6 +2045,25 @@ val App = FC<AppProps> { props ->
                     // A section dragged onto another one is a reorder, and a lock has no say in it:
                     // where a section sits says nothing about what is behind its PIN.
                     val takesSection = draggingSectionId != null && draggingSectionId != section.id
+                    // What the title does on Enter/Space (mirrors the click) and on F2 (mirrors the
+                    // double-click, the only way in otherwise) — named so both the pointer and the
+                    // keyboard paths call the same thing instead of drifting apart.
+                    val activateSectionTitle = {
+                        if (isLocked) {
+                            pendingUnlockId = section.id
+                            unlockError = null
+                        } else {
+                            onTitleClick {
+                                val s = store
+                                if (s != null) {
+                                    scope.launch {
+                                        s.sections.setCollapsed(section.id, !section.collapsed)
+                                        sections = s.sections.all()
+                                    }
+                                }
+                            }
+                        }
+                    }
                     div {
                         key = key(section.id)
                         className = ClassName(
@@ -2073,23 +2110,15 @@ val App = FC<AppProps> { props ->
                             span {
                                 className = ClassName("section-title")
                                 hint(if (isLocked) t.lockedSection else t.renameHint)
-                                onClick = {
-                                    if (isLocked) {
-                                        pendingUnlockId = section.id
-                                        unlockError = null
-                                    } else {
-                                        onTitleClick {
-                                            val s = store
-                                            if (s != null) {
-                                                scope.launch {
-                                                    s.sections.setCollapsed(section.id, !section.collapsed)
-                                                    sections = s.sections.all()
-                                                }
-                                            }
-                                        }
+                                tabIndex = 0
+                                onClick = { activateSectionTitle() }
+                                onDoubleClick = { if (!isLocked) onTitleDoubleClick(section.id) }
+                                onKeyDown = { e ->
+                                    when (e.key) {
+                                        "Enter", " " -> { e.preventDefault(); activateSectionTitle() }
+                                        "F2" -> if (!isLocked) { e.preventDefault(); onTitleDoubleClick(section.id) }
                                     }
                                 }
-                                onDoubleClick = { if (!isLocked) onTitleDoubleClick(section.id) }
                                 span {
                                     // The chevron turns as the section folds, so the two move together.
                                     // A locked section is not folded but shut, and its padlock stands still.
@@ -2166,6 +2195,7 @@ val App = FC<AppProps> { props ->
                                     val takesContent = !c.readOnly
                                     li {
                                         key = key(c.id)
+                                        asDynamic()["id"] = "col-${c.id}"
                                         className = ClassName(
                                             buildString {
                                                 append("col")
@@ -2176,7 +2206,44 @@ val App = FC<AppProps> { props ->
                                         // A collection being renamed is not a collection to drag: the
                                         // pointer belongs to the text field standing in its title.
                                         draggable = renamingId != c.id
+                                        tabIndex = 0
                                         onClick = { selectedId = c.id; pendingUnlockId = null; unlockError = null }
+                                        // Enter/Space select it, same as a click. F2 renames it in
+                                        // place — the keyboard path to what a double-click does below,
+                                        // on `.col-title`, since that is otherwise the only way in.
+                                        onKeyDown = { e ->
+                                            when (e.key) {
+                                                "Enter", " " -> {
+                                                    e.preventDefault()
+                                                    selectedId = c.id; pendingUnlockId = null; unlockError = null
+                                                }
+                                                "F2" -> if (takesContent) { e.preventDefault(); onTitleDoubleClick(c.id) }
+                                                // Delete removes it outright — the button does the
+                                                // same, and the undo toast (or Ctrl/Cmd+Z) is what
+                                                // makes that safe to reach for from the keyboard too.
+                                                "Delete" -> if (takesContent) { e.preventDefault(); deleteCollection(c) }
+                                                // Tab/Shift+Tab hop straight to the next/previous
+                                                // collection, flattened across every open section, so
+                                                // Tab does not stop at this row's own rename/delete
+                                                // controls along the way (F2 and Delete reach those
+                                                // instead). The order mirrors how the sidebar is drawn
+                                                // above: open, unlocked sections, top to bottom, each
+                                                // one's own collections in their stored order — a
+                                                // collapsed or locked section's rows are unmounted (see
+                                                // `Collapsible`), so they are excluded here too.
+                                                "Tab" -> {
+                                                    val visible = sections
+                                                        .filter { !it.collapsed && it.id !in lockedSectionIds }
+                                                        .flatMap { s -> collections.filter { it.sectionId == s.id } }
+                                                    val idx = visible.indexOfFirst { it.id == c.id }
+                                                    val targetIdx = if (e.shiftKey) idx - 1 else idx + 1
+                                                    if (idx >= 0 && targetIdx in visible.indices) {
+                                                        e.preventDefault()
+                                                        focusElementById("col-${visible[targetIdx].id}")
+                                                    }
+                                                }
+                                            }
+                                        }
                                         onDragStart = { e ->
                                             e.dataTransfer.setData("text/plain", c.id.toString())
                                             draggingCollectionId = c.id
@@ -2626,6 +2693,15 @@ val App = FC<AppProps> { props ->
                             // needle to thread, exactly as it is for a card (see [cardGroup]).
                             val takesSection = editable &&
                                 draggingCardSectionId != null && draggingCardSectionId != cs.id
+                            val activateCardSectionTitle = {
+                                onTitleClick {
+                                    val s = store
+                                    if (s != null) scope.launch {
+                                        s.cardSections.setCollapsed(cs.id, !cs.collapsed)
+                                        cardSections = s.cardSections.byCollection(current.id)
+                                    }
+                                }
+                            }
                             cardGroup(
                                 groupKey = key(cs.id),
                                 accepts = groupAccepts || takesSection,
@@ -2660,16 +2736,15 @@ val App = FC<AppProps> { props ->
                                         className = ClassName("card-section-title")
                                         // Collapsing is not editing — it stays. Renaming does not.
                                         hint(if (editable) t.renameHint else "")
-                                        onClick = {
-                                            onTitleClick {
-                                                val s = store
-                                                if (s != null) scope.launch {
-                                                    s.cardSections.setCollapsed(cs.id, !cs.collapsed)
-                                                    cardSections = s.cardSections.byCollection(current.id)
-                                                }
+                                        tabIndex = 0
+                                        onClick = { activateCardSectionTitle() }
+                                        onDoubleClick = { if (editable) onTitleDoubleClick(cs.id) }
+                                        onKeyDown = { e ->
+                                            when (e.key) {
+                                                "Enter", " " -> { e.preventDefault(); activateCardSectionTitle() }
+                                                "F2" -> if (editable) { e.preventDefault(); onTitleDoubleClick(cs.id) }
                                             }
                                         }
-                                        onDoubleClick = { if (editable) onTitleDoubleClick(cs.id) }
                                         span {
                                             className = ClassName(if (cs.collapsed) "chevron closed" else "chevron")
                                             +"▾"

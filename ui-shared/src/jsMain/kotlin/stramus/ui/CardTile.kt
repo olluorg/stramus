@@ -89,6 +89,7 @@ val CardTile = memo(
             }
         } else {
             div {
+                tabIndex = 0
                 onClick = { props.onOpen(card) }
                 cardTileBody(props)
             }
@@ -115,6 +116,8 @@ private fun <T : HTMLElement> HTMLAttributes<T>.cardTileBody(props: CardTileProp
         CardKind.FILE -> card.mime ?: strings.fileLabel
     }
 
+    val elementId = "card-${card.id}"
+    asDynamic()["id"] = elementId
     className = ClassName(
         buildString {
             append("card kind-${card.kind.id}")
@@ -126,6 +129,19 @@ private fun <T : HTMLElement> HTMLAttributes<T>.cardTileBody(props: CardTileProp
     // whose address the tile does not show is the exception — then the tooltip is the only
     // place left to see where the card goes.
     hint(if (card.kind == CardKind.LINK && !props.showUrl) "${card.title} — ${card.url}" else card.title)
+    // Enter opens the tile — except a link, which already opens on Enter as any `<a>` does; handling
+    // it again here would fire [CardTileProps.onOpen] twice. Space is not a link's default action
+    // (only Enter is, on an `<a>`), so it is handled here for every kind alike. Arrow keys move focus
+    // to the next card over in whichever direction, for both kinds alike too (see [moveCardFocus]).
+    onKeyDown = { e ->
+        when (e.key) {
+            "Enter" -> if (card.kind != CardKind.LINK) { e.preventDefault(); props.onOpen(card) }
+            " " -> { e.preventDefault(); props.onOpen(card) }
+            "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown" -> {
+                if (moveCardFocus(e.currentTarget.asDynamic(), elementId, e.key)) e.preventDefault()
+            }
+        }
+    }
     draggable = props.isDraggable
     if (props.isDraggable) {
         onDragStart = { e ->

@@ -90,6 +90,31 @@ internal fun isTyping(event: KeyStroke): Boolean {
     return tag == "input" || tag == "textarea" || target.isContentEditable == true
 }
 
+private val ARROW_KEYS = arrayOf("ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight")
+
+/**
+ * The page-wide fallback for an arrow key pressed while no card has the focus to move from — right
+ * after the page loads, after closing a note, or with a sidebar row focused instead of a card — which
+ * puts the focus on the very first card instead of doing nothing. A card already focused has its own
+ * meaning for arrow keys (see [moveCardFocus]) and is left alone; so is a field the user is typing in
+ * ([isTyping]) and a modal (its own content, not the page behind it, is what the keyboard should
+ * reach while one is open).
+ *
+ * Returns whether it acted, so the caller knows whether to also prevent the key's default action
+ * (page scroll, mainly).
+ */
+internal fun focusFirstCardOnArrow(event: KeyStroke): Boolean {
+    if (event.key !in ARROW_KEYS) return false
+    if (isTyping(event)) return false
+    val doc = js("document")
+    if (doc.querySelector(".modal-backdrop") != null) return false
+    val active = doc.activeElement
+    if (active != null && active.classList?.contains("card") == true) return false
+    val first = doc.querySelector(".card") ?: return false
+    first.focus()
+    return true
+}
+
 private external interface JsElement {
     fun setAttribute(name: String, value: String)
     fun click()
@@ -175,6 +200,103 @@ internal fun browserConfirm(message: String): Boolean = browserWindow().confirm(
  */
 internal fun browserAlert(message: String) {
     browserWindow().alert(message)
+}
+
+/** Give an element the keyboard focus, by the id [focusElementById] looks it up by. Missing is silent —
+ *  the row it belonged to has left the page (a section collapsed under it, most often). */
+internal fun focusElementById(id: String) {
+    val el = js("document").getElementById(id)
+    if (el != null) el.focus()
+}
+
+/** The number of columns [grid] (a `.grid`) is *currently* laid out in, read live from its computed
+ *  style rather than assumed, since `repeat(auto-fill, …)` (see `.grid` in index.html) picks the
+ *  count from the viewport width, not from anything this code decides. */
+private fun gridColumnCount(grid: dynamic): Int =
+    (browserWindow().asDynamic().getComputedStyle(grid).gridTemplateColumns as String)
+        .trim().split(" ").count { it.isNotBlank() }.coerceAtLeast(1)
+
+/**
+ * Moves focus from [current] (a `.card`, identified by its own [currentId]) to the sibling implied
+ * by an arrow key. Left/Right step through DOM order within the card's own `.grid`, which is also
+ * reading order. Up/Down move by a row within that grid — but a collection is drawn as one `.grid`
+ * per group (the ungrouped area, then each named section; see `cardGroup` in `App.kt`) and the open
+ * tabs sidebar as one per window (`.tab-window`; see `tabWindow`), each stacked one under another —
+ * a card grid does not know what is above or below its own borders. So Up/Down that would fall off
+ * the top or bottom edge instead cross into the next/previous group sibling that actually holds
+ * cards (an empty one is skipped, not landed in) — the top row of the
+ * one below, or the bottom row of the one above, at the same column where that lands inside it.
+ *
+ * Matched by `id` rather than by comparing the elements themselves: a `NodeList` freshly queried
+ * from the document and the event's own `currentTarget` are two separate host-object references to
+ * (what should be) the same node, and nothing here needs to lean on that holding — an id round-trips
+ * through a plain string instead.
+ *
+ * Returns false at the very top or bottom of the collection (no further group to cross into) or off
+ * either side of a row, which leaves the key to do whatever it otherwise would (scroll the page,
+ * mainly) — an edge is not a wall except where there truly is nothing past it.
+ */
+internal fun moveCardFocus(current: dynamic, currentId: String, key: String): Boolean {
+    val grid = current.closest(".grid")
+    if (grid == null) return false
+    val cards: dynamic = grid.querySelectorAll(":scope > .card")
+    val n = cards.length as Int
+    var idx = -1
+    for (i in 0 until n) {
+        if ((cards.item(i).id as String) == currentId) {
+            idx = i
+            break
+        }
+    }
+    if (idx < 0) return false
+    val columns = gridColumnCount(grid)
+    when (key) {
+        "ArrowRight" -> if (idx + 1 < n) { cards.item(idx + 1).focus(); return true }
+        "ArrowLeft" -> if (idx - 1 >= 0) { cards.item(idx - 1).focus(); return true }
+        "ArrowDown" -> {
+            val target = idx + columns
+            if (target < n) { cards.item(target).focus(); return true }
+            val group = current.closest(".card-group, .tab-window") ?: return false
+            return focusAdjacentGroup(group, idx % columns, forward = true)
+        }
+        "ArrowUp" -> {
+            val target = idx - columns
+            if (target >= 0) { cards.item(target).focus(); return true }
+            val group = current.closest(".card-group, .tab-window") ?: return false
+            return focusAdjacentGroup(group, idx % columns, forward = false)
+        }
+    }
+    return false
+}
+
+/**
+ * Walks from [fromGroup] to the next (`forward`) or previous `.card-group` sibling that has any
+ * cards in it, and focuses the one at column [col] in its near edge — the top row going forward, the
+ * bottom row going backward, which is the row [moveCardFocus] is arriving from in either direction.
+ * A group with no cards at all (nothing dropped into it yet) is passed straight through.
+ */
+private fun focusAdjacentGroup(fromGroup: dynamic, col: Int, forward: Boolean): Boolean {
+    var sib = if (forward) fromGroup.nextElementSibling else fromGroup.previousElementSibling
+    while (sib != null) {
+        val grid = sib.querySelector(".grid")
+        if (grid != null) {
+            val cards: dynamic = grid.querySelectorAll(":scope > .card")
+            val n = cards.length as Int
+            if (n > 0) {
+                val columns = gridColumnCount(grid)
+                val targetIdx = if (forward) {
+                    col.coerceAtMost(n - 1)
+                } else {
+                    val lastRowStart = ((n - 1) / columns) * columns
+                    (lastRowStart + col).coerceAtMost(n - 1)
+                }
+                cards.item(targetIdx).focus()
+                return true
+            }
+        }
+        sib = if (forward) sib.nextElementSibling else sib.previousElementSibling
+    }
+    return false
 }
 
 /** Open a page beside the app: a saved card is followed, but the collection it came from stays up. */
@@ -266,14 +388,21 @@ internal fun onHintTarget(delayMs: Int, onTarget: (HintTarget?) -> Unit): () -> 
     val away: (dynamic) -> Unit = { hide() }
 
     doc.addEventListener("pointerover", over)
+    // Keyboard focus asks the same question a pointer resting on the control does — without it, a
+    // control identified only by a glyph (⤓, ✎, ×…) says nothing to anyone tabbing through it who
+    // is not also running a screen reader (which reads the `aria-label` [hint] sets regardless).
+    doc.addEventListener("focusin", over)
     doc.addEventListener("pointerdown", away)
+    doc.addEventListener("focusout", away)
     // A scroll moves the control out from under its own tooltip, so the tooltip goes. Captured, or a
     // scroll inside the tabs list — which does not bubble — would never be heard.
     doc.addEventListener("scroll", away, true)
     return {
         cancelPending()
         doc.removeEventListener("pointerover", over)
+        doc.removeEventListener("focusin", over)
         doc.removeEventListener("pointerdown", away)
+        doc.removeEventListener("focusout", away)
         doc.removeEventListener("scroll", away, true)
     }
 }

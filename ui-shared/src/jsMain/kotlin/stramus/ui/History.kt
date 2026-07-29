@@ -109,7 +109,11 @@ internal fun ChildrenBuilder.historyPane(
                                 )
                                 hint(entry.title.ifBlank { entry.url })
                                 draggable = true
+                                tabIndex = 0
                                 onClick = { onOpen(entry) }
+                                onKeyDown = { e ->
+                                    if (e.key == "Enter" || e.key == " ") { e.preventDefault(); onOpen(entry) }
+                                }
                                 onDragStart = { e ->
                                     // Some browsers require drag data to be set or they reject drops.
                                     e.dataTransfer.setData("text/plain", entry.url)

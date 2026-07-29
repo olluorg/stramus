@@ -48,7 +48,10 @@ val TabCard = memo(
         val tab = props.tab
         val strings = props.strings
 
+        val elementId = "tabcard-${tab.id}"
+
         div {
+            asDynamic()["id"] = elementId
             className = ClassName(
                 buildString {
                     append("card kind-tab")
@@ -59,7 +62,16 @@ val TabCard = memo(
             )
             hint(tab.title.ifBlank { tab.url })
             draggable = true
+            tabIndex = 0
             onClick = { props.onGoTo(tab) }
+            onKeyDown = { e ->
+                when (e.key) {
+                    "Enter", " " -> { e.preventDefault(); props.onGoTo(tab) }
+                    "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown" -> {
+                        if (moveCardFocus(e.currentTarget.asDynamic(), elementId, e.key)) e.preventDefault()
+                    }
+                }
+            }
             onDragStart = { e ->
                 e.dataTransfer.setData("text/plain", tab.id.toString())
                 props.onStartDrag(tab)
