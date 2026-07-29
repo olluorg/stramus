@@ -12,7 +12,10 @@ services:
       # it once and leave it: the server signs its tokens with this.
       STRAMUS_JWT_SECRET: "change-me-to-something-long-and-random"
       # The exact origins the browser clients are served from — the web app, and the extension's own id.
-      STRAMUS_ALLOWED_ORIGINS: "https://olluorg.github.io,chrome-extension://<your-extension-id>"
+      # The web app is served from the custom domain; a request from anywhere this does not name is
+      # refused by the browser before the server ever sees it, so a landing page whose sign-in silently
+      # does nothing is almost always this line.
+      STRAMUS_ALLOWED_ORIGINS: "https://stramus.space,chrome-extension://<your-extension-id>"
       # A mail relay for the one-time sign-in codes. Without it, production will not start (the codes would
       # otherwise be printed to the log, which is the whole account).
       STRAMUS_SMTP_HOST: "smtp.example.org"

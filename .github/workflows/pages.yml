@@ -1,7 +1,10 @@
 name: Deploy web app to GitHub Pages
 
-# Publishes the standalone web app (webapp module) to
-# https://olluorg.github.io/stramus/ on every push to main.
+# Publishes the standalone web app (webapp module) — its landing page and the app behind it — to
+# https://stramus.space/ on every push to main.
+#
+# The custom domain is kept by the CNAME file in webapp/src/jsMain/resources, which the build copies
+# into the bundle: a deploy that did not carry one would take the domain off the Pages site again.
 on:
   push:
     branches: [main]

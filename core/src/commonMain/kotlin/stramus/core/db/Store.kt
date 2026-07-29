@@ -56,6 +56,15 @@ class StramusStore internal constructor(
     val favicons: FaviconRepository,
     val usage: UsageRepository,
     val actions: ActionUsageRepository,
+    /**
+     * Whether this open is the one that created the database — a first install, seeded from [StoreSeed]
+     * and otherwise empty.
+     *
+     * It is the difference between a browser that has nothing to lose and one that does, which is the
+     * only question worth asking a user who signs in: the welcome note is ours, not theirs, so a fresh
+     * install joining an account is not a decision anybody has to be interrupted for.
+     */
+    val seeded: Boolean = false,
 )
 
 /** Words past this in one query are dropped: each one is another LIKE over every card. */
@@ -203,6 +212,7 @@ suspend fun openStramusStore(db: SuspendDatabase<StramusDb>, seed: StoreSeed = S
         KormiumFaviconRepository(db),
         KormiumUsageRepository(db),
         KormiumActionUsageRepository(db),
+        seeded = fresh,
     )
 }
 
