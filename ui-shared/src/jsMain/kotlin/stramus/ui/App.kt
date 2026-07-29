@@ -90,6 +90,13 @@ private const val AI_CONTEXT_CARDS = 50
  */
 private const val UNDO_MS = 30_000
 
+/**
+ * How long a card must hover a sidebar collection before it opens on its own — long enough that a
+ * drag merely passing over it on the way somewhere else does not fling it open, short enough that
+ * dropping into a collapsed collection does not mean stopping there first to open it by hand.
+ */
+private const val HOVER_OPEN_MS = 600
+
 internal fun key(id: Uuid): Key = id.toString().unsafeCast<Key>()
 
 /**
@@ -623,6 +630,8 @@ val App = FC<AppProps> { props ->
     var undo by useState<Undo?>(null)
     // The pending collapse of a section whose title was just clicked once. See [onTitleClick].
     val clickTimer = useRef<Int>(null)
+    // The pending auto-open of a sidebar collection a dragged card is hovering. See [scheduleHoverOpen].
+    val hoverOpenTimer = useRef<Int>(null)
 
     // Persisted UI preferences (localStorage): theme, language, and sidebar collapse state. Card order
     // is not among them — a sort writes the cards' own order (see [CardSort]), it does not remember one.
@@ -1369,14 +1378,46 @@ val App = FC<AppProps> { props ->
 
     // Every card drop lands here: the card joins [collectionId] / [cardSectionId] at [index] within
     // that group (Int.MAX_VALUE = append). Collection, section and order always move together.
+    //
+    // A move into another collection is offered back like a deletion: [card]'s old collection, group
+    // and place in it are read before the move runs, and put back verbatim if the user asks for them.
+    // A reorder within the same collection gets no such offer — a drag inside one grid is too frequent
+    // an action for a toast to follow every time, unlike the occasional cross-collection transfer.
     fun moveCard(cardId: Uuid, collectionId: Uuid, cardSectionId: Uuid?, index: Int) {
         val s = store ?: return
+        val card = cards.firstOrNull { it.id == cardId }
+        val fromCollectionId = card?.collectionId
+        val fromCardSectionId = card?.cardSectionId
+        val fromIndex = card?.let { cards.filter { c -> c.cardSectionId == fromCardSectionId }.indexOfFirst { c -> c.id == cardId } }
         scope.launch {
             s.cards.move(cardId, collectionId, cardSectionId, index)
             reloadCards(selectedId)
+            if (card != null && fromCollectionId != null && fromCollectionId != collectionId) {
+                undo = Undo(t.movedCard(card.title)) {
+                    s.cards.move(cardId, fromCollectionId, fromCardSectionId, fromIndex ?: Int.MAX_VALUE)
+                    reloadCards(fromCollectionId)
+                }
+            }
         }
         draggingCardId = null
         dropGroup = null
+    }
+
+    // A card dragged onto a collapsed sidebar collection opens it after [HOVER_OPEN_MS] of hovering,
+    // the way a desktop file manager opens a folder under a drag — so the card can be dropped into the
+    // collection's own grid rather than always landing ungrouped at the end. Only one hover is ever
+    // pending: entering a new row (or leaving the one that was timed) cancels whatever came before.
+    fun cancelHoverOpen() {
+        hoverOpenTimer.current?.let { cancelDelay(it) }
+        hoverOpenTimer.current = null
+    }
+
+    fun scheduleHoverOpen(id: Uuid) {
+        cancelHoverOpen()
+        hoverOpenTimer.current = delay(HOVER_OPEN_MS) {
+            hoverOpenTimer.current = null
+            selectedId = id
+        }
     }
 
     // Put one card section's cards in order — where a drag moves one card, this lays out the whole
@@ -1526,6 +1567,7 @@ val App = FC<AppProps> { props ->
     val onCardEndDrag = useCallback {
         draggingCardId = null
         dropGroup = null
+        cancelHoverOpen()
     }
 
     // Dropping a card on a tile puts it in that tile's group, right before it. What is on screen is the
@@ -2107,10 +2149,17 @@ val App = FC<AppProps> { props ->
                                             (draggingCollectionId != null || takesContent)
                                         // Files from the desktop land here too — saved into this
                                         // collection, ungrouped, without it having to be opened first.
+                                        //
+                                        // A dragged card additionally schedules this collection to open
+                                        // on its own — see [scheduleHoverOpen] — so it can be dropped into
+                                        // a group of the collection's own grid, not just left ungrouped.
                                         onDragEnter = { e ->
                                             if (takesDrag || (takesContent && draggingFiles(e.dataTransfer))) {
                                                 e.preventDefault()
                                                 if (dropCollectionId != c.id) dropCollectionId = c.id
+                                                if (draggingCardId != null && c.id != selectedId) {
+                                                    scheduleHoverOpen(c.id)
+                                                }
                                             }
                                         }
                                         onDragOver = { e ->
@@ -2122,10 +2171,16 @@ val App = FC<AppProps> { props ->
                                             if (dropGroup != null) dropGroup = null
                                             leaveTabsSidebar()
                                         }
-                                        onDragLeave = { if (dropCollectionId == c.id) dropCollectionId = null }
+                                        onDragLeave = {
+                                            if (dropCollectionId == c.id) {
+                                                dropCollectionId = null
+                                                cancelHoverOpen()
+                                            }
+                                        }
                                         onDrop = { e ->
                                             e.preventDefault()
                                             e.stopPropagation() // don't also fire the section's drop
+                                            cancelHoverOpen()
                                             val tab = draggingTab
                                             val visit = draggingHistory
                                             val draggedCard = draggingCardId

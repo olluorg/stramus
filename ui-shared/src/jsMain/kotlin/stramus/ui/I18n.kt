@@ -86,6 +86,9 @@ interface Strings {
     fun deletedCardSection(title: String): String
     fun deletedCard(title: String): String
 
+    /** A card dragged into another collection is offered back the same way a deletion is. */
+    fun movedCard(title: String): String
+
     /**
      * A sort is offered back the same way a deletion is: it overwrites an order the user may have
      * arranged by hand, and that order is the one thing it destroys.
@@ -488,6 +491,7 @@ private object EnStrings : Strings {
     override fun deletedCollection(title: String) = "Collection “$title” deleted"
     override fun deletedCardSection(title: String) = "Group “$title” deleted"
     override fun deletedCard(title: String) = "“$title” deleted"
+    override fun movedCard(title: String) = "“$title” moved"
     override val sortedCards = "Cards sorted"
     override val undo = "Undo"
 
@@ -860,6 +864,7 @@ private object RuStrings : Strings {
     override fun deletedCollection(title: String) = "Коллекция «$title» удалена"
     override fun deletedCardSection(title: String) = "Секция «$title» удалена"
     override fun deletedCard(title: String) = "«$title» удалена"
+    override fun movedCard(title: String) = "«$title» перенесена"
     override val sortedCards = "Карточки отсортированы"
     override val undo = "Вернуть"
 
