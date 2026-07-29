@@ -133,7 +133,8 @@ localStorage.setItem("stramus.googleClientId", "…apps.googleusercontent.com")
 то, что токен выписан **именно этому** приложению (`aud`): без последней проверки любой человек со своим
 приложением в Google мог бы войти под кем угодно.
 
-Расширению нужен `host_permissions` на этот адрес (в `manifest.json` сейчас стоит localhost:8090).
+Расширению нужен `host_permissions` на этот адрес — сейчас в `manifest.json` стоят `localhost:8090`
+(разработка) и `api.stramus.space` (прод).
 
 Переменные окружения сервера:
 
@@ -142,13 +143,14 @@ localStorage.setItem("stramus.googleClientId", "…apps.googleusercontent.com")
 | `PORT`, `STRAMUS_DB`, `STRAMUS_BLOBS` | порт, файл базы, папка с байтами файлов |
 | `STRAMUS_JWT_SECRET` | подпись access-токенов |
 | `STRAMUS_ALLOWED_ORIGINS` | CORS: через запятую |
-| `STRAMUS_SMTP_HOST` / `_PORT` / `_USER` / `_PASSWORD` / `STRAMUS_MAIL_FROM` | почта для одноразовых кодов; без хоста коды печатаются в лог |
+| `STRAMUS_SMTP_HOST` / `_PORT` / `_USER` / `_PASSWORD` / `STRAMUS_MAIL_FROM` | почта для одноразовых кодов; без хоста в production эта дверь входа просто закрыта (501), а не открыта в лог |
 | `STRAMUS_GOOGLE_CLIENT_ID` | вход через Google; без него эта дверь просто отсутствует |
 | `STRAMUS_ENV=production` | боевой режим |
 
-В боевом режиме сервер **не стартует**, если остался дев-секрет, если в CORS остался localhost, если не
-задан SMTP-хост (иначе коды входа уезжали бы в лог, а лог — это доступ ко всем аккаунтам) или если
-соединение с почтой не шифруется.
+В боевом режиме сервер **не стартует**, если остался дев-секрет или если в CORS остался localhost.
+SMTP не обязателен: без него production стартует нормально, но `/v1/auth/code/*` отвечает 501 —
+пароль и вход через Google продолжают работать. Если SMTP всё же задан, соединение обязано быть
+шифрованным.
 
 Почта — обычный SMTP, а не API конкретного провайдера: Postmark, SES, Fastmail или свой релей
 подключаются сменой хоста, без единой строки кода.
@@ -163,13 +165,13 @@ localStorage.setItem("stramus.googleClientId", "…apps.googleusercontent.com")
 amd64 и arm64). Быстрый путь — [`compose.yaml`](compose.yaml) в корне репозитория:
 
 ```bash
-# отредактируйте environment (секрет, origins, SMTP), затем:
+# отредактируйте environment (секрет, origins; SMTP — по желанию), затем:
 docker compose up -d
 ```
 
 Всё состояние — база и байты файлов — лежит в одном томе `/data`; его и нужно бэкапить. Сервер отдаёт
 `/health` для оркестратора, работает от непривилегированного пользователя и в боевом режиме не стартует,
-пока не заданы секрет, origins и SMTP-хост — то есть падает громко, а не тихо раздаёт аккаунты.
+пока не заданы секрет и origins — то есть падает громко, а не тихо раздаёт аккаунты.
 
 Собрать образ локально: `docker build -t stramus-server .`
 

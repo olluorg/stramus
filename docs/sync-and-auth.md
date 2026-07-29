@@ -241,7 +241,7 @@ Tombstones и осиротевшие блобы чистит сборщик му
 
 ## Авторизация
 
-Веб живёт на `olluorg.github.io`, расширение — на `chrome-extension://<id>`. Это разные origin,
+Веб живёт на `stramus.space`, расширение — на `chrome-extension://<id>`. Это разные origin,
 поэтому httpOnly-cookie отпадают: остаётся **Bearer-токен**.
 
 - `POST /v1/auth/register` — email + пароль. Хеш — Argon2id.
