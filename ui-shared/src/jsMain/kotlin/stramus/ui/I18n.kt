@@ -302,6 +302,10 @@ interface Strings {
     /** The two panes of the right sidebar, as the switch above it labels them. */
     val paneTabs: String
     val paneHistory: String
+
+    /** Toolbar toggle in the tabs sidebar: switches its rows between a list and a grid of cards. */
+    val tabsViewToggleToCards: String
+    val tabsViewToggleToList: String
     val searchHistory: String
     val noHistory: String
     val noMatchingHistory: String
@@ -379,6 +383,13 @@ interface Strings {
     val swapSidebarsHint: String
     val swapSidebarsLeft: String
     val swapSidebarsRight: String
+
+    /** Settings: whether the tabs sidebar shows a list of rows or a grid of cards, the same shape as
+     *  the saved cards in the middle pane — and, in the grid, the same width as that pane too. */
+    val tabsCardView: String
+    val tabsCardViewHint: String
+    val tabsCardViewList: String
+    val tabsCardViewCards: String
 
     /** Settings: which collection the page opens on. */
     val startupSection: String
@@ -667,6 +678,8 @@ private object EnStrings : Strings {
 
     override val paneTabs = "Tabs"
     override val paneHistory = "History"
+    override val tabsViewToggleToCards = "Show as cards"
+    override val tabsViewToggleToList = "Show as list"
     override val searchHistory = "Search history…"
     override val noHistory = "Nothing in history yet."
     override val noMatchingHistory = "Nothing in history matches."
@@ -735,6 +748,11 @@ private object EnStrings : Strings {
     override val swapSidebarsHint = "Which side the sections sidebar sits on, vs. the tabs/history one."
     override val swapSidebarsLeft = "Sections left"
     override val swapSidebarsRight = "Sections right"
+    override val tabsCardView = "Tabs view"
+    override val tabsCardViewHint =
+        "Show open tabs as a list, or as a grid of cards the same width as the middle pane."
+    override val tabsCardViewList = "List"
+    override val tabsCardViewCards = "Cards"
 
     override val startupSection = "Startup"
     override val startView = "On open"
@@ -1045,6 +1063,8 @@ private object RuStrings : Strings {
 
     override val paneTabs = "Вкладки"
     override val paneHistory = "История"
+    override val tabsViewToggleToCards = "Показывать карточками"
+    override val tabsViewToggleToList = "Показывать списком"
     override val searchHistory = "Поиск по истории…"
     override val noHistory = "История пуста."
     override val noMatchingHistory = "В истории ничего не найдено."
@@ -1113,6 +1133,11 @@ private object RuStrings : Strings {
     override val swapSidebarsHint = "С какой стороны сайдбар секций, а с какой — сайдбар вкладок/истории."
     override val swapSidebarsLeft = "Секции слева"
     override val swapSidebarsRight = "Секции справа"
+    override val tabsCardView = "Вид вкладок"
+    override val tabsCardViewHint =
+        "Показывать открытые вкладки списком или сеткой карточек той же ширины, что и средняя колонка."
+    override val tabsCardViewList = "Список"
+    override val tabsCardViewCards = "Карточки"
 
     override val startupSection = "Запуск"
     override val startView = "При открытии"

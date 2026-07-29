@@ -190,6 +190,10 @@
             background: var(--panel); border-left: 1px solid var(--border);
             display: flex; flex-direction: column; padding: 16px 12px; gap: 8px;
         }
+        /* Settings: the Tabs pane shows a grid of cards instead of its list. The grid wants the room a
+           card needs, so the sidebar drops its fixed width and grows to match the content pane instead —
+           the two [.content, .tabs.cards-view] are then simply two equal flex:1 children of .app. */
+        .tabs.cards-view { width: auto; flex: 1; }
         .tabs-head { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 4px 8px; }
         .tab-search { width: 100%; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
         .tab-search:focus { outline: none; border-color: var(--accent); }
@@ -281,6 +285,10 @@
         .brand-name { flex: 1; min-width: 0; color: #50219B; }
         .icon.collapse-btn { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px; opacity: .7; }
         .icon.collapse-btn:hover { color: var(--accent); opacity: 1; }
+        /* The Tabs pane's quick list/cards switch, beside the collapse button — the same choice as the
+           `tabsCardView` setting, without a trip to Settings. */
+        .icon.view-toggle { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 4px; opacity: .7; }
+        .icon.view-toggle:hover { color: var(--accent); opacity: 1; }
         .sidebar.collapsed, .tabs.collapsed { width: 40px; flex: 0 0 40px; padding: 12px 5px; align-items: center; }
         .rail-toggle { border: 1px solid var(--border); background: var(--panel); color: var(--muted); border-radius: 8px; cursor: pointer; padding: 8px 4px; width: 100%; }
         .rail-toggle:hover { color: var(--accent); border-color: var(--accent); }
@@ -477,6 +485,10 @@
         .card-section-head[draggable="true"]:active { cursor: grabbing; }
         .card-group.dragging { opacity: .45; }
         .card.dragging { opacity: .4; }
+        /* An open tab drawn as a card ([TabCard]): the tab selected in its window, and the one a drag
+           would land on. Mirrors .tab.current / .tab.drop-target — same states, card-shaped. */
+        .card.current { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+        .card.drop-target { outline: 2px solid var(--accent); outline-offset: -1px; }
 
         /* Right sidebar header row */
         .tabs-head { display: flex; align-items: center; justify-content: space-between; }

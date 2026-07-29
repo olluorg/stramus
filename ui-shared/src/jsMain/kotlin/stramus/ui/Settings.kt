@@ -43,6 +43,12 @@ external interface SettingsModalProps : Props {
     var swapSidebars: Boolean
     var onSwapSidebarsChange: (Boolean) -> Unit
 
+    /** Whether the tabs sidebar shows its rows as a grid of cards — the same shape and width as the
+     *  middle pane's saved cards — instead of its usual list. Same guard as [swapSidebars]: nothing to
+     *  offer without a tabs sidebar to reshape. */
+    var tabsCardView: Boolean
+    var onTabsCardViewChange: (Boolean) -> Unit
+
     /** Whether the browsing statistics go up to the account with everything else. Off unless asked for. */
     var syncUsage: Boolean
     var onSyncUsageChange: (Boolean) -> Unit
@@ -189,6 +195,12 @@ private fun ChildrenBuilder.appearancePane(props: SettingsModalProps, s: Strings
                 s.swapSidebars, s.swapSidebarsHint, props.swapSidebars,
                 listOf(false to s.swapSidebarsLeft, true to s.swapSidebarsRight),
                 props.onSwapSidebarsChange,
+            )
+
+            toggleRow(
+                s.tabsCardView, s.tabsCardViewHint, props.tabsCardView,
+                listOf(false to s.tabsCardViewList, true to s.tabsCardViewCards),
+                props.onTabsCardViewChange,
             )
         }
     }

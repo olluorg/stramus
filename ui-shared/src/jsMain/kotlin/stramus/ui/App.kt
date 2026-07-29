@@ -325,6 +325,46 @@ private fun ChildrenBuilder.cardGrid(
 }
 
 /**
+ * One window's open tabs, drawn as a grid of [TabCard]s instead of [TabRow]'s `<ul>` — what the tabs
+ * sidebar shows in place of the list under the `tabsCardView` setting. Same drag/drop and "current tab"
+ * semantics as the list; only the layout differs. See [cardGrid], which this mirrors for saved cards.
+ */
+private fun ChildrenBuilder.tabCardGrid(
+    strings: Strings,
+    tabs: List<CapturedTab>,
+    showUrls: Boolean,
+    draggingTabId: Int?,
+    dropTabId: Int?,
+    onGoTo: (CapturedTab) -> Unit,
+    onClose: (CapturedTab) -> Unit,
+    onStartDrag: (CapturedTab) -> Unit,
+    onEndDrag: () -> Unit,
+    onOver: (CapturedTab) -> Unit,
+    onDropHere: (CapturedTab) -> Unit,
+) {
+    div {
+        className = ClassName("grid")
+        tabs.forEach { tab ->
+            TabCard {
+                key = tab.id.toString().unsafeCast<Key>()
+                this.strings = strings
+                this.tab = tab
+                this.showUrl = showUrls
+                isDragging = draggingTabId == tab.id
+                acceptsDrop = draggingTabId != null && draggingTabId != tab.id
+                isDropTarget = dropTabId == tab.id
+                this.onGoTo = onGoTo
+                this.onClose = onClose
+                this.onStartDrag = onStartDrag
+                this.onEndDrag = onEndDrag
+                this.onOver = onOver
+                this.onDropHere = onDropHere
+            }
+        }
+    }
+}
+
+/**
  * One browser window in the tabs sidebar: its label and its tab list. Like [cardGroup] it is the drop
  * zone for the whole block, so a tab dropped on the window — rather than on one of its tabs — joins
  * it at the end; that is also how a tab is moved to another window. [active] highlights it while
@@ -645,6 +685,9 @@ val App = FC<AppProps> { props ->
     // Whether the sections sidebar and the tabs/history sidebar have traded sides. Purely a layout
     // flip — everything each one shows and does stays exactly where it is otherwise.
     var swapSidebars by useState(prefGet("swapSidebars") == "1")
+    // Whether the tabs sidebar shows its rows as a grid of [TabCard]s — the same shape as the middle
+    // pane's saved cards, and the same width as that pane too — instead of [TabRow]'s list.
+    var tabsCardView by useState(prefGet("tabsCardView") == "1")
     var rightPane by useState(RightPane.from(prefGet("rightPane")))
     var autoLockMinutes by useState(prefGet("autoLock")?.toIntOrNull() ?: DEFAULT_AUTO_LOCK_MINUTES)
     // What the page opens on: where the user left off, or the first collection. Read once, on the
@@ -2719,8 +2762,11 @@ val App = FC<AppProps> { props ->
                     }
                 }
             } else {
+                // Cards only stand in for the list on the Tabs pane itself — History has no card shape
+                // of its own — so the wider, grid layout follows the setting only while that pane is up.
+                val showTabCards = tabsCardView && pane == RightPane.TABS
                 aside {
-                    className = ClassName("tabs")
+                    className = ClassName(if (showTabCards) "tabs cards-view" else "tabs")
                     div {
                         className = ClassName("tabs-head")
                         // The pane switch. Each half is drawn only where the host grants it, so a
@@ -2750,6 +2796,21 @@ val App = FC<AppProps> { props ->
                                     }
                                     +t.paneHistory
                                 }
+                            }
+                        }
+                        // A quick switch beside the collapse button — the same choice as the setting in
+                        // Settings, for when reaching there is more than the moment is worth. Only where
+                        // there is a Tabs pane to switch the shape of at all.
+                        if (pane == RightPane.TABS) {
+                            button {
+                                className = ClassName("icon view-toggle")
+                                hint(if (tabsCardView) t.tabsViewToggleToList else t.tabsViewToggleToCards)
+                                onClick = {
+                                    val next = !tabsCardView
+                                    tabsCardView = next
+                                    prefSet("tabsCardView", if (next) "1" else "0")
+                                }
+                                +(if (tabsCardView) "☰" else "⊞")
                             }
                         }
                         button {
@@ -2815,22 +2876,38 @@ val App = FC<AppProps> { props ->
                                         onTriage = { triageWindowId = windowId },
                                         onSort = { by -> sortTabs(windowId, by) },
                                     ) {
-                                        ul {
-                                            className = ClassName("tab-list")
-                                            windowTabs.forEach { tab ->
-                                                TabRow {
-                                                    key = tab.id.toString().unsafeCast<Key>()
-                                                    strings = t
-                                                    this.tab = tab
-                                                    isDragging = draggingTab?.id == tab.id
-                                                    acceptsDrop = draggingTab != null && draggingTab?.id != tab.id
-                                                    isDropTarget = dropTabId == tab.id
-                                                    onGoTo = onTabGoTo
-                                                    onClose = onTabClose
-                                                    onStartDrag = onTabStartDrag
-                                                    onEndDrag = onTabEndDrag
-                                                    onOver = onTabOver
-                                                    onDropHere = onTabDropHere
+                                        if (showTabCards) {
+                                            tabCardGrid(
+                                                strings = t,
+                                                tabs = windowTabs,
+                                                showUrls = showCardUrls,
+                                                draggingTabId = draggingTab?.id,
+                                                dropTabId = dropTabId,
+                                                onGoTo = onTabGoTo,
+                                                onClose = onTabClose,
+                                                onStartDrag = onTabStartDrag,
+                                                onEndDrag = onTabEndDrag,
+                                                onOver = onTabOver,
+                                                onDropHere = onTabDropHere,
+                                            )
+                                        } else {
+                                            ul {
+                                                className = ClassName("tab-list")
+                                                windowTabs.forEach { tab ->
+                                                    TabRow {
+                                                        key = tab.id.toString().unsafeCast<Key>()
+                                                        strings = t
+                                                        this.tab = tab
+                                                        isDragging = draggingTab?.id == tab.id
+                                                        acceptsDrop = draggingTab != null && draggingTab?.id != tab.id
+                                                        isDropTarget = dropTabId == tab.id
+                                                        onGoTo = onTabGoTo
+                                                        onClose = onTabClose
+                                                        onStartDrag = onTabStartDrag
+                                                        onEndDrag = onTabEndDrag
+                                                        onOver = onTabOver
+                                                        onDropHere = onTabDropHere
+                                                    }
                                                 }
                                             }
                                         }
@@ -2976,6 +3053,11 @@ val App = FC<AppProps> { props ->
                 onSwapSidebarsChange = { swap ->
                     swapSidebars = swap
                     prefSet("swapSidebars", if (swap) "1" else "0")
+                }
+                this.tabsCardView = tabsCardView
+                onTabsCardViewChange = { cards ->
+                    tabsCardView = cards
+                    prefSet("tabsCardView", if (cards) "1" else "0")
                 }
                 this.syncUsage = syncUsage
                 onSyncUsageChange = { on ->
