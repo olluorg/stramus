@@ -3,6 +3,9 @@
 Менеджер вкладок в духе Toby: сохраняет открытые вкладки в коллекции, разложенные по секциям.
 Работает как отдельное веб-приложение и как расширение для Chrome, подменяющее страницу новой вкладки.
 
+Расширение — в Chrome Web Store: <https://chromewebstore.google.com/detail/accjfifjflckbinniekamhehcjdampjh>.
+Веб-версия — на <https://stramus.space>, без установки и без аккаунта.
+
 Написан на Kotlin/JS (React через kotlin-wrappers). Данные лежат в SQLite, который крутится в браузере
 поверх IndexedDB — через [Kormium](https://github.com/olluorg/korm) и его движок `kormium-sqlite-js`.
 Всё хранится локально в браузере: сервер и аккаунт — необязательное дополнение, которое даёт те же
@@ -200,6 +203,10 @@ docker compose up -d
 Дизайн: [`docs/sync-and-auth.md`](docs/sync-and-auth.md).
 
 ## Публикация в Chrome Web Store
+
+Расширение опубликовано: <https://chromewebstore.google.com/detail/accjfifjflckbinniekamhehcjdampjh>.
+Следующий выпуск — это поднять `version` в манифесте, поставить тег `vX.Y.Z` и загрузить в консоль ZIP,
+который соберёт и приложит к релизу workflow; порядок расписан в [`store/README.md`](store/README.md).
 
 Всё, что просит форма Web Store, лежит в [`store/`](store/README.md): чек-лист, тексты карточки на
 двух языках, обоснования разрешений и ответы про данные. Политика конфиденциальности — страница

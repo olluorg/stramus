@@ -30,7 +30,13 @@ import web.html.InputType
 
 /** Where the source and the extension live — the two links the page makes a promise about. */
 private const val SOURCE_URL = "https://github.com/olluorg/stramus"
-private const val EXTENSION_URL = "https://github.com/olluorg/stramus/releases/latest"
+
+/**
+ * The Web Store listing, not the GitHub release it used to be: a visitor who came here to get the
+ * extension should end up on a page with an install button, not on a ZIP to be loaded unpacked. The id
+ * is the store item's and is fixed for the life of the extension.
+ */
+private const val EXTENSION_URL = "https://chromewebstore.google.com/detail/accjfifjflckbinniekamhehcjdampjh"
 
 // The wrappers' InputType is opaque; named here the way the account dialog names the same three.
 private val EMAIL_INPUT: InputType = "email".unsafeCast<InputType>()
