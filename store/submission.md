@@ -28,7 +28,7 @@ pre-filled and greyed out. Do not retype them anywhere.
 | Detailed description (ru) | everything under the `---` in [`listing-ru.md`](listing-ru.md) |
 | Homepage URL | `https://stramus.space/` |
 | Support URL | `https://github.com/olluorg/stramus/issues` |
-| Store icon | taken from the ZIP (`logo-128.png`) |
+| Store icon | [`store-icon-128.png`](store-icon-128.png) — upload it; the console asks for this one separately and does not take it from the package |
 | Screenshots | `store/screenshots/01-collection.png` … `05-settings.png`, in that order |
 | Promo tiles | leave empty — optional, and only needed to be eligible for featuring |
 

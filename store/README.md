@@ -63,10 +63,18 @@ against a local server means adding the line back in your own working copy — a
 
 | Asset | Size | Where it comes from |
 | --- | --- | --- |
-| Store icon | 128×128 PNG | `extension/src/jsMain/resources/logo-128.png` ✔ |
+| Store icon | 128×128 PNG | [`store-icon-128.png`](store-icon-128.png) ✔ — made from `logo.png`, not the same file as the extension's own `logo-128.png` (see below) |
 | Screenshots (1–5, at least 1) | 1280×800 PNG | **to be taken** — see below |
 | Small promo tile (optional) | 440×280 PNG | to be made, if the listing is to be eligible for featuring |
 | Marquee (optional) | 1400×560 PNG | only needed for the store's front page |
+
+The store icon is its own file rather than the extension's `logo-128.png`, which is drawn to fill its
+canvas: its star sits 2px from the left edge and 18px from the right. That is right for a toolbar, where
+padding only makes an icon smaller, and wrong for the store, which asks for the graphic to sit inside
+roughly 96×96 with room around it and draws the result on a card next to other people's icons.
+`store-icon-128.png` is the 600px `logo.png` scaled into that 96×96 and positioned so its alpha-weighted
+centre lands in the middle of the canvas — centring the glow by its bounding box leaves it visibly
+lopsided, because the glow is not symmetrical.
 
 [`screenshots.md`](screenshots.md) is the procedure — a throwaway profile, the unpacked build, and
 DevTools' own capture, which is the only way to get exactly 1280×800 with no browser chrome in frame.
