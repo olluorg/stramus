@@ -8,8 +8,12 @@ domain, and browser automation is an extension — so this is a manual pass.
 
 ## Package
 
-Upload `C:\Users\user\Downloads\stramus-extension-1.2.0.zip`
-(also at https://github.com/olluorg/stramus/releases/tag/v1.2.0).
+Upload `C:\Users\user\Downloads\stramus-extension-1.2.1.zip`
+(also at https://github.com/olluorg/stramus/releases/tag/v1.2.1).
+
+1.2.0 was tagged and released but never uploaded: it declared no output language to Chrome's built-in
+model, which put a console error in the extension's error list on `chrome://extensions` — the first
+thing a reviewer opening the extension would see. 1.2.1 is that same build with the declaration.
 
 The name, short description and toolbar tooltip come from the ZIP's `_locales` and will appear
 pre-filled and greyed out. Do not retype them anywhere.
