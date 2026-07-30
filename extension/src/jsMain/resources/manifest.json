@@ -3,7 +3,7 @@
   "name": "__MSG_extName__",
   "short_name": "stramus",
   "description": "__MSG_extDescription__",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "default_locale": "en",
   "homepage_url": "https://stramus.space/",
   "permissions": [
@@ -14,7 +14,6 @@
     "identity"
   ],
   "host_permissions": [
-    "http://localhost:8090/*",
     "https://api.stramus.space/*"
   ],
   "minimum_chrome_version": "138",

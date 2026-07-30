@@ -1,0 +1,66 @@
+Section,Collection,CardSection,Title,URL
+Work,Frontend,Docs,MDN Web Docs,https://developer.mozilla.org/
+Work,Frontend,Docs,web.dev — Learn,https://web.dev/learn/
+Work,Frontend,Docs,Can I use,https://caniuse.com/
+Work,Frontend,Docs,TypeScript Handbook,https://www.typescriptlang.org/docs/handbook/intro.html
+Work,Frontend,Docs,React — Reference,https://react.dev/reference/react
+Work,Frontend,Docs,Vite Guide,https://vite.dev/guide/
+Work,Frontend,Tools,GitHub,https://github.com/
+Work,Frontend,Tools,Bundlephobia,https://bundlephobia.com/
+Work,Frontend,Tools,RegExr,https://regexr.com/
+Work,Frontend,Tools,Squoosh,https://squoosh.app/
+Work,Frontend,Tools,PageSpeed Insights,https://pagespeed.web.dev/
+Work,Frontend,Design,Figma,https://www.figma.com/files
+Work,Frontend,Design,Google Fonts,https://fonts.google.com/
+Work,Frontend,Design,Heroicons,https://heroicons.com/
+Work,Frontend,Design,Coolors,https://coolors.co/
+Work,Frontend,Design,Radix Colors,https://www.radix-ui.com/colors
+Work,Backend,Kotlin,Kotlin Documentation,https://kotlinlang.org/docs/home.html
+Work,Backend,Kotlin,Ktor Server,https://ktor.io/docs/server-create-a-new-project.html
+Work,Backend,Kotlin,Coroutines Guide,https://kotlinlang.org/docs/coroutines-guide.html
+Work,Backend,Kotlin,Kotlin Multiplatform,https://kotlinlang.org/docs/multiplatform.html
+Work,Backend,Infra,Docker Compose file reference,https://docs.docker.com/reference/compose-file/
+Work,Backend,Infra,Caddy Documentation,https://caddyserver.com/docs/
+Work,Backend,Infra,GitHub Actions Workflow syntax,https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions
+Work,Backend,Infra,Let's Encrypt Rate Limits,https://letsencrypt.org/docs/rate-limits/
+Work,Backend,Databases,SQLite — SQL syntax,https://www.sqlite.org/lang.html
+Work,Backend,Databases,PostgreSQL Manual,https://www.postgresql.org/docs/current/
+Work,Backend,Databases,DB Fiddle,https://www.db-fiddle.com/
+Work,Team,,Linear,https://linear.app/
+Work,Team,,Notion,https://www.notion.so/
+Work,Team,,Slack,https://app.slack.com/client
+Work,Team,,Google Calendar,https://calendar.google.com/
+Work,Team,,Miro,https://miro.com/app/dashboard/
+Work,Team,,Google Meet,https://meet.google.com/
+Reading,Longreads,This week,Hacker News,https://news.ycombinator.com/
+Reading,Longreads,This week,Lobsters,https://lobste.rs/
+Reading,Longreads,This week,Ars Technica,https://arstechnica.com/
+Reading,Longreads,This week,The Verge,https://www.theverge.com/
+Reading,Longreads,Someday,Paul Graham — Essays,https://www.paulgraham.com/articles.html
+Reading,Longreads,Someday,Julia Evans,https://jvns.ca/
+Reading,Longreads,Someday,Dan Luu,https://danluu.com/
+Reading,Longreads,Someday,Nielsen Norman Group,https://www.nngroup.com/articles/
+Reading,Learning,Courses,MIT OpenCourseWare,https://ocw.mit.edu/
+Reading,Learning,Courses,Coursera,https://www.coursera.org/
+Reading,Learning,Courses,Duolingo,https://www.duolingo.com/learn
+Reading,Learning,Reference,Wikipedia,https://www.wikipedia.org/
+Reading,Learning,Reference,arXiv,https://arxiv.org/
+Reading,Learning,Reference,Wolfram Alpha,https://www.wolframalpha.com/
+Home,Lisbon in May,Stay,Airbnb — Lisbon,https://www.airbnb.com/s/Lisbon
+Home,Lisbon in May,Stay,Booking.com,https://www.booking.com/
+Home,Lisbon in May,Eat,Time Out Market,https://www.timeoutmarket.com/lisboa/en/
+Home,Lisbon in May,Eat,The Infatuation — Lisbon,https://www.theinfatuation.com/lisbon
+Home,Lisbon in May,See,Oceanário de Lisboa,https://www.oceanario.pt/en/
+Home,Lisbon in May,See,Museu Calouste Gulbenkian,https://gulbenkian.pt/museu/en/
+Home,Lisbon in May,See,Google Maps — saved places,https://www.google.com/maps
+Home,Lisbon in May,Getting there,Skyscanner,https://www.skyscanner.net/
+Home,Lisbon in May,Getting there,Rome2Rio,https://www.rome2rio.com/
+Home,Kitchen,,Serious Eats,https://www.seriouseats.com/
+Home,Kitchen,,NYT Cooking,https://cooking.nytimes.com/
+Home,Kitchen,,Bon Appétit,https://www.bonappetit.com/
+Home,Kitchen,,King Arthur Baking,https://www.kingarthurbaking.com/recipes
+Home,Everyday,,Gmail,https://mail.google.com/
+Home,Everyday,,YouTube,https://www.youtube.com/
+Home,Everyday,,Spotify,https://open.spotify.com/
+Home,Everyday,,Google Photos,https://photos.google.com/
+Home,Everyday,,Weather,https://weather.com/
