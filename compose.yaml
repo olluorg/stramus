@@ -23,8 +23,14 @@ services:
       # STRAMUS_SMTP_USER: "apikey"
       # STRAMUS_SMTP_PASSWORD: "your-smtp-password"
       # STRAMUS_MAIL_FROM: "stramus@example.org"
-      # Sign-in with Google. Leave it out and that door simply is not there.
-      STRAMUS_GOOGLE_CLIENT_ID: "…apps.googleusercontent.com"
+      # Sign-in with Google — two separate doors, independent of each other:
+      #  - the web app's popup flow and the extension's launchWebAuthFlow fallback both send a signed ID
+      #    token, checked against a "Web application" OAuth client;
+      #  - the extension's quiet chrome.identity.getAuthToken sends an opaque access token instead, checked
+      #    against a separate "Chrome Extension" OAuth client (also baked into the extension's manifest.json).
+      # Leave either out and that specific door is simply not there; the other still works on its own.
+      STRAMUS_GOOGLE_CLIENT_ID: "18928481720-2qrnmhlm21jvi6f6qlgnd2lqcau2joi6.apps.googleusercontent.com"
+      STRAMUS_GOOGLE_EXTENSION_CLIENT_ID: "18928481720-vbolufg5c53b7gch7okeuk4lt4kkrst2.apps.googleusercontent.com"
     volumes:
       # The database and the file bytes. This one directory is the whole of what to back up.
       - stramus-data:/data

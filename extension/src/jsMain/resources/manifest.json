@@ -18,6 +18,10 @@
     "https://api.stramus.space/*"
   ],
   "minimum_chrome_version": "138",
+  "oauth2": {
+    "client_id": "18928481720-vbolufg5c53b7gch7okeuk4lt4kkrst2.apps.googleusercontent.com",
+    "scopes": ["openid", "email"]
+  },
   "icons": {
     "16": "logo-16.png",
     "32": "logo-32.png",

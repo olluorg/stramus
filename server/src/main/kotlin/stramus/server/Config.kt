@@ -76,6 +76,14 @@ data class ServerConfig(
      */
     val googleClientId: String = "",
 
+    /**
+     * A second, separate OAuth client id — the one registered as a *Chrome Extension* rather than a
+     * *Web application* — for `chrome.identity.getAuthToken`, which hands back an opaque access token
+     * rather than a signed ID token and so needs a different check ([GoogleAccessTokenVerifier]). Blank
+     * means that door specifically is not there; [googleClientId] alone still opens the other one.
+     */
+    val googleExtensionClientId: String = "",
+
     /** Browsers refuse a cross-origin request that this does not name. Both clients are cross-origin. */
     val allowedOrigins: List<String> = listOf("http://localhost:8080"),
 
@@ -94,6 +102,7 @@ data class ServerConfig(
                 smtpPassword = env["STRAMUS_SMTP_PASSWORD"],
                 mailFrom = env["STRAMUS_MAIL_FROM"] ?: "stramus@localhost",
                 googleClientId = env["STRAMUS_GOOGLE_CLIENT_ID"] ?: "",
+                googleExtensionClientId = env["STRAMUS_GOOGLE_EXTENSION_CLIENT_ID"] ?: "",
                 jwtSecret = env["STRAMUS_JWT_SECRET"] ?: "dev-secret-not-for-production",
                 allowedOrigins = env["STRAMUS_ALLOWED_ORIGINS"]
                     ?.split(',')
@@ -107,9 +116,22 @@ data class ServerConfig(
         }
     }
 
-    /** The verifier this configuration asks for, or null when no Google client id is set. */
-    fun googleVerifier(): GoogleVerifier? =
-        if (googleClientId.isNotBlank()) GoogleIdTokenVerifier(googleClientId) else null
+    /**
+     * The verifier(s) this configuration asks for, or null when neither Google client id is set. Both
+     * configured means both doors are open — an incoming token is tried against each check in turn, since
+     * whether it is a signed ID token or an opaque access token is exactly what tells them apart.
+     */
+    fun googleVerifier(): GoogleVerifier? {
+        val verifiers = listOfNotNull(
+            googleClientId.takeIf { it.isNotBlank() }?.let { GoogleIdTokenVerifier(it) },
+            googleExtensionClientId.takeIf { it.isNotBlank() }?.let { GoogleAccessTokenVerifier(it) },
+        )
+        return when (verifiers.size) {
+            0 -> null
+            1 -> verifiers.single()
+            else -> GoogleVerifier { token -> verifiers.firstNotNullOfOrNull { it.verify(token) } }
+        }
+    }
 
     /**
      * The defaults above are conveniences for a developer, and every one of them is a hole in a server

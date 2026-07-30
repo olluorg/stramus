@@ -4,10 +4,17 @@ import com.auth0.jwk.JwkProviderBuilder
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import java.net.URI
+import java.net.URLEncoder
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import java.security.interfaces.RSAPublicKey
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 private val ISSUERS = listOf("https://accounts.google.com", "accounts.google.com")
 
@@ -68,6 +75,45 @@ class GoogleIdTokenVerifier(private val clientId: String) : GoogleVerifier {
                 subject = verified.subject,
                 email = email,
                 emailVerified = verified.getClaim("email_verified").asBoolean() ?: false,
+            )
+        }.getOrNull()
+    }
+}
+
+/**
+ * Checks an *access* token from Google — what `chrome.identity.getAuthToken` hands back, as opposed to the
+ * signed ID token [GoogleIdTokenVerifier] checks. It is opaque: nothing here can be verified against a
+ * local key the way a JWT's signature can, so the only way to learn what the token is good for is to ask
+ * Google directly, which `tokeninfo` answers for exactly this reason.
+ *
+ * The `aud` it returns matters for the same reason the ID token's `aud` claim does: Google will hand out a
+ * perfectly valid access token to any application a user has granted, including one that is not this one.
+ * Without checking it names *our* extension's client id, this would believe an access token minted for
+ * somebody else's app just as readily as one minted for ours.
+ */
+class GoogleAccessTokenVerifier(private val clientId: String) : GoogleVerifier {
+
+    private val http = HttpClient.newHttpClient()
+
+    override suspend fun verify(idToken: String): GoogleIdentity? = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = HttpRequest.newBuilder(
+                URI("https://oauth2.googleapis.com/tokeninfo?access_token=${URLEncoder.encode(idToken, "UTF-8")}"),
+            ).GET().build()
+            val response = http.send(request, HttpResponse.BodyHandlers.ofString())
+            if (response.statusCode() != 200) return@runCatching null
+
+            val body = Json.parseToJsonElement(response.body()).jsonObject
+            fun field(name: String) = body[name]?.jsonPrimitive?.content
+
+            if (field("aud") != clientId) return@runCatching null
+            val email = field("email") ?: return@runCatching null
+            val subject = field("sub") ?: field("user_id") ?: return@runCatching null
+
+            GoogleIdentity(
+                subject = subject,
+                email = email,
+                emailVerified = (field("email_verified") ?: field("verified_email"))?.toBoolean() ?: false,
             )
         }.getOrNull()
     }

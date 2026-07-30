@@ -93,6 +93,14 @@ internal external interface ChromeRuntime {
 internal external interface ChromeIdentity {
     fun getRedirectURL(): String
     fun launchWebAuthFlow(options: dynamic): Promise<String>
+
+    /**
+     * The quieter door: an OAuth2 access token for the account already signed into Chrome itself, using
+     * the `client_id` and `scopes` registered under `oauth2` in the manifest — nothing is passed in here.
+     * `interactive: false` answers only if it can without drawing anything at all; with no session or no
+     * prior consent it resolves to nothing rather than opening a window.
+     */
+    fun getAuthToken(details: dynamic): Promise<dynamic>
 }
 
 internal external interface Chrome {

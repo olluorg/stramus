@@ -5,34 +5,51 @@ import kotlinx.coroutines.await
 import stramus.core.platform.GoogleSignIn
 
 /**
- * Signing in with Google from the extension — silently when Chrome can manage it, a window when it can't.
+ * Signing in with Google from the extension — three attempts, quietest first.
  *
- * `chrome.identity.launchWebAuthFlow` is what an extension has instead of a popup: Chrome opens the window,
- * follows Google through it, and hands back the URL Google finally redirected to — from which the token is
- * read. The redirect goes to `https://<extension-id>.chromiumapp.org/`, a URL that exists only inside Chrome
- * and that no one but this extension can be redirected to, which is what makes the flow safe without a
- * server of ours in the middle of it.
+ * 1. `chrome.identity.getAuthToken`, silent: an access token for the account already signed into Chrome
+ *    itself, using the `oauth2` client registered in the manifest. Nothing is ever drawn for this one, not
+ *    even a hidden window — it either has an answer or it doesn't.
+ * 2. `chrome.identity.launchWebAuthFlow`, silent: for the case Chrome's own sign-in can't answer (a work
+ *    profile with `getAuthToken` disabled, say) but there is still a Google *web* session and prior
+ *    consent. Chrome opens the window, follows Google through it and hands back the URL Google finally
+ *    redirected to, but `interactive = false` means nothing is drawn unless it must be.
+ * 3. `launchWebAuthFlow`, visible: first-ever consent, or nothing above found a session to answer with.
  *
- * The first attempt is `interactive = false`: Chrome's documented way of asking "answer only if you can do
- * it without showing anyone anything." With an existing Google session and prior consent — true for anyone
- * who has signed in here before — that succeeds and nothing is ever drawn. Only when it can't (no session,
- * first-ever consent, access revoked) does a second, visible attempt run.
+ * The redirect for (2) and (3) goes to `https://<extension-id>.chromiumapp.org/`, a URL that exists only
+ * inside Chrome and that no one but this extension can be redirected to — what makes the flow safe without
+ * a server of ours in the middle of it.
  *
- * `response_type=id_token` because an ID token is all we want: it says who the person is, signed. We are not
- * asking for access to anything of theirs at Google, and so we ask for no access token and no refresh token
- * — there is nothing for us to do with them, and nothing for us to leak.
+ * The two doors hand back different things — (1) an opaque access token, (2)/(3) a signed ID token — and
+ * that is fine: the server checks each the way it must be checked (see `Google.kt`), and this interface
+ * only promises "a token Google will vouch for," not which kind.
  */
-class ChromeGoogleSignIn(private val clientId: String) : GoogleSignIn {
+class ChromeGoogleSignIn(private val webClientId: String) : GoogleSignIn {
 
     override suspend fun idToken(): String? {
+        attemptAuthToken(interactive = false)?.let { return it }
+        // No Web application client id configured means (2) and (3) have no client to ask Google as —
+        // there is nothing left to try.
+        if (webClientId.isBlank()) return null
         val redirectUri = chrome.identity.getRedirectURL()
-        return attempt(redirectUri, interactive = false) ?: attempt(redirectUri, interactive = true)
+        return attemptFlow(redirectUri, interactive = false) ?: attemptFlow(redirectUri, interactive = true)
     }
 
-    private suspend fun attempt(redirectUri: String, interactive: Boolean): String? {
+    /**
+     * Null covers "no `oauth2` client registered in the manifest" as much as "no session to answer
+     * silently with" — either way, the caller falls through to [attemptFlow].
+     */
+    private suspend fun attemptAuthToken(interactive: Boolean): String? {
+        val result = runCatching {
+            chrome.identity.getAuthToken(json("interactive" to interactive)).await()
+        }.getOrNull() ?: return null
+        return (result.token as? String)?.ifEmpty { null }
+    }
+
+    private suspend fun attemptFlow(redirectUri: String, interactive: Boolean): String? {
         val nonce = randomNonce()
         val url = "https://accounts.google.com/o/oauth2/v2/auth" +
-            "?client_id=$clientId" +
+            "?client_id=$webClientId" +
             "&response_type=id_token" +
             "&redirect_uri=${encodeURIComponent(redirectUri)}" +
             "&scope=${encodeURIComponent("openid email")}" +

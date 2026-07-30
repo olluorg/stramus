@@ -25,8 +25,10 @@ fun main() {
             // user keeps here — see [ChromeIcons].
             iconSources = ChromeIcons
             ai = builtInAi()
-            // chrome.identity, but only where an OAuth client has actually been registered for this app.
-            google = googleClientId().takeIf { it.isNotBlank() }?.let { ChromeGoogleSignIn(it) }
+            // chrome.identity.getAuthToken needs no client id here — it is the one baked into the
+            // manifest's own `oauth2` block. The Web application client id (possibly blank) is only for
+            // the launchWebAuthFlow fallback; see ChromeGoogleSignIn.
+            google = ChromeGoogleSignIn(googleClientId())
         },
     )
 }
