@@ -1,7 +1,12 @@
 # Detailed description — English
 
-> Paste into the Web Store's "Detailed description" field for the English listing. The name and the
-> short description come from `_locales/en/messages.json` in the uploaded ZIP, not from here.
+> Paste everything below the line into the Web Store's "Detailed description" field for the English
+> listing. The name and the short description come from `_locales/en/messages.json` in the uploaded ZIP,
+> not from here.
+>
+> **The field is plain text.** It renders no Markdown and no HTML: `**bold**` would appear with its
+> asterisks, and so the text below has none. What it does keep is line breaks and blank lines, which is
+> what separates the headings from the paragraphs under them. Paste it as it is — do not re-add emphasis.
 
 ---
 
@@ -12,38 +17,42 @@ kept. Save the tabs you have open into a collection, give it a name, and close t
 them. Everything is stored on your own machine, and it works that way with no account at all — sign in
 only if you want the same collections on your other browser.
 
-**Save your open tabs.** The tab pane lists every tab in every window. Drag one into a collection, or
-save a whole window at once. A tab that is saved can be closed on the spot — that is the point.
+Save your open tabs.
+The tab pane lists every tab in every window. Drag one into a collection, or save a whole window at
+once. A tab that is saved can be closed on the spot — that is the point.
 
-**Organise them the way you think.** Sections in the sidebar hold collections; collections hold cards;
-cards can be grouped under headings of your own. Everything is drag-and-drop, and anything undone by
-accident can be undone.
+Organise them the way you think.
+Sections in the sidebar hold collections; collections hold cards; cards can be grouped under headings
+of your own. Everything is drag-and-drop, and anything undone by accident can be undone.
 
-**Cards are not only links.** A card can be a link, a note written in Markdown, or a file — an image, a
-PDF, whatever you drop on it — kept in the collection along with the links it belongs with.
+Cards are not only links.
+A card can be a link, a note written in Markdown, or a file — an image, a PDF, whatever you drop on it
+— kept in the collection along with the links it belongs with.
 
-**Find it in one keystroke.** The search box searches your cards, your open tabs and your browsing
-history at once, and ranks what it finds by what you actually open. An empty box already shows your
-top sites. If what you typed is a search rather than a page, it goes to your own default search engine.
+Find it in one keystroke.
+The search box searches your cards, your open tabs and your browsing history at once, and ranks what it
+finds by what you actually open. An empty box already shows your top sites. If what you typed is a
+search rather than a page, it goes to your own default search engine.
 
-**Ask the browser's own model.** Where Chrome has an on-device model, the search box will ask it — in a
-window over your collection, on your machine, with nothing sent anywhere. Prefer a web assistant?
-Choose ChatGPT, Gemini or Claude in the settings, and your question opens in a chat with them instead.
+Ask the browser's own model.
+Where Chrome has an on-device model, the search box will ask it — in a window over your collection, on
+your machine, with nothing sent anywhere. Prefer a web assistant? Choose ChatGPT, Gemini or Claude in
+the settings, and your question opens in a chat with them instead.
 
-**Keep some of it to yourself.** A section can be locked with a PIN, so that what is behind it is not
-on screen when you share it.
+Keep some of it to yourself.
+A section can be locked with a PIN, so that what is behind it is not on screen when you share it.
 
-**And the rest of it.** Light and dark themes. English and Russian. Import from your bookmarks or a CSV
-file; export back to either. Tab sorting. A favicon cache, so your links keep their icons offline.
+And the rest of it.
+Light and dark themes. English and Russian. Import from your bookmarks or a CSV file; export back to
+either. Tab sorting. A favicon cache, so your links keep their icons offline.
 
----
-
-**Private by construction.** No analytics, no telemetry, no tracking, no advertising — with or without
-an account. Without one, none of your data leaves your machine: your collections have no server to go
-to. With an account they are synced so your other browser can have them, and nothing else is: your
-browsing statistics stay on this machine unless you switch that on yourself, and your browser history
-is never uploaded. It reads your tabs and your history because that is what a tab manager does, and it
-reads them in the moment, without keeping a copy.
+Private by construction.
+No analytics, no telemetry, no tracking, no advertising — with or without an account. Without one, none
+of your data leaves your machine: your collections have no server to go to. With an account they are
+synced so your other browser can have them, and nothing else is: your browsing statistics stay on this
+machine unless you switch that on yourself, and your browser history is never uploaded. It reads your
+tabs and your history because that is what a tab manager does, and it reads them in the moment, without
+keeping a copy.
 
 Site icons come from your browser's own icon store, so a site you have visited is drawn without asking
 anyone. For a site you have not visited, the icon is fetched by our server on your behalf — anonymously,
