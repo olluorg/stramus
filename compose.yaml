@@ -15,7 +15,12 @@ services:
       # The web app is served from the custom domain; a request from anywhere this does not name is
       # refused by the browser before the server ever sees it, so a landing page whose sign-in silently
       # does nothing is almost always this line.
-      STRAMUS_ALLOWED_ORIGINS: "https://stramus.space,chrome-extension://<your-extension-id>"
+      #
+      # The id below is the published extension's, which is the Web Store item's and never changes. An
+      # unpacked build loaded from a folder gets a different, path-derived one, so a line for it has to
+      # be added to develop against this server — and taken out again afterwards. This list is who may
+      # speak to the API on a user's behalf; ids that no longer belong to anything are worth removing.
+      STRAMUS_ALLOWED_ORIGINS: "https://stramus.space,chrome-extension://accjfifjflckbinniekamhehcjdampjh"
       # Optional: a mail relay for the one-time sign-in codes. Leave it out and that door is simply closed
       # (401/501 on the mailed-code endpoints, not codes printed to the log) — password and Google still work.
       # STRAMUS_SMTP_HOST: "smtp.example.org"
