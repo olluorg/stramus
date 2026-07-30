@@ -80,7 +80,9 @@ persuading:
 1. A full new tab page: sections in the sidebar, a collection of cards open, the whole thing populated.
 2. The tab pane on the right, mid-save: open tabs about to become a collection.
 3. The search box open, with results from cards, tabs and history at once.
-4. The assistant answering in its window over the collection (the on-device model, with its badge).
+4. The assistant answering in its window over the collection — about the links in the collection that
+   is open, which is what it is given. (The window is badged "AI" whichever assistant is chosen; that
+   it is the on-device one is visible in Settings → AI, not here.)
 5. Settings: theme, language, the assistant, export.
 
 Chrome does not scale them for you: 1280×800 exactly, and the browser chrome should not be in frame.
@@ -116,18 +118,23 @@ with your tabs and your browsing history — from the same keystroke.
   Both happen only when the user presses "Sign in with Google"; an account is optional and the extension
   is fully usable without one.
 
-**Host permissions:** `https://api.stramus.space/*` — the sync server, and the only host the extension
-talks to. It is contacted only while the user is signed in: an extension with no account never opens a
-connection to it. Nothing else is requested; there is no `<all_urls>`, no content script and no
-injection into any page the user visits.
+**Host permissions:** `https://api.stramus.space/*` — our own server, and the only host the extension
+talks to. It is asked for two things. Synchronisation, which happens only while the user is signed in:
+an extension with no account never syncs anything. And `GET /v1/favicon?host=…`, the icon proxy
+described under **favicon** above, which is anonymous, carries no account and is asked only for a host
+the browser's own favicon store has nothing for — so a signed-out extension does reach this host, and
+what it says when it does is the name of a site, with nothing attached to identify whose it is.
+Nothing else is requested: there is no `<all_urls>`, no content script and no injection into any page
+the user visits.
 
 **Remote code:** No. The extension executes no code it did not ship with; everything in the ZIP is
 compiled from this repository. The `wasm-unsafe-eval` in the CSP is for the SQLite WebAssembly module
 that ships *inside* the extension, not for anything fetched at runtime.
 
-**Data usage.** An account is optional, and without one nothing is collected or transmitted at all —
-but the form asks what the extension *can* collect, and signing in turns synchronisation on. So the
-categories to tick, each with the note the form allows:
+**Data usage.** An account is optional, and without one nothing about the user is collected: the only
+thing that leaves the machine is the icon proxy's anonymous question about a host, which is attached to
+no account and to no identifier. Signing in is what turns synchronisation on. So the categories to
+tick, each with the note the form allows:
 
 | Category | Why | Only when |
 | --- | --- | --- |
