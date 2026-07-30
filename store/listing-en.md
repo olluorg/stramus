@@ -39,13 +39,16 @@ file; export back to either. Tab sorting. A favicon cache, so your links keep th
 ---
 
 **Private by construction.** No analytics, no telemetry, no tracking, no advertising — with or without
-an account. Without one, nothing leaves your machine at all: there is no server for it to go to. With
-one, your collections are synced so your other browser can have them, and nothing else is: your
+an account. Without one, none of your data leaves your machine: your collections have no server to go
+to. With an account they are synced so your other browser can have them, and nothing else is: your
 browsing statistics stay on this machine unless you switch that on yourself, and your browser history
 is never uploaded. It reads your tabs and your history because that is what a tab manager does, and it
-reads them in the moment, without keeping a copy. Site icons come from your browser's own favicon
-store rather than from an icon service on the internet — so not even the list of sites you save is
-handed to anyone.
+reads them in the moment, without keeping a copy.
+
+Site icons come from your browser's own icon store, so a site you have visited is drawn without asking
+anyone. For a site you have not visited, the icon is fetched by our server on your behalf — anonymously,
+with no account attached and nothing logged — rather than by handing your saved hosts to a public icon
+service one request at a time.
 
 A PIN on a section keeps it off your screen; it is not encryption, and it does not hide the section
 from the server. The privacy policy says so plainly, and says what else an account means.

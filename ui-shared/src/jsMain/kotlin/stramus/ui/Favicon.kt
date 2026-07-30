@@ -19,6 +19,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.minutes
 
 /** The global `fetch`, enough of it to ask for an icon and get a promise back. */
 private external fun fetch(url: String, options: dynamic): dynamic
@@ -32,17 +33,27 @@ private external fun fetch(url: String, options: dynamic): dynamic
  * An icon fetched less than [ICON_MAX_AGE] ago is simply used — a page of saved links is a page of
  * hosts whose icons were settled long ago, and asking the icon services about every one of them on
  * every load is a great deal of network for an answer that has not changed. What is fetched, then, is
- * what is missing or old: [sourcesFor] is walked in order and the first icon whose bytes can actually
- * be read wins — the card's own icon URL first, then the icon services. Anything cached survives all
- * of them failing, which is the point of caching at all.
+ * what is missing or old: [IconSources.sourcesFor] is walked in order and the first icon whose bytes can
+ * actually be read wins. Anything cached survives all of them failing, which is the point of caching.
  */
 private val cached = mutableMapOf<String, CachedIcon>()
 
 /** Hosts whose fetch is running: the second card of a host waits on the first one's fetch, not its own. */
 private val inFlight = mutableMapOf<String, Deferred<String?>>()
 
-/** Hosts that came back with nothing this session. Asking again would fail again, once per card. */
-private val failed = mutableSetOf<String>()
+/**
+ * How a host's chain ended, for the hosts where it ended badly. Asking again would fail again, once per
+ * card — but *which* way it failed decides what is drawn, so this is not merely a set of names.
+ */
+private enum class Outcome {
+    /** Somebody authoritative said there is no icon. Nothing left to try; draw the letter tile. */
+    ABSENT,
+
+    /** Nothing could be reached. There may well be an icon; a display-only source is still worth a try. */
+    UNREACHABLE,
+}
+
+private val outcomes = mutableMapOf<String, Outcome>()
 
 private var repository: FaviconRepository? = null
 private val faviconScope = MainScope()
@@ -54,45 +65,118 @@ private const val MAX_ICON_BYTES = 150_000
 private val ICON_MAX_AGE = 30.days
 
 /**
- * How many icons are fetched at once. A collection of a few hundred links is a few hundred hosts, and
- * a page that asks for all of them at the same moment gets a slower answer for every one of them —
- * and looks, to an icon service, like something worth rate-limiting.
+ * How long an unreachable [IconSourceKind.AUTHORITATIVE] source is left alone before it is tried again.
+ *
+ * Without this, a server that is down costs one failed request *per host* on every load — a hundred cards
+ * being a hundred timeouts — before the fallbacks get their turn. One failure stands in for the rest of
+ * the minute, and the chain starts at the fallbacks instead.
  */
-private val fetchSlots = Semaphore(6)
+private val AUTHORITY_RETRY_AFTER = 2.minutes
+
+private var authorityDownUntil = Clock.System.now() - AUTHORITY_RETRY_AFTER
 
 /** Load the cached icons into memory, so the first paint of a card needs no network at all. */
 internal suspend fun initFaviconCache(repo: FaviconRepository) {
     repository = repo
     runCatching { cached.putAll(repo.all()) }
+
+    // Rows written before the source learned to recognise its own "I have no icon" reply are stand-ins
+    // sitting where real icons belong, and they would sit there until they aged out. Drop them here rather
+    // than let the first paint show them: by the time anything is drawn the cache is only real icons.
+    val stale = cached.filter { (_, icon) -> iconSources.isBlank(icon.dataUri) }.keys.toList()
+    stale.forEach { host ->
+        cached.remove(host)
+        runCatching { repository?.remove(host) }
+    }
+}
+
+/** What a source had to say. The three cases are the whole reason a chain can be walked sensibly. */
+private sealed interface Fetched {
+    class Bytes(val dataUri: String) : Fetched
+
+    /** The source answered, and the answer is that there is no icon here. */
+    data object Absent : Fetched
+
+    /** The source could not be reached at all — offline, blocked, timed out, or simply broken. */
+    data object Unavailable : Fetched
 }
 
 /**
- * Where a site's icon may be read from, in order of preference. Whichever source responds with
- * readable bytes first wins, so the list is a chain rather than a choice.
+ * What a source is, as far as walking the chain is concerned.
  *
- * The two implementations differ in more than speed. The web app has nothing but the public icon
- * services ([NetworkIcons]), and asking them for an icon tells them which host the user has saved.
- * The extension has the browser's own favicon store ([stramus.ext.ChromeIcons]) — the icons of the
- * pages this browser has already visited, on this machine — and so it asks nobody at all.
+ * These are not shades of preference. Each one changes what happens next, and flattening them back into a
+ * list of URLs is what made the chain unable to tell "there is no icon" from "I could not ask".
  */
-fun interface IconSources {
-    /** Icon URLs to try for [pageUrl], best first. [stored] is the icon URL saved with the card, if any. */
-    fun sourcesFor(pageUrl: String, stored: String?): List<String>
+enum class IconSourceKind {
+    /** Readable bytes; a miss here means nothing more than "try the next one". */
+    TRY,
+
+    /**
+     * As [TRY], but a definite "there is no icon" **ends the chain**: this source has already been through
+     * the sources below it on the caller's behalf, and asking them again would undo the reason it exists.
+     * Only a source that cannot be *reached* lets the chain go on.
+     */
+    AUTHORITATIVE,
+
+    /**
+     * Cannot be read, only shown. A service that sends no CORS headers — google's, for one — is invisible
+     * to `fetch` and perfectly visible in an `<img>`, so it can never be cached and is worth nothing except
+     * as the last thing to point an `<img>` at when everything else has failed.
+     */
+    DISPLAY_ONLY,
+}
+
+/** One place a site's icon might come from, and what its answers mean. */
+data class IconSource(val url: String, val kind: IconSourceKind = IconSourceKind.TRY)
+
+/**
+ * Where a site's icon may be read from, in order of preference.
+ *
+ * The two implementations differ in more than speed. The web app has no browser store to ask and starts at
+ * the server ([NetworkIcons]); the extension has the browser's own favicon store
+ * ([stramus.ext.ChromeIcons]) — the icons of pages this browser has already visited, on this machine — and
+ * so a visited site never leaves the machine at all.
+ *
+ * Neither asks a public icon service first. Doing so tells that service which hosts the user has saved, one
+ * request at a time; the server fetches them instead, and only when it cannot be reached does the chain fall
+ * through to the services directly.
+ */
+interface IconSources {
+    /** Icon sources to try for [pageUrl], best first. [stored] is the icon URL saved with the card, if any. */
+    fun sourcesFor(pageUrl: String, stored: String?): List<IconSource>
+
+    /**
+     * Whether [dataUri] is this source's own stand-in for "I do not know this host" rather than an icon.
+     *
+     * Some sources answer for *every* host, icon or no icon: Chrome's favicon store hands back its grey
+     * document for a page it has never seen, with a perfectly successful status. Taken at face value that
+     * stand-in is cached for a month, drawn in place of the real icon, and survives the user finally
+     * visiting the site. Sources that do this recognise their own; the rest say no and mean it.
+     */
+    fun isBlank(dataUri: String): Boolean = false
 }
 
 /**
- * The icon services, for a page that has no browser behind it to ask: the card's own icon URL first
- * (the site's own icon, saved with the link), then the two services. Only some of these are readable
- * from a page — Google's, for one, sends no CORS headers — hence the chain.
+ * The chain for a page with no browser behind it to ask: the card's own icon URL, then the server, then —
+ * only if the server cannot be reached — the icon services, which is the one case where a third party
+ * learns a host from the user's own address rather than from ours.
  */
-val NetworkIcons = IconSources { pageUrl, stored ->
-    val host = hostOf(pageUrl)
-    listOfNotNull(
-        stored?.takeIf { it.startsWith("http", ignoreCase = true) },
-        "https://www.google.com/s2/favicons?domain=$host&sz=64",
-        "https://favicone.com/$host?s=64",
-    ).distinct()
+val NetworkIcons: IconSources = object : IconSources {
+    override fun sourcesFor(pageUrl: String, stored: String?): List<IconSource> {
+        val host = hostOf(pageUrl)
+        return listOfNotNull(
+            // The site's own icon, saved with the link. Rarely readable cross-origin, free to try.
+            stored?.takeIf { it.startsWith("http", ignoreCase = true) }?.let { IconSource(it) },
+            IconSource(faviconProxyUrl(host), IconSourceKind.AUTHORITATIVE),
+            IconSource("https://favicone.com/$host?s=64"),
+            IconSource("https://www.google.com/s2/favicons?domain=$host&sz=64", IconSourceKind.DISPLAY_ONLY),
+        ).distinctBy { it.url }
+    }
 }
+
+/** The server's icon endpoint for [host] — the same server the app syncs with. */
+fun faviconProxyUrl(host: String): String =
+    "${serverBaseUrl().trimEnd('/')}/v1/favicon?host=${encodeURIComponent(host)}"
 
 private var iconSources: IconSources = NetworkIcons
 
@@ -104,7 +188,7 @@ internal fun installIconSources(sources: IconSources) {
     if (sources !== iconSources) {
         iconSources = sources
         // What was fetched from the previous source is not what this one would return.
-        failed.clear()
+        outcomes.clear()
     }
 }
 
@@ -112,29 +196,26 @@ internal fun installIconSources(sources: IconSources) {
  * The icon to show for [host]: the cached bytes while they are still fresh, otherwise the bytes a
  * fetch brings back — and, when every source fails (offline, dead service, no icon at all), whatever
  * was cached before. Null only when the icon is unknown and cannot be fetched: the caller then falls
- * back to the placeholder.
+ * back to the placeholder, or to a display-only source, depending on *why* (see [Outcome]).
  *
  * Cards of the same host share one fetch rather than each making their own, and no more than
  * [fetchSlots] of them run at a time.
  */
 private suspend fun iconFor(pageUrl: String, host: String, stored: String?): String? {
-    val hit = cached[host]
+    // Checked on the way in rather than only at start-up: the extension learns what its browser's stand-in
+    // looks like from a probe that may still have been in flight when the cache was read, so an entry that
+    // looked like an icon then can be recognised for what it is now.
+    val hit = cached[host]?.takeUnless { iconSources.isBlank(it.dataUri) } ?: run {
+        if (cached.remove(host) != null) runCatching { repository?.remove(host) }
+        null
+    }
     if (hit != null && Clock.System.now() - hit.updatedAt < ICON_MAX_AGE) return hit.dataUri
-    if (host in failed) return hit?.dataUri
+    if (host in outcomes) return hit?.dataUri
 
     val fetch = inFlight.getOrPut(host) {
         faviconScope.async {
             try {
-                fetchSlots.withPermit {
-                    for (source in iconSources.sourcesFor(pageUrl, stored)) {
-                        val data = fetchDataUri(source) ?: continue
-                        cached[host] = CachedIcon(data, Clock.System.now())
-                        repository?.let { repo -> runCatching { repo.put(host, data) } }
-                        return@withPermit data
-                    }
-                    failed += host
-                    cached[host]?.dataUri
-                }
+                fetchSlots.withPermit { walkChain(pageUrl, host, stored) }
             } finally {
                 inFlight.remove(host)
             }
@@ -143,25 +224,95 @@ private suspend fun iconFor(pageUrl: String, host: String, stored: String?): Str
     return fetch.await()
 }
 
-/** GET [url] and return its bytes as a `data:` URI, or null if it cannot be fetched or is not an image. */
-private suspend fun fetchDataUri(url: String): String? = suspendCoroutine { continuation ->
+/**
+ * How many icons are fetched at once. A collection of a few hundred links is a few hundred hosts, and
+ * a page that asks for all of them at the same moment gets a slower answer for every one of them —
+ * and looks, to an icon service, like something worth rate-limiting.
+ */
+private val fetchSlots = Semaphore(6)
+
+private suspend fun walkChain(pageUrl: String, host: String, stored: String?): String? {
+    var reachedNothing = false
+
+    for (source in iconSources.sourcesFor(pageUrl, stored)) {
+        // Nothing to fetch here — it exists only to be pointed at when the rest has failed.
+        if (source.kind == IconSourceKind.DISPLAY_ONLY) continue
+        // Known to be down a moment ago. Skipping it costs a stale icon for at most a couple of minutes;
+        // not skipping it costs a timeout per host on every load for as long as the outage lasts.
+        if (source.kind == IconSourceKind.AUTHORITATIVE && Clock.System.now() < authorityDownUntil) continue
+
+        when (val answer = fetchIcon(source.url)) {
+            is Fetched.Bytes -> {
+                // A source that answers for every host answers for the ones it knows nothing about too.
+                if (iconSources.isBlank(answer.dataUri)) continue
+                cached[host] = CachedIcon(answer.dataUri, Clock.System.now())
+                repository?.let { repo -> runCatching { repo.put(host, answer.dataUri) } }
+                return answer.dataUri
+            }
+
+            Fetched.Absent -> if (source.kind == IconSourceKind.AUTHORITATIVE) {
+                // It went through the fallbacks for us and came back with nothing. Repeating that walk from
+                // here would hand the very hosts to the icon services that going through it was meant to keep
+                // from them — and would get the same answer.
+                outcomes[host] = Outcome.ABSENT
+                return cached[host]?.dataUri
+            }
+
+            Fetched.Unavailable -> {
+                if (source.kind == IconSourceKind.AUTHORITATIVE) {
+                    authorityDownUntil = Clock.System.now() + AUTHORITY_RETRY_AFTER
+                }
+                reachedNothing = true
+            }
+        }
+    }
+
+    outcomes[host] = if (reachedNothing) Outcome.UNREACHABLE else Outcome.ABSENT
+    return cached[host]?.dataUri
+}
+
+/**
+ * GET [url] and say what came back.
+ *
+ * A cross-origin icon without CORS headers rejects the fetch, and so does being offline; the two are
+ * indistinguishable from here, and both are [Fetched.Unavailable]. That is the safe way round — an
+ * [IconSourceKind.AUTHORITATIVE] source read as unavailable costs a fall-through to the fallbacks, while one
+ * read as [Fetched.Absent] would end the chain on what was really a network error.
+ */
+private suspend fun fetchIcon(url: String): Fetched = suspendCoroutine { continuation ->
     var settled = false
-    val done: (String?) -> Unit = { value ->
+    val done: (Fetched) -> Unit = { value ->
         if (!settled) {
             settled = true
             continuation.resume(value)
         }
     }
-    // A cross-origin icon without CORS headers rejects the fetch; that is a miss, not an error.
     runCatching {
         fetch(url, js("({ credentials: 'omit', redirect: 'follow' })")).then(
             { response: dynamic ->
-                if (response.ok != true) done(null) else readAsDataUri(response.blob(), done)
+                val status = (response.status as? Number)?.toInt() ?: 0
+                when {
+                    // The server is there and saying it could not find out. Not an answer about the icon.
+                    status >= 500 -> done(Fetched.Unavailable)
+                    // 204 is the server's "there is no icon"; 404 and the rest are somebody else's.
+                    status == 204 || response.ok != true -> done(Fetched.Absent)
+                    else -> readAsDataUri(response.blob()) { data ->
+                        done(if (data != null) Fetched.Bytes(data) else Fetched.Absent)
+                    }
+                }
             },
-            { _: dynamic -> done(null) },
+            { _: dynamic -> done(Fetched.Unavailable) },
         )
-    }.onFailure { done(null) }
+    }.onFailure { done(Fetched.Unavailable) }
 }
+
+/**
+ * Read [url] as a `data:` URI, or null if it cannot be read or is not an image.
+ *
+ * Public because a platform's [IconSources] needs it to find out what its own "I do not know this host"
+ * reply looks like — see [IconSources.isBlank].
+ */
+suspend fun readIconDataUri(url: String): String? = (fetchIcon(url) as? Fetched.Bytes)?.dataUri
 
 private fun readAsDataUri(blobPromise: dynamic, done: (String?) -> Unit) {
     blobPromise.then(
@@ -231,16 +382,25 @@ val Favicon = FC<FaviconProps> { props ->
     val host = hostOf(props.url)
     val stored = props.favicon?.takeIf { it.isNotBlank() }
     // The stand-in for this host, drawn when it has no reachable icon of its own. Computed here so
-    // both the "gave up" and the "no source to even try" branches below reach for the same tile.
+    // every "nothing to draw" branch below reaches for the same tile.
     val fallback = letterPlaceholder(host)
 
     var data by useState<String?> { cached[host]?.dataUri }
     var broken by useState(false)
 
+    // Whether the chain has finished for this host. Its own state because a chain that ends with *nothing*
+    // leaves `data` exactly as it found it — null — and React, seeing an unchanged value, would not redraw:
+    // the card would sit on whichever source it was optimistically pointed at instead of falling back to
+    // the letter tile. This is what says "the answer is in, look at it again".
+    // Seeded from what is already known: the second card of a host whose chain finished long ago should
+    // draw the right thing on its first frame rather than flash the source it is about to give up on.
+    var settled by useState { host in outcomes }
+
     useEffect(host, stored) {
         // A tab can navigate under a mounted component: re-key the state on the new host first.
         data = cached[host]?.dataUri
         broken = false
+        settled = false
         // Launched on the shared scope, not this effect's: a fetch belongs to the host, not to the one
         // card that happened to ask for it first, and it outlives that card being scrolled away.
         faviconScope.launch {
@@ -249,19 +409,24 @@ val Favicon = FC<FaviconProps> { props ->
                 data = fresh
                 broken = false
             }
+            settled = true
         }
     }
 
     img {
         className = ClassName(props.className ?: "fav")
+        val sources = iconSources.sourcesFor(props.url, stored)
         src = when {
             broken -> fallback
             data != null -> data!!
-            // Nothing cached yet: draw the best source directly while the fetch that will cache it
-            // runs. It has to be a source of the *platform's* chain — in the extension the icon comes
-            // from the browser's own store, and an `<img>` pointing anywhere else would be the one
-            // request to an icon service the extension is built not to make.
-            else -> iconSources.sourcesFor(props.url, stored).firstOrNull() ?: fallback
+            // The chain is finished and had nothing. What is drawn depends on why: told there is no icon,
+            // the letter tile is the honest answer; unable to ask at all, a display-only service is the one
+            // thing left that might still have one — an `<img>` needs no CORS headers, only a URL.
+            settled && outcomes[host] == Outcome.ABSENT -> fallback
+            settled && outcomes[host] == Outcome.UNREACHABLE ->
+                sources.firstOrNull { it.kind == IconSourceKind.DISPLAY_ONLY }?.url ?: fallback
+            // Nothing cached yet: draw the best source directly while the fetch that will cache it runs.
+            else -> sources.firstOrNull()?.url ?: fallback
         }
         alt = ""
         draggable = false // let the card or tab row be the drag source, not the image

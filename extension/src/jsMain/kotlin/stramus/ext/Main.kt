@@ -10,6 +10,9 @@ import web.dom.document
 
 fun main() {
     val root = document.getElementById(ElementId("root")) ?: error("#root element is missing")
+    // What the browser's favicon store hands back for a page it has never seen. Started before the first
+    // render because every fetched icon is checked against it; see [probeBrowserDefaultIcon].
+    probeBrowserDefaultIcon()
     // The extension can read the user's open tabs and browsing history; wire both capabilities into
     // the shared UI — they are the two panes of its right sidebar. The third capability, the browser's
     // own on-device model, is not the extension's to grant: it is there or it is not (`builtInAi()`),

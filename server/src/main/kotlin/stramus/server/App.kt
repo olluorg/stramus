@@ -30,6 +30,8 @@ import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.cors.routing.CORS
 import io.ktor.server.plugins.di.dependencies
 import io.ktor.server.plugins.di.provide
+import io.ktor.server.plugins.origin
+import io.ktor.server.response.header
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.receive
 import io.ktor.server.request.receiveChannel
@@ -78,6 +80,8 @@ fun Application.stramusModule(
     val accounts = Accounts(db, config, sessions, mailer, googleVerifier ?: config.googleVerifier())
     val sync = SyncService(db)
     val blobs = BlobStore(db, config)
+    val favicons = FaviconService(db, config)
+    val faviconBudget = MissBudget(config.faviconMissesPerMinute)
 
     // The sweep, on its own clock. Once a day is often enough for landfill — an orphaned file costs disk
     // and nothing else — and it runs off the request path entirely, where a slow disk cannot make anybody
@@ -149,6 +153,45 @@ fun Application.stramusModule(
 
     routing {
         get("/health") { call.respond(mapOf("status" to "ok")) }
+
+        /**
+         * A site's icon, fetched by this server instead of by the browser.
+         *
+         * Anonymous, and that is not an oversight: requiring a token would tie every host asked about to an
+         * account, which is the very thing proxying these fetches is meant to avoid. Nothing here is written
+         * against a user, and nothing is logged.
+         *
+         * Three answers, and the client does something different with each. Bytes: draw and cache them. 204:
+         * there is no icon, stop asking and draw the letter tile. 503: this server could not find out, so go
+         * and ask the icon services directly — worse for privacy, and better than a page of blank squares.
+         */
+        get("/v1/favicon") {
+            val host = call.request.queryParameters["host"]?.takeIf { it.isNotBlank() }
+                ?: throw AccountException(400, "no host")
+            if (!config.faviconProxyEnabled) {
+                call.respond(HttpStatusCode.ServiceUnavailable, ApiError("favicon", "icon fetching is off"))
+                return@get
+            }
+
+            val caller = call.request.origin.remoteHost
+            when (val icon = favicons.iconFor(host) { faviconBudget.take(caller) }) {
+                is FaviconResult.Found -> {
+                    call.response.header(HttpHeaders.CacheControl, "public, max-age=604800")
+                    call.respondBytes(icon.bytes, ContentType.parse(icon.mime))
+                }
+
+                FaviconResult.Absent -> {
+                    // Cached for a day rather than a week: the negative is the answer most likely to change.
+                    call.response.header(HttpHeaders.CacheControl, "public, max-age=86400")
+                    call.respond(HttpStatusCode.NoContent)
+                }
+
+                FaviconResult.Unavailable -> {
+                    call.response.header(HttpHeaders.CacheControl, "no-store")
+                    call.respond(HttpStatusCode.ServiceUnavailable, ApiError("favicon", "no icon source could be reached"))
+                }
+            }
+        }
 
         route("/v1/auth") {
             post("/register") {

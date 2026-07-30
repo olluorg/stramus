@@ -309,6 +309,15 @@ interface FaviconRepository {
 
     /** Store (or replace) the icon cached for [host]. */
     suspend fun put(host: String, dataUri: String)
+
+    /**
+     * Forget what was cached for [host].
+     *
+     * Used to throw out entries that turned out not to be icons at all — an icon source that answers for
+     * every host hands back a stand-in for the ones it does not know, and a stand-in stored here would sit
+     * in front of the real icon until it aged out.
+     */
+    suspend fun remove(host: String)
 }
 
 /**

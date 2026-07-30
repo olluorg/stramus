@@ -18,6 +18,35 @@ why the store's own "name" and "short description" fields will be pre-filled and
       extension and attaches `stramus-extension-1.0.0.zip` to a GitHub Release; that ZIP is what gets
       uploaded. (It also refuses to build if the tag and the manifest disagree about the version.)
 - [ ] Screenshots taken (see below) — the one asset that cannot be generated from the repository.
+- [ ] Everything keyed on the extension's ID repointed at the *published* ID — see below. Publishing
+      assigns the ID of the store item, which is not the ID an unpacked build gets.
+
+### The extension ID, and the three things that depend on it
+
+An unpacked build's ID comes from the folder it was loaded from; a published one's is the store item's,
+fixed for good at the first upload. Sign-in and sync are both keyed on it, so all three of these have to
+name the published ID or they silently break for everyone but the developer:
+
+| What | Where | Symptom if it still names the old ID |
+| --- | --- | --- |
+| `STRAMUS_ALLOWED_ORIGINS` on the server | the VPS's `compose.yaml` | **Sync fails outright** — CORS refuses `chrome-extension://<published id>` |
+| Application ID of the "Chrome Extension" OAuth client | Google Cloud Console | `chrome.identity.getAuthToken` fails; sign-in falls back to a window instead of being silent |
+| Authorized redirect URI `https://<published id>.chromiumapp.org/` on the Web application client | Google Cloud Console | the fallback flow fails too, so Google sign-in is gone entirely |
+
+The alternative to repointing them at each new ID is to pin the store item's public key as `key` in the
+manifest, which gives an unpacked build the same ID as the published one. See
+[`docs/sync-and-auth.md`](../docs/sync-and-auth.md) for which client is which.
+
+The **OAuth consent screen must be "In production"**, not "Testing": while it is in testing only the
+accounts explicitly listed as test users can sign in, which for a published extension means almost
+nobody. The scopes asked for (`openid`, `email`) are non-sensitive, so this needs no review from Google.
+
+### The manifest ships without `localhost`
+
+`http://localhost:8090/*` is deliberately *not* in `host_permissions`: a published extension has no
+business reaching a local server, and the store build talks to `https://api.stramus.space` (baked in
+from `STRAMUS_SERVER_URL`, a repository variable the release workflow passes to the build). Developing
+against a local server means adding the line back in your own working copy — and not committing it.
 
 ## Listing
 
@@ -38,6 +67,12 @@ why the store's own "name" and "short description" fields will be pre-filled and
 | Screenshots (1–5, at least 1) | 1280×800 PNG | **to be taken** — see below |
 | Small promo tile (optional) | 440×280 PNG | to be made, if the listing is to be eligible for featuring |
 | Marquee (optional) | 1400×560 PNG | only needed for the store's front page |
+
+[`screenshots.md`](screenshots.md) is the procedure — a throwaway profile, the unpacked build, and
+DevTools' own capture, which is the only way to get exactly 1280×800 with no browser chrome in frame.
+[`screenshot-data.csv`](screenshot-data.csv) is the contents to shoot against: 66 links in three
+sections and seven collections, most of them grouped under headings, so the grid looks like something
+somebody uses rather than a blank slate.
 
 Screenshots worth having, in this order — the first one is the listing's thumbnail and does most of the
 persuading:
@@ -70,19 +105,49 @@ with your tabs and your browsing history — from the same keystroke.
 - **favicon** — site icons for saved links and open tabs are read from the browser's own favicon store
   (`_favicon/`). This is a privacy measure, not a convenience one: the alternative is asking a public
   icon service on the internet for each host, which would tell that service which sites the user keeps.
+  The store only holds icons for pages this browser has *visited*, so for anything else — an imported
+  link, a collection restored on a new machine — the icon is fetched by our own server on the user's
+  behalf (`GET /v1/favicon?host=…`, anonymous, no user recorded), and only if that server cannot be
+  reached at all does the extension fall back to asking `favicone.com` or `google.com/s2/favicons`
+  directly. A site with no icon anywhere is drawn as a coloured letter tile, not as a blank square.
+- **identity** — signing in with Google, and nothing else. `chrome.identity.getAuthToken` asks for a
+  token for the account already signed into Chrome (scopes `openid` and `email`, so an email address
+  and nothing more), and `chrome.identity.launchWebAuthFlow` is the fallback where that is unavailable.
+  Both happen only when the user presses "Sign in with Google"; an account is optional and the extension
+  is fully usable without one.
 
-**Host permissions:** none requested.
+**Host permissions:** `https://api.stramus.space/*` — the sync server, and the only host the extension
+talks to. It is contacted only while the user is signed in: an extension with no account never opens a
+connection to it. Nothing else is requested; there is no `<all_urls>`, no content script and no
+injection into any page the user visits.
 
 **Remote code:** No. The extension executes no code it did not ship with; everything in the ZIP is
 compiled from this repository. The `wasm-unsafe-eval` in the CSP is for the SQLite WebAssembly module
 that ships *inside* the extension, not for anything fetched at runtime.
 
-**Data usage.** Declare that stramus does **not** collect or transmit user data, and certify all three:
-the data is not sold to third parties, not used for purposes unrelated to the single purpose, and not
-used to determine creditworthiness or for lending.
+**Data usage.** An account is optional, and without one nothing is collected or transmitted at all —
+but the form asks what the extension *can* collect, and signing in turns synchronisation on. So the
+categories to tick, each with the note the form allows:
 
-Two things a reviewer may reasonably ask about, both of which are user-initiated navigations rather
-than data collection, and both of which are described in the privacy policy:
+| Category | Why | Only when |
+| --- | --- | --- |
+| Personally identifiable information | the email address the account is | signed in |
+| Authentication information | the sign-in session token, and the salted hash of a section PIN, which travels with the section row it belongs to | signed in |
+| Website content | the user's own saved cards: links, note text, files, and their titles | signed in |
+| Web history | the counters that rank the search box are the pages the user opened *from stramus*, with their titles — kept on the machine and **off** by default, synced only if "Sync browsing statistics" is switched on | signed in **and** switched on |
+
+Not collected, and not to be ticked: health, financial and payment information, personal
+communications, location, user activity (no keystroke, click or mouse tracking of any kind). The
+browser's own history, which the `history` permission reads, is never among what is uploaded — it is
+read as the user searches and no copy is kept.
+
+All of it is collected for the extension's own functionality (synchronising the user's collections
+between their browsers) and nothing else. Certify all three: the data is not sold to third parties, not
+used for purposes unrelated to the single purpose, and not used to determine creditworthiness or for
+lending — all three hold.
+
+Two more things a reviewer may reasonably ask about, both of which are user-initiated navigations
+rather than data collection, and both of which are described in the privacy policy:
 
 - Choosing ChatGPT, Gemini or Claude as the assistant means a question typed by the user *opens a chat
   with that service in a new tab*, with the question in it. The question travels — because the user

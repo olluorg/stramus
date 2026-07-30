@@ -130,4 +130,18 @@ val serverMigrations: List<Migration<ServerDb>> = listOf(
         CREATE INDEX "idx_blobs_user" ON "blobs" ("userId");
         """,
     ),
+    Migration(
+        "004-favicon-cache",
+        """
+        -- Deliberately without a userId: the icon endpoint is anonymous, and a column tying a host to an
+        -- account is the one thing that would make this table worth reading. See FaviconCache.
+        CREATE TABLE "favicon_cache" (
+            "host" text NOT NULL,
+            "mime" text,
+            "body" text,
+            "fetchedAt" text NOT NULL,
+            PRIMARY KEY ("host")
+        );
+        """,
+    ),
 )

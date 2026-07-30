@@ -468,9 +468,9 @@ internal fun downloadFile(filename: String, mime: String, content: String) {
 
 /**
  * The icon URL *stored* with a card whose page offered none of its own. It is a stored value, not a
- * source: what is actually fetched is decided by [IconSources], and the extension's chain never asks
- * this service. The URL is kept all the same, so that a collection exported from the extension and
- * opened in the web app — which has nothing but the icon services — still shows its icons.
+ * source: what is actually fetched is decided by [IconSources], whose chain starts at the browser's own
+ * store and then at our server, and reaches this service only as a last resort. The URL is kept all the
+ * same, as a hint that travels with an exported collection and costs nothing when it is not used.
  */
 internal fun faviconFor(url: String): String =
     "https://www.google.com/s2/favicons?domain=${hostOf(url)}&sz=64"

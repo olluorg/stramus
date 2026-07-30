@@ -87,6 +87,32 @@ data class ServerConfig(
     /** Browsers refuse a cross-origin request that this does not name. Both clients are cross-origin. */
     val allowedOrigins: List<String> = listOf("http://localhost:8080"),
 
+    /**
+     * Whether the server fetches site icons on the clients' behalf ([FaviconService]). Off means the clients
+     * fall back to asking the public icon services themselves, which works and is what they did before —
+     * it just tells those services which hosts a given person has saved.
+     */
+    val faviconProxyEnabled: Boolean = true,
+
+    /** How long a fetched icon is served from the cache before the site is asked again. */
+    val faviconTtl: Duration = 30.days,
+
+    /**
+     * How long "this host has no icon" is believed. Shorter than [faviconTtl] on purpose: a site that gains
+     * an icon has no way to tell us, and a month of a letter tile for a site that has had one for three
+     * weeks is a long time to be wrong.
+     */
+    val faviconNegativeTtl: Duration = 3.days,
+
+    /** Anything larger is not a favicon. Also the ceiling on what a hostile host can make this server read. */
+    val maxFaviconBytes: Int = 150 * 1024,
+
+    /**
+     * Cache misses one address may cause per minute. A hit costs nothing and is not counted; a miss makes
+     * this server fetch a host of the caller's choosing, and that is the thing worth rationing.
+     */
+    val faviconMissesPerMinute: Int = 60,
+
     val production: Boolean = false,
 ) {
     companion object {
@@ -104,6 +130,7 @@ data class ServerConfig(
                 googleClientId = env["STRAMUS_GOOGLE_CLIENT_ID"] ?: "",
                 googleExtensionClientId = env["STRAMUS_GOOGLE_EXTENSION_CLIENT_ID"] ?: "",
                 jwtSecret = env["STRAMUS_JWT_SECRET"] ?: "dev-secret-not-for-production",
+                faviconProxyEnabled = env["STRAMUS_FAVICON_PROXY"] != "0",
                 allowedOrigins = env["STRAMUS_ALLOWED_ORIGINS"]
                     ?.split(',')
                     ?.map { it.trim() }

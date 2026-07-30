@@ -196,8 +196,9 @@
         <li><strong>search</strong> — to send a query from the search box to <em>your</em> default search
             engine, whichever one you have set, exactly as the address bar would.</li>
         <li><strong>favicon</strong> — to read site icons from the browser's own favicon store, so that
-            drawing your saved links does not require asking any icon service on the internet who they
-            belong to.</li>
+            drawing a link to a site you have already visited requires asking nobody at all. For a site you
+            have <em>not</em> visited the browser has no icon, and the icon is fetched as described under
+            <a href="#icons">Site icons</a> below.</li>
         <li><strong>access to the stramus server</strong> — used only when you have an account, and only to
             sync what this page describes.</li>
     </ul>
@@ -215,16 +216,43 @@
             part of it.</li>
     </ul>
 
+    <h2 id="icons">Site icons</h2>
+    <p>
+        A saved link is drawn with the site's icon, and getting hold of that icon is the one part of stramus
+        that would otherwise quietly describe your reading to somebody else. Asking a public icon service for
+        the icon of a host tells that service you have that host saved — one request per site, which for a
+        list of bookmarks amounts to the list itself. So the icon is looked for in this order, and stops at
+        the first step that answers:
+    </p>
+    <ol>
+        <li><strong>Your browser's own icon store</strong> (the extension only). Sites you have visited are
+            already in it, and reading it involves no network and no third party.</li>
+        <li><strong>The stramus server</strong>, which fetches the icon on your behalf: first from the site
+            itself, then, if the site has none to give, from the public icon services. Those services see our
+            server asking about a host — not you, not your address, and with no way to tell whether one
+            person or a thousand had that link. The server keeps one row per host with the icon in it, for
+            everyone; that row records no user, and requests for it are anonymous and not logged.</li>
+        <li><strong>The icon services directly</strong> (<code>favicone.com</code>, and
+            <code>google.com/s2/favicons</code> as a last resort) — <em>only</em> when our server cannot be
+            reached at all. This is the one case where a third party learns a host from your address rather
+            than from ours, and it is the alternative to your saved links losing their icons whenever our
+            server is down.</li>
+        <li><strong>Nothing.</strong> A site with no icon anywhere gets a coloured tile with its first letter
+            on it, drawn in your browser.</li>
+    </ol>
+    <p>
+        Icons fetched this way are cached on your machine, so the same site is not looked up again for a
+        month — and so your links keep their icons offline.
+    </p>
+
     <h2>The web app at stramus.space</h2>
     <p>
         The same app also runs as a plain web page, without a browser extension around it. It stores your
         data in the same way and syncs in the same way, and it differs in two respects worth naming:
     </p>
     <ul>
-        <li>Having no browser to ask for site icons, it fetches them from public icon services
-            (<code>google.com/s2/favicons</code> and <code>favicone.com</code>). Doing so tells those
-            services which sites you have saved. The extension does not do this — that is what the
-            <code>favicon</code> permission is for.</li>
+        <li>Having no browser icon store to ask, it starts at step 2 above — the server — for every site,
+            including the ones you have visited.</li>
         <li>It is hosted on GitHub Pages, whose servers keep their own request logs. See
             <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement">GitHub's
                 privacy statement</a>.</li>
@@ -357,8 +385,10 @@
                 браузера в момент поиска; stramus её копию не хранит и никуда не отправляет.</li>
             <li><strong>search</strong> — отправить запрос из строки поиска в <em>ваш</em> поисковик по
                 умолчанию, тот, который вы выбрали, — ровно как это делает адресная строка.</li>
-            <li><strong>favicon</strong> — читать иконки сайтов из собственного хранилища браузера, чтобы для
-                отрисовки ваших ссылок не приходилось спрашивать о них внешние сервисы иконок.</li>
+            <li><strong>favicon</strong> — читать иконки сайтов из собственного хранилища браузера: для сайта,
+                где вы уже были, иконка берётся оттуда и спрашивать не приходится никого. Для сайта, где вы
+                <em>не</em> были, у браузера иконки нет — как она добывается тогда, описано ниже в разделе
+                <a href="#icons-ru">Иконки сайтов</a>.</li>
             <li><strong>доступ к серверу stramus</strong> — используется только при наличии аккаунта и только
                 для синхронизации того, что описано на этой странице.</li>
         </ul>
@@ -376,15 +406,42 @@
                 коллекции туда не попадают никогда.</li>
         </ul>
 
+        <h2 id="icons-ru">Иконки сайтов</h2>
+        <p>
+            Сохранённая ссылка рисуется иконкой сайта, и добыча этой иконки — единственное место в stramus,
+            которое иначе тихо рассказывало бы о вашем чтении кому-то ещё. Запрос к публичному сервису иконок
+            сообщает ему, что у вас сохранён такой-то сайт: по запросу на сайт, а для списка закладок это и
+            есть сам список. Поэтому иконка ищется по порядку, и поиск останавливается на первом шаге, который
+            ответил:
+        </p>
+        <ol>
+            <li><strong>Собственное хранилище иконок браузера</strong> (только расширение). Сайты, где вы уже
+                были, там уже есть; ни сети, ни третьих лиц.</li>
+            <li><strong>Сервер stramus</strong> — он забирает иконку за вас: сначала у самого сайта, а если у
+                того её нет, у публичных сервисов. Сервисы видят, что о хосте спрашивает наш сервер, — не вы,
+                не ваш адрес, и без всякой возможности понять, один человек сохранил эту ссылку или тысяча. На
+                сервере хранится одна строка на хост с иконкой, общая для всех; в этой строке нет пользователя,
+                а сами запросы анонимны и не журналируются.</li>
+            <li><strong>Сервисы иконок напрямую</strong> (<code>favicone.com</code>, в крайнем случае
+                <code>google.com/s2/favicons</code>) — <em>только</em> когда наш сервер недоступен вовсе. Это
+                единственный случай, когда о хосте третья сторона узнаёт с вашего адреса, а не с нашего; цена
+                отказа от него — ссылки без иконок на всё время, пока сервер лежит.</li>
+            <li><strong>Ничего.</strong> Сайту, у которого иконки нет нигде, рисуется цветная плитка с первой
+                буквой — прямо в браузере.</li>
+        </ol>
+        <p>
+            Полученные иконки кэшируются на вашем компьютере: тот же сайт не запрашивается повторно в течение
+            месяца, а ссылки не теряют иконки офлайн.
+        </p>
+
         <h2>Веб-версия на stramus.space</h2>
         <p>
             То же приложение работает и как обычная веб-страница, без расширения вокруг. Данные оно хранит и
             синхронизирует так же, но отличается в двух вещах:
         </p>
         <ul>
-            <li>браузер о иконках сайтов ему спросить нечего, поэтому иконки запрашиваются у публичных сервисов
-                (<code>google.com/s2/favicons</code> и <code>favicone.com</code>), а это сообщает им, какие сайты
-                вы сохранили. Расширение так не делает — ради этого и взято разрешение <code>favicon</code>;</li>
+            <li>хранилища иконок браузера у неё нет, поэтому для любого сайта — включая те, где вы уже были, —
+                она начинает сразу со второго шага, с нашего сервера;</li>
             <li>страница размещена на GitHub Pages, чьи серверы ведут свои журналы запросов — см.
                 <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement">политику
                     конфиденциальности GitHub</a>.</li>

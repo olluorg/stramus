@@ -1170,6 +1170,10 @@ internal class KormiumFaviconRepository(
             Favicons.insert(row)
         }
     }
+
+    override suspend fun remove(host: String) {
+        db.suspendTransaction { Favicons.deleteWhere { where { Favicons.host eq host } } }
+    }
 }
 
 internal class KormiumUsageRepository(
