@@ -1004,6 +1004,11 @@ val App = FC<AppProps> { props ->
     fun runSync() {
         val e = engine ?: return
         if (!api.hasSession()) return
+        // The timer and the window-focus handler can both fire before the initial resume (below) has
+        // learned who is signed in — [syncUi.copy] would then carry a null email into IDLE forever, a
+        // badge that looks synced but an account dialog that cannot say whose account it is. Nothing to
+        // run yet; the resume finishing is what sets the email the first time.
+        if (syncUi.email == null) return
         scope.launch {
             syncUi = syncUi.copy(status = SyncStatus.RUNNING)
             runCatching { e.syncNow() }
