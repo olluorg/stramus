@@ -23,17 +23,30 @@ private fun languageModel(): dynamic = js("(typeof LanguageModel !== 'undefined'
 private val ATTESTED_OUTPUT_LANGUAGES = setOf("de", "en", "es", "fr", "ja")
 
 /**
+ * The options object that declares [language] as what the answers will be in — the shape Chrome
+ * recognises (`expectedOutputs: [{ type, languages }]`; the `outputLanguage` of the other built-in APIs
+ * is silently ignored here). A null [language] declares nothing, which is the last rung of the ladder.
+ */
+private fun expectedOutputs(language: String?): dynamic {
+    val options: dynamic = js("({})")
+    if (language != null) {
+        options.expectedOutputs = arrayOf(json("type" to "text", "languages" to arrayOf(language)))
+    }
+    return options
+}
+
+/**
  * What to declare the answers will be in, best first.
  *
  * The interface language is what the questions and the system prompt are written in, so it is what the
- * answers will come back in — but Russian, which this app otherwise speaks, is not on Chrome's list.
- * English is the second candidate rather than the only one because declaring it does not *make* the
- * model answer in English; it is a claim about the output, and the honest claim is made first, for the
- * browsers that accept it.
+ * answers will come back in — but Russian, which this app otherwise speaks, is not on Chrome's list, and
+ * declaring it does not merely warn: `availability()` answers `unavailable` for it, and `create()`
+ * refuses. English is declared in its place. That does not *make* the model answer in English — the
+ * declaration is a claim about the output, not an instruction, and the question it is answering is still
+ * written in Russian.
  *
- * The list ends in `null`: a session with nothing declared. That is today's behaviour, console error
- * and all — worth keeping as the last rung, because an assistant that complains is better than an
- * assistant that refuses to open.
+ * The list ends in `null`: nothing declared. That is the old behaviour, console error and all — worth
+ * keeping as the last rung, because an assistant that complains is better than one that refuses to open.
  */
 private fun outputLanguages(): List<String?> {
     val ui = document.documentElement?.getAttribute("lang")?.take(2)?.lowercase()
@@ -58,7 +71,19 @@ private object BuiltInAi : AiAssistant {
     // taken as usable — the create() call is the real test, and it is guarded.
     override suspend fun availability(): AiAvailability {
         val api = languageModel() ?: return AiAvailability.UNAVAILABLE
-        val state = runCatching { api.availability().unsafeCast<Promise<String>>().await() }.getOrNull()
+        // Asked with the declaration the session will carry, for two reasons. It is the question we
+        // actually mean — "is there a model that will answer in this language?", which Chrome answers
+        // differently from "is there a model?" (a language it cannot attest turns `downloadable` into
+        // `unavailable`). And an undeclared call is itself a LanguageModel request, which Chrome meets
+        // with a console error; this one runs on every new tab, long before anyone asks anything.
+        val declared = runCatching {
+            api.availability(expectedOutputs(outputLanguages().first()))
+                .unsafeCast<Promise<String>>().await()
+        }
+        // A Chrome that will not take the argument at all still gets asked the plain question, so an
+        // older browser with a model keeps its assistant.
+        val state = declared.getOrNull()
+            ?: runCatching { api.availability().unsafeCast<Promise<String>>().await() }.getOrNull()
         return when (state) {
             null, "unavailable", "no" -> AiAvailability.UNAVAILABLE
             "downloadable", "after-download" -> AiAvailability.DOWNLOADABLE
@@ -71,7 +96,7 @@ private object BuiltInAi : AiAssistant {
         val api = languageModel() ?: error("no built-in model in this browser")
 
         fun options(outputLanguage: String?): dynamic {
-            val options: dynamic = js("({})")
+            val options: dynamic = expectedOutputs(outputLanguage)
             options.initialPrompts = arrayOf(json("role" to "system", "content" to systemPrompt))
             // Fired only on the first session on this machine, while the model itself is fetched;
             // `loaded` is a fraction of one.
@@ -79,10 +104,6 @@ private object BuiltInAi : AiAssistant {
                 monitor.addEventListener("downloadprogress") { event: dynamic ->
                     onDownloadProgress((event.loaded as? Number)?.toDouble() ?: 0.0)
                 }
-            }
-            if (outputLanguage != null) {
-                options.expectedOutputs =
-                    arrayOf(json("type" to "text", "languages" to arrayOf(outputLanguage)))
             }
             return options
         }
