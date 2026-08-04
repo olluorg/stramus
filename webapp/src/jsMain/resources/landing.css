@@ -99,21 +99,6 @@
 }
 .lp-card h2 { font-size: 18px; }
 
-.lp-card label { display: block; font-size: 12px; color: var(--muted); }
-.lp-card label input {
-    display: block;
-    width: 100%;
-    margin-top: 5px;
-    padding: 9px 10px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg);
-    color: var(--text);
-    font: inherit;
-    font-size: 14px;
-}
-.lp-card label input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
-
 .lp-btn {
     border: 1px solid var(--border);
     background: var(--panel);
@@ -129,20 +114,6 @@
 .lp-btn.lp-primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 .lp-btn.lp-primary:hover { filter: brightness(1.05); color: #fff; }
 .lp-btn.lp-google { width: 100%; }
-/* The way between the two doors: a link in everything but the element it is made of. */
-.lp-btn.lp-plain {
-    align-self: flex-start;
-    border: none;
-    background: none;
-    color: var(--muted);
-    padding: 0;
-    font-size: 12px;
-    text-decoration: underline;
-}
-.lp-btn.lp-plain:hover { color: var(--accent); }
-
-.lp-row { display: flex; gap: 8px; }
-.lp-row .lp-btn { flex: 1; }
 .lp-error { font-size: 12px; color: var(--danger); }
 
 /* The picture of the app -------------------------------------------------------------------------- */

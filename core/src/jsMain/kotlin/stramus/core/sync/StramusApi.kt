@@ -89,6 +89,12 @@ class StramusApi(
     /** Whether this browser has a session to resume. It may still turn out to be expired. */
     fun hasSession(): Boolean = refreshToken != null
 
+    /*
+     * The email doors — a password, and a code on the mail. Nothing in the app calls these at the moment:
+     * the UI offers Google alone, and a default server answers all four with 501 (`emailAuthEnabled`). They
+     * stay because the endpoints stay, and because turning the doors back on should be a form and a flag
+     * rather than an archaeology exercise.
+     */
     suspend fun register(email: String, password: String): Me {
         val tokens: TokenPair = post("/v1/auth/register", RegisterRequest(email, password, deviceId.toString()))
         return keep(tokens)

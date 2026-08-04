@@ -435,16 +435,7 @@ interface Strings {
     // Account and synchronisation
     val account: String
     val accountSignedOutHint: String
-    val signIn: String
-    val signUp: String
     val signOut: String
-    val email: String
-    val password: String
-    val sendCode: String
-    val codeSent: String
-    val codeFromEmail: String
-    val signInWithCode: String
-    val signInWithPassword: String
     val syncNow: String
     val syncIdle: String
     val syncRunning: String
@@ -464,6 +455,9 @@ interface Strings {
     val optionOn: String
     val optionOff: String
     val signInWithGoogle: String
+
+    /** Google is the only door at the moment, so a build with no client id has none to offer. */
+    val signInUnavailable: String
 
     val seed: StoreSeed
 }
@@ -789,16 +783,7 @@ private object EnStrings : Strings {
 
     override val account = "Account"
     override val accountSignedOutHint = "Sign in to keep your collections on every browser you use. Everything works without an account — it just stays on this machine."
-    override val signIn = "Sign in"
-    override val signUp = "Create account"
     override val signOut = "Sign out"
-    override val email = "Email"
-    override val password = "Password"
-    override val sendCode = "Email me a code"
-    override val codeSent = "We sent a six-digit code to that address, if it has an account — or made one if it did not."
-    override val codeFromEmail = "Code from the email"
-    override val signInWithCode = "Sign in with a code instead"
-    override val signInWithPassword = "Sign in with a password instead"
     override val syncNow = "Sync now"
     override val syncIdle = "Synced"
     override val syncRunning = "Syncing…"
@@ -820,6 +805,7 @@ private object EnStrings : Strings {
     override val optionOn = "On"
     override val optionOff = "Off"
     override val signInWithGoogle = "Continue with Google"
+    override val signInUnavailable = "Signing in is not set up in this build. The app works without an account, as it always has."
 
     override val seed = StoreSeed(
         sectionTitle = "Main",
@@ -1174,16 +1160,7 @@ private object RuStrings : Strings {
 
     override val account = "Аккаунт"
     override val accountSignedOutHint = "Войдите, чтобы коллекции были во всех браузерах, которыми вы пользуетесь. Без аккаунта всё работает точно так же — просто остаётся на этой машине."
-    override val signIn = "Войти"
-    override val signUp = "Создать аккаунт"
     override val signOut = "Выйти"
-    override val email = "Почта"
-    override val password = "Пароль"
-    override val sendCode = "Прислать код на почту"
-    override val codeSent = "Мы отправили шестизначный код на этот адрес — а если аккаунта не было, завели его."
-    override val codeFromEmail = "Код из письма"
-    override val signInWithCode = "Войти по коду"
-    override val signInWithPassword = "Войти по паролю"
     override val syncNow = "Синхронизировать"
     override val syncIdle = "Синхронизировано"
     override val syncRunning = "Синхронизация…"
@@ -1205,6 +1182,7 @@ private object RuStrings : Strings {
     override val optionOn = "Вкл"
     override val optionOff = "Выкл"
     override val signInWithGoogle = "Продолжить с Google"
+    override val signInUnavailable = "В этой сборке вход не настроен. Приложение работает и без аккаунта — ровно как раньше."
 
     override val seed = StoreSeed(
         sectionTitle = "Главный",

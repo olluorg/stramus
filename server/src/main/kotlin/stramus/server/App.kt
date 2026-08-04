@@ -195,6 +195,7 @@ fun Application.stramusModule(
 
         route("/v1/auth") {
             post("/register") {
+                config.requireEmailAuth()
                 val body = call.receive<RegisterRequest>()
                 call.respond(
                     HttpStatusCode.Created,
@@ -203,11 +204,13 @@ fun Application.stramusModule(
             }
 
             post("/login") {
+                config.requireEmailAuth()
                 val body = call.receive<LoginRequest>()
                 call.respond(accounts.login(body.email, body.password, body.deviceId.asDeviceId(), body.deviceName))
             }
 
             post("/code/request") {
+                config.requireEmailAuth()
                 val body = call.receive<CodeRequest>()
                 accounts.requestCode(body.email)
                 // The same answer whether or not the address has an account, and whether or not a code
@@ -216,6 +219,7 @@ fun Application.stramusModule(
             }
 
             post("/code/verify") {
+                config.requireEmailAuth()
                 val body = call.receive<CodeVerifyRequest>()
                 call.respond(
                     accounts.verifyCode(body.email, body.code, body.deviceId.asDeviceId(), body.deviceName),
@@ -325,6 +329,21 @@ fun io.ktor.server.application.ApplicationCall.deviceId(): Uuid {
     val principal = principal<JWTPrincipal>() ?: throw AuthException("not signed in")
     val claim = principal.payload.getClaim(CLAIM_DEVICE).asString() ?: throw AuthException("token names no device")
     return runCatching { Uuid.parse(claim) }.getOrElse { throw AuthException("token names no device") }
+}
+
+/**
+ * The doorman for the email doors — a password, or a code on the mail.
+ *
+ * They are closed by default now that the clients offer Google alone (see [ServerConfig.emailAuthEnabled]).
+ * The routes stay where they were rather than disappearing, because a client shipped before this — an
+ * extension a user has not updated — still has the form, and a plain 404 would leave it saying nothing at
+ * all. 501 with a sentence is the same answer a server with no Google client id gives about that door: this
+ * is not how you get in *here*, and here is what to do instead.
+ */
+private fun ServerConfig.requireEmailAuth() {
+    if (!emailAuthEnabled) {
+        throw AccountException(501, "signing in by email is turned off on this server — use Google")
+    }
 }
 
 /** The client makes its own device id and keeps it. Anything that is not a UUID is a client bug. */

@@ -10,13 +10,10 @@ import react.Props
 import react.dom.html.ReactHTML.button
 import react.dom.html.ReactHTML.div
 import react.dom.html.ReactHTML.h3
-import react.dom.html.ReactHTML.input
-import react.dom.html.ReactHTML.label
 import react.dom.html.ReactHTML.p
 import react.dom.html.ReactHTML.span
 import react.useState
 import web.cssom.ClassName
-import web.html.InputType
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 import stramus.core.db.StramusStore
@@ -44,11 +41,6 @@ fun serverBaseUrl(): String =
  * that opens Google and comes back with "invalid client" is worse than no button.
  */
 fun googleClientId(): String = localStorage.getItem("stramus.googleClientId") ?: ""
-
-// The wrappers' InputType is opaque; the app names the ones it uses the way the rest of the UI does.
-private val EMAIL_INPUT: InputType = "email".unsafeCast<InputType>()
-private val PASSWORD_INPUT: InputType = "password".unsafeCast<InputType>()
-private val TEXT_INPUT: InputType = "text".unsafeCast<InputType>()
 
 /** What the badge in the corner is saying. */
 enum class SyncStatus { SIGNED_OUT, IDLE, RUNNING, OFFLINE, ERROR }
@@ -125,9 +117,9 @@ external interface AccountDialogProps : Props {
 /**
  * Signing in, signing out, and the one question a second device has to be asked.
  *
- * Two doors, as the server has: a password, or a six-digit code on the mail. The code is offered first for
- * a new user — it is one field and no password to invent — and the password is there for anyone who wants
- * one.
+ * One door: Google. The password and the mailed code are switched off for now — on the server too, which is
+ * where switching them off means anything (`ServerConfig.emailAuthEnabled`) — so this offers the one way in
+ * that works rather than three fields ending in a refusal.
  */
 private val accountScope = MainScope()
 
@@ -135,11 +127,9 @@ val AccountDialog = FC<AccountDialogProps> { props ->
     val t = props.strings
     val scope = accountScope
 
+    // Not typed in any more — it comes back from the server with the session, and it is what the dialog
+    // and the badge say afterwards about whose account this is.
     var email by useState("")
-    var password by useState("")
-    var code by useState("")
-    var usingCode by useState(true)
-    var codeSent by useState(false)
     var busy by useState(false)
     var error by useState<String?>(null)
 
@@ -153,14 +143,20 @@ val AccountDialog = FC<AccountDialogProps> { props ->
         busy = false
     }
 
-    /** Sign the local database in and take the first run, which is where everything actually moves. */
-    fun start(userId: Uuid, discardLocal: Boolean) {
+    /**
+     * Sign the local database in and take the first run, which is where everything actually moves.
+     *
+     * The address is passed in rather than read out of [email]: a `useState` variable read in the same
+     * closure that just set it is still the value this render was drawn with, and the account would end
+     * up nameless in the badge.
+     */
+    fun start(userId: Uuid, address: String, discardLocal: Boolean) {
         scope.launch {
             runCatching {
                 props.engine.signIn(userId, props.api.deviceId, discardLocal)
-                props.onState(SyncUi(SyncStatus.RUNNING, email))
+                props.onState(SyncUi(SyncStatus.RUNNING, address))
                 val result = props.engine.syncNow()
-                props.onState(SyncUi(SyncStatus.IDLE, email, nowLocalTime(), conflictCopies = result?.conflictCopies ?: 0))
+                props.onState(SyncUi(SyncStatus.IDLE, address, nowLocalTime(), conflictCopies = result?.conflictCopies ?: 0))
                 props.onSynced()
                 props.onClose()
             }.onFailure(::fail)
@@ -168,15 +164,16 @@ val AccountDialog = FC<AccountDialogProps> { props ->
     }
 
     /** After the server says who you are: does this browser's existing work join the account, or step aside? */
-    suspend fun authenticated(userId: Uuid) {
+    suspend fun authenticated(userId: Uuid, address: String) {
         val hasLocalWork = props.store.collections.all().any { collection ->
             props.store.cards.count(collection.id) > 0
         }
         if (hasLocalWork) {
+            // The choice below is made in a later render, and [email] will have arrived by then.
             joining = userId
             busy = false
         } else {
-            start(userId, discardLocal = false)
+            start(userId, address, discardLocal = false)
         }
     }
 
@@ -199,12 +196,12 @@ val AccountDialog = FC<AccountDialogProps> { props ->
                 className = ClassName("row")
                 button {
                     className = ClassName("btn primary")
-                    onClick = { start(choosing, discardLocal = false) }
+                    onClick = { start(choosing, email, discardLocal = false) }
                     +t.joinAccountKeep
                 }
                 button {
                     className = ClassName("btn")
-                    onClick = { start(choosing, discardLocal = true) }
+                    onClick = { start(choosing, email, discardLocal = true) }
                     +t.joinAccountDiscard
                 }
             }
@@ -283,125 +280,40 @@ val AccountDialog = FC<AccountDialogProps> { props ->
             +t.accountSignedOutHint
         }
 
-        props.google?.let { google ->
-            button {
-                className = ClassName("btn google")
-                disabled = busy
-                onClick = {
-                    busy = true
-                    error = null
-                    scope.launch {
-                        // Null means the user closed Google's window. They know they did; there is nothing
-                        // to tell them, and an error message here would be the app arguing with them.
-                        val token = runCatching { google.idToken() }.getOrNull()
-                        if (token == null) {
-                            busy = false
-                        } else {
-                            runCatching { props.api.signInWithGoogle(token) }
-                                .onSuccess { authenticated(Uuid.parse(it.userId)) }
-                                .onFailure(::fail)
-                        }
-                    }
-                }
-                +t.signInWithGoogle
-            }
-        }
-
-        fun proceed() {
-            busy = true
-            error = null
-            scope.launch {
-                runCatching {
-                    val me = when {
-                        usingCode && codeSent -> props.api.verifyCode(email.trim(), code.trim())
-                        usingCode -> {
-                            // The address may or may not have an account; the server answers the same
-                            // either way, and the code that arrives makes one if it did not.
-                            props.api.requestCode(email.trim())
-                            codeSent = true
-                            busy = false
-                            null
-                        }
-                        else -> props.api.login(email.trim(), password)
-                    }
-                    me?.let { authenticated(Uuid.parse(it.userId)) }
-                }.onFailure(::fail)
-            }
-        }
-
-        label {
-            +t.email
-            input {
-                type = EMAIL_INPUT
-                value = email
-                onChange = { e -> email = e.target.value }
-            }
-        }
-
-        if (usingCode) {
-            if (codeSent) {
-                p { className = ClassName("muted"); +t.codeSent }
-                label {
-                    +t.codeFromEmail
-                    input {
-                        type = TEXT_INPUT
-                        value = code
-                        onChange = { e -> code = e.target.value }
-                    }
-                }
-            }
-        } else {
-            label {
-                +t.password
-                input {
-                    type = PASSWORD_INPUT
-                    value = password
-                    onChange = { e -> password = e.target.value }
-                }
-            }
-        }
-
-        error?.let { p { className = ClassName("error"); +it } }
-
-        div {
-            className = ClassName("modal-actions")
-            button {
-                className = ClassName("btn primary")
-                disabled = busy
-                onClick = { proceed() }
-                +when {
-                    usingCode && codeSent -> t.signIn
-                    usingCode -> t.sendCode
-                    else -> t.signIn
-                }
-            }
-            if (!usingCode) {
-                button {
-                    className = ClassName("btn")
-                    disabled = busy
-                    onClick = {
-                        busy = true
-                        error = null
-                        scope.launch {
-                            runCatching { props.api.register(email.trim(), password) }
-                                .onSuccess { authenticated(Uuid.parse(it.userId)) }
-                                .onFailure(::fail)
-                        }
-                    }
-                    +t.signUp
-                }
-            }
+        val google = props.google
+        if (google == null) {
+            // No client id in this build, and Google is the only door there is at the moment: say so,
+            // rather than showing a panel with nothing in it.
+            p { className = ClassName("muted"); +t.signInUnavailable }
+            return@modalShell
         }
 
         button {
-            className = ClassName("btn link")
+            className = ClassName("btn google")
+            disabled = busy
             onClick = {
-                usingCode = !usingCode
-                codeSent = false
+                busy = true
                 error = null
+                scope.launch {
+                    // Null means the user closed Google's window. They know they did; there is nothing
+                    // to tell them, and an error message here would be the app arguing with them.
+                    val token = runCatching { google.idToken() }.getOrNull()
+                    if (token == null) {
+                        busy = false
+                    } else {
+                        runCatching { props.api.signInWithGoogle(token) }
+                            .onSuccess { me ->
+                                email = me.email
+                                authenticated(Uuid.parse(me.userId), me.email)
+                            }
+                            .onFailure(::fail)
+                    }
+                }
             }
-            +if (usingCode) t.signInWithPassword else t.signInWithCode
+            +t.signInWithGoogle
         }
+
+        error?.let { p { className = ClassName("error"); +it } }
     }
 }
 

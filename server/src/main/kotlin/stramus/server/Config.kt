@@ -35,6 +35,17 @@ data class ServerConfig(
     val loginCodeTtl: Duration = 10.minutes,
 
     /**
+     * Whether the email doors — a password, or a one-time code on the mail — are open at all.
+     *
+     * Off: the clients offer Google and nothing else for now, and an endpoint no client calls is an endpoint
+     * nobody is watching. Nothing behind it is torn down — the accounts made that way are still accounts, and
+     * `STRAMUS_EMAIL_AUTH=1` opens the doors again without a new build. Somebody who signed up by mail signs
+     * in with Google on the same address in the meantime: [Accounts.signInWithGoogle] lands them in the
+     * account they already have rather than a second one.
+     */
+    val emailAuthEnabled: Boolean = false,
+
+    /**
      * The mail relay the one-time codes go through. Blank means there is none: on a developer's machine the
      * codes go to the log, and in production the mailed-code door is simply closed ([DisabledMailer]) rather
      * than the server refusing to start — password and Google sign-in need no mail relay.
@@ -127,6 +138,7 @@ data class ServerConfig(
                 smtpUser = env["STRAMUS_SMTP_USER"],
                 smtpPassword = env["STRAMUS_SMTP_PASSWORD"],
                 mailFrom = env["STRAMUS_MAIL_FROM"] ?: "stramus@localhost",
+                emailAuthEnabled = env["STRAMUS_EMAIL_AUTH"] == "1",
                 googleClientId = env["STRAMUS_GOOGLE_CLIENT_ID"] ?: "",
                 googleExtensionClientId = env["STRAMUS_GOOGLE_EXTENSION_CLIENT_ID"] ?: "",
                 jwtSecret = env["STRAMUS_JWT_SECRET"] ?: "dev-secret-not-for-production",
