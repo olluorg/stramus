@@ -2303,26 +2303,51 @@ val App = FC<AppProps> { props ->
                                         // A dragged card additionally schedules this collection to open
                                         // on its own — see [scheduleHoverOpen] — so it can be dropped into
                                         // a group of the collection's own grid, not just left ungrouped.
+                                        //
+                                        // Which row is hovered is tracked on dragover, not dragenter, as
+                                        // the card groups do: dragover keeps firing wherever the pointer
+                                        // is, so the highlight is restored by the very next event no
+                                        // matter what the enter/leave pair did. Tracking it on dragenter
+                                        // alone put it out over most of the row — the title fills nearly
+                                        // all of it, and crossing from the row's own padding onto the
+                                        // title fires dragenter (at the title, setting this row) and then
+                                        // dragleave (at the row, clearing it again), with no further
+                                        // dragenter to come while the pointer stays on the title.
                                         onDragEnter = { e ->
                                             if (takesDrag || (takesContent && draggingFiles(e.dataTransfer))) {
                                                 e.preventDefault()
-                                                if (dropCollectionId != c.id) dropCollectionId = c.id
-                                                if (draggingCardId != null && c.id != selectedId) {
-                                                    scheduleHoverOpen(c.id)
-                                                }
                                             }
                                         }
                                         onDragOver = { e ->
                                             val files = takesContent && draggingFiles(e.dataTransfer)
-                                            if (takesDrag || files) e.preventDefault()
-                                            if (files) e.dataTransfer.dropEffect = DropEffect.copy
+                                            if (takesDrag || files) {
+                                                e.preventDefault()
+                                                if (files) e.dataTransfer.dropEffect = DropEffect.copy
+                                                // Newly hovered: light it up, and start the clock on
+                                                // opening it. Both only when the row changes — a hover
+                                                // re-scheduled on every dragover would never come due.
+                                                if (dropCollectionId != c.id) {
+                                                    dropCollectionId = c.id
+                                                    if (draggingCardId != null && c.id != selectedId) {
+                                                        scheduleHoverOpen(c.id)
+                                                    }
+                                                }
+                                            }
                                             // The drag left the content area; drop the group it was
                                             // last over, or two targets would light up at once.
                                             if (dropGroup != null) dropGroup = null
                                             leaveTabsSidebar()
                                         }
-                                        onDragLeave = {
-                                            if (dropCollectionId == c.id) {
+                                        // Only a move out of the row is a leave: dragleave fires just as
+                                        // readily when the pointer crosses onto the row's own title or
+                                        // one of its buttons, and the drop still lands here. What is
+                                        // being entered is `relatedTarget` — null when it is the window
+                                        // itself being left, which is a leave like any other.
+                                        onDragLeave = { e ->
+                                            val to = e.asDynamic().relatedTarget
+                                            val inside = to != null &&
+                                                e.currentTarget.asDynamic().contains(to) == true
+                                            if (!inside && dropCollectionId == c.id) {
                                                 dropCollectionId = null
                                                 cancelHoverOpen()
                                             }
