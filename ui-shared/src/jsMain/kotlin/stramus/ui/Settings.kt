@@ -55,9 +55,19 @@ external interface SettingsModalProps : Props {
     var groupsFolderView: Boolean
     var onGroupsFolderViewChange: (Boolean) -> Unit
 
-    /** Whether the browsing statistics go up to the account with everything else. Off unless asked for. */
+    /** Whether the browsing statistics go up to the account with everything else. Off unless asked for.
+     *  Meaningless — and hidden — where there is no account for it to go up to; see [signedIn]. */
     var syncUsage: Boolean
     var onSyncUsageChange: (Boolean) -> Unit
+
+    /** Whether this browser is signed into an account right now. Settles what the Account pane offers:
+     *  a door in, or the account controls (and the statistics switch, which needs an account to mean
+     *  anything) on the way out. */
+    var signedIn: Boolean
+    /** The signed-in address, for display. Null while signed out. */
+    var accountEmail: String?
+    var onSignIn: () -> Unit
+    var onSignOut: () -> Unit
 
     /** What the page opens on: "last" | "first". See [StartView]. */
     var startView: String
@@ -116,8 +126,8 @@ external interface SettingsModalProps : Props {
  * before it is drawn.
  */
 private enum class SettingsTab(val icon: String, val title: (Strings) -> String) {
-    APPEARANCE("🎨", { it.appearance }),
     ACCOUNT("👤", { it.account }),
+    APPEARANCE("🎨", { it.appearance }),
     STARTUP("🚀", { it.startupSection }),
     TABS("🗂", { it.tabsSection }),
     SECURITY("🔒", { it.security }),
@@ -222,15 +232,33 @@ private fun ChildrenBuilder.appearancePane(props: SettingsModalProps, s: Strings
 // Collections are things the user chose to keep. The statistics are a trace of what they did —
 // which pages, how often — and that is a different kind of thing to hand a server. So it is a
 // question, asked once, answered "no" until they say otherwise.
+//
+// The switch only means anything once there is an account for the statistics to go up to — signed
+// out, there is no server on the other end of it, so the row is replaced by the door in rather than
+// shown disabled or, worse, left on the screen turning a setting that does nothing.
 private fun ChildrenBuilder.accountPane(props: SettingsModalProps, s: Strings) {
     div {
         className = ClassName("settings-section")
         h4 { +s.account }
-        toggleRow(
-            s.syncUsage, s.syncUsageHint, props.syncUsage,
-            listOf(false to s.optionOff, true to s.optionOn),
-            props.onSyncUsageChange,
-        )
+
+        if (props.signedIn) {
+            props.accountEmail?.let { p { className = ClassName("settings-hint"); +it } }
+            div {
+                className = ClassName("settings-actions")
+                button { className = ClassName("btn"); onClick = { props.onSignOut() }; +s.signOut }
+            }
+            toggleRow(
+                s.syncUsage, s.syncUsageHint, props.syncUsage,
+                listOf(false to s.optionOff, true to s.optionOn),
+                props.onSyncUsageChange,
+            )
+        } else {
+            p { className = ClassName("settings-hint"); +s.accountSignedOutHint }
+            div {
+                className = ClassName("settings-actions")
+                button { className = ClassName("btn"); onClick = { props.onSignIn() }; +s.signInAccount }
+            }
+        }
     }
 }
 
@@ -414,7 +442,7 @@ val SettingsModal = FC<SettingsModalProps> { props ->
     // The tabs actually on offer for this host: everything, minus the ones that would settle nothing
     // here (the web app has no browser tabs to close, so it shows no Tabs pane).
     val tabs = SettingsTab.entries.filter { it != SettingsTab.TABS || props.hasTabs }
-    var active by useState(SettingsTab.APPEARANCE)
+    var active by useState(SettingsTab.ACCOUNT)
     // A host that dropped the active pane out from under us (unlikely — hasTabs is fixed per host, but
     // cheap to be safe): fall back to the first pane there is.
     if (active !in tabs) active = tabs.first()

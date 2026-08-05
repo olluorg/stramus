@@ -16,6 +16,8 @@ import react.useState
 import web.cssom.ClassName
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import stramus.core.db.StramusStore
 import stramus.core.platform.GoogleSignIn
 import stramus.core.sync.ApiException
@@ -136,6 +138,7 @@ val AccountDialog = FC<AccountDialogProps> { props ->
     var email by useState("")
     var busy by useState(false)
     var error by useState<String?>(null)
+    var exporting by useState(false)
 
     // Signing in on a browser that already has collections asks a question that has no safe default: are
     // these the account's, or is the account's what should be here? Nobody but the user knows. It may
@@ -257,6 +260,29 @@ val AccountDialog = FC<AccountDialogProps> { props ->
                     +t.signOut
                 }
             }
+
+            p {
+                className = ClassName("muted")
+                +t.exportAccountDataHint
+            }
+            button {
+                className = ClassName("btn")
+                disabled = exporting
+                onClick = {
+                    exporting = true
+                    error = null
+                    scope.launch {
+                        runCatching {
+                            val export = props.api.exportAccount()
+                            downloadFile("stramus-account-export.json", "application/json", Json { prettyPrint = true }.encodeToString(export))
+                        }.onFailure { error = t.exportAccountDataFailed }
+                        exporting = false
+                    }
+                }
+                +t.exportAccountData
+            }
+
+            error?.let { p { className = ClassName("error"); +it } }
 
             p {
                 className = ClassName("muted")

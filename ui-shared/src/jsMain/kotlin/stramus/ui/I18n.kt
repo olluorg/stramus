@@ -441,6 +441,8 @@ interface Strings {
     // Account and synchronisation
     val account: String
     val accountSignedOutHint: String
+    /** Opens the account dialog's sign-in door, from the settings page's Account pane. */
+    val signInAccount: String
     val signOut: String
     val syncNow: String
     val syncIdle: String
@@ -453,6 +455,9 @@ interface Strings {
     val joinAccountHint: String
     val joinAccountKeep: String
     val joinAccountDiscard: String
+    val exportAccountData: String
+    val exportAccountDataHint: String
+    val exportAccountDataFailed: String
     val deleteAccount: String
     val deleteAccountHint: String
     val deleteAccountConfirm: String
@@ -793,6 +798,7 @@ private object EnStrings : Strings {
 
     override val account = "Account"
     override val accountSignedOutHint = "Sign in to keep your collections on every browser you use. Everything works without an account — it just stays on this machine."
+    override val signInAccount = "Sign in"
     override val signOut = "Sign out"
     override val syncNow = "Sync now"
     override val syncIdle = "Synced"
@@ -807,6 +813,9 @@ private object EnStrings : Strings {
     override val joinAccountHint = "You can add them to the account, or leave them behind and take what the account already holds."
     override val joinAccountKeep = "Add them to the account"
     override val joinAccountDiscard = "Use the account's collections"
+    override val exportAccountData = "Download my data"
+    override val exportAccountDataHint = "Every row the server holds about this account, as JSON."
+    override val exportAccountDataFailed = "Could not download the export."
     override val deleteAccount = "Delete account"
     override val deleteAccountHint = "Erases everything the server holds. What is on this machine stays."
     override val deleteAccountConfirm = "Delete the account and everything the server holds? This cannot be undone."
@@ -1174,6 +1183,7 @@ private object RuStrings : Strings {
 
     override val account = "Аккаунт"
     override val accountSignedOutHint = "Войдите, чтобы коллекции были во всех браузерах, которыми вы пользуетесь. Без аккаунта всё работает точно так же — просто остаётся на этой машине."
+    override val signInAccount = "Войти"
     override val signOut = "Выйти"
     override val syncNow = "Синхронизировать"
     override val syncIdle = "Синхронизировано"
@@ -1188,6 +1198,9 @@ private object RuStrings : Strings {
     override val joinAccountHint = "Их можно добавить в аккаунт — или оставить здесь и взять то, что в аккаунте уже есть."
     override val joinAccountKeep = "Добавить в аккаунт"
     override val joinAccountDiscard = "Взять коллекции из аккаунта"
+    override val exportAccountData = "Скачать мои данные"
+    override val exportAccountDataHint = "Всё, что сервер хранит об этом аккаунте, в формате JSON."
+    override val exportAccountDataFailed = "Не удалось скачать экспорт."
     override val deleteAccount = "Удалить аккаунт"
     override val deleteAccountHint = "Стирает всё, что хранит сервер. То, что на этой машине, остаётся."
     override val deleteAccountConfirm = "Удалить аккаунт и всё, что хранит сервер? Это не отменить."

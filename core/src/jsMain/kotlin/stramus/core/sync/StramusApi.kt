@@ -22,6 +22,7 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 import kotlinx.browser.localStorage
 import kotlinx.serialization.json.Json
+import stramus.protocol.AccountExport
 import stramus.protocol.ApiError
 import stramus.protocol.BlobCheckRequest
 import stramus.protocol.BlobCheckResponse
@@ -150,6 +151,11 @@ class StramusApi(
         }
         signOutLocally()
     }
+
+    /** Every row the server holds about this account, in the form it holds it — the GDPR copy-of-everything. */
+    suspend fun exportAccount(): AccountExport = withToken { token ->
+        http.get("$baseUrl/v1/account/export") { header(HttpHeaders.Authorization, "Bearer $token") }
+    }.body()
 
     override suspend fun sync(request: SyncRequest): SyncResponse = withToken { token ->
         http.post("$baseUrl/v1/sync") {

@@ -3320,6 +3320,19 @@ val App = FC<AppProps> { props ->
                     // fresh read of the whole account brings them back.
                     if (on) scope.launch { engine?.refetchEverything(); runSync() }
                 }
+                this.signedIn = syncUi.email != null && syncUi.status != SyncStatus.SIGNED_OUT
+                this.accountEmail = syncUi.email
+                onSignIn = {
+                    settingsOpen = false
+                    accountOpen = true
+                }
+                onSignOut = {
+                    scope.launch {
+                        runCatching { api.signOut() }
+                        engine?.signOut()
+                        syncUi = SyncUi(SyncStatus.SIGNED_OUT)
+                    }
+                }
                 this.startView = startView.id
                 onStartViewChange = { id ->
                     startView = StartView.from(id)
