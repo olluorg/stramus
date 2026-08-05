@@ -204,6 +204,9 @@ interface CardRepository {
 
     suspend fun rename(id: Uuid, title: String)
 
+    /** Change a link card's address. */
+    suspend fun updateUrl(id: Uuid, url: String)
+
     /**
      * Delete a card — the file bytes go with it. Returns what was taken, for [restore]; null if there
      * is no such card.

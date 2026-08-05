@@ -503,18 +503,11 @@
         .triage-related { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 6px 6px 30px; color: var(--muted); font-size: 11px; }
         .triage-related-card { border: 1px solid var(--border); border-radius: 6px; padding: 1px 5px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-        /* Renaming a card: the title in a field, the page it names under it, and — for a link, where the
-           browser has a model of its own — that title with the rubbish taken out, offered on a button. */
+        /* Editing a card: the title in a field and, for a link, its address behind a toggle. */
         .rename-modal { max-width: 560px; }
         .rename-url-toggle { align-self: flex-start; margin: 8px 18px; border: none; background: none; padding: 0; color: var(--muted); font-size: 12px; cursor: pointer; }
         .rename-url-toggle:hover { color: var(--accent); }
-        /* Asked for, and then given whole: an address is only useful if it is not cut short. It is
-           the length of it that keeps it folded away, so unfolding it must not hide the tail again. */
-        .rename-url { margin: 4px 18px 8px; max-height: 4.5em; overflow-y: auto; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
-        .ai-suggest { display: flex; align-items: center; gap: 8px; margin: 12px 18px 2px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); font-size: 13px; }
-        .ai-suggest-text { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
-        .ai-suggest-wait { flex: 1; color: var(--muted); }
-        .ai-suggest .btn { flex: 0 0 auto; }
+        .rename-url { margin: 4px 18px 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 8px; padding: 8px 12px; font-size: 13px; }
 
         .control { border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 8px; padding: 7px 8px; font-size: 13px; cursor: pointer; }
         .control:hover { border-color: var(--accent); }

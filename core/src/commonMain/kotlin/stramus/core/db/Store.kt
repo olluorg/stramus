@@ -1044,6 +1044,14 @@ internal class KormiumCardRepository(
         }
     }
 
+    override suspend fun updateUrl(id: Uuid, url: String) {
+        db.suspendTransaction {
+            Cards.update(
+                CardRow().apply { this.url = url; this.updatedAt = Clock.System.now() },
+            ) { where { Cards.id eq id } }
+        }
+    }
+
     override suspend fun delete(id: Uuid): DeletedCard? {
         val row = db.suspendAutocommit { Cards.findOne { where { Cards.id eq id } } } ?: return null
         // The bytes are read out before they are deleted: an undone deletion has to open the file again.

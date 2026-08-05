@@ -1703,15 +1703,18 @@ val App = FC<AppProps> { props ->
         }
     }
 
-    // The edit icon on a tile asks for the box, it does not do the renaming: the box is where the title is
-    // edited, and — for a link, on a machine whose browser has a model of its own — where the same title
-    // with the rubbish taken out of it is offered. See [RenameCardModal].
+    // The edit icon on a tile asks for the box, it does not do the editing itself: the box is where the
+    // title and, for a link, the address are changed. See [RenameCardModal].
     val onCardRenameRequest = useCallback { card: Card -> renameModal = RenameModal(card, fromSearch = false) }
     val onResultRenameRequest = useCallback { card: Card -> renameModal = RenameModal(card, fromSearch = true) }
 
-    val onCardRename = useCallback(store, hiddenCollectionIds) { card: Card, title: String ->
+    val onCardRename = useCallback(store, hiddenCollectionIds) { card: Card, title: String, url: String ->
         val s = store ?: return@useCallback
-        scope.launch { s.cards.rename(card.id, title); reloadCards(card.collectionId) }
+        scope.launch {
+            if (title != card.title) s.cards.rename(card.id, title)
+            if (url != card.url) s.cards.updateUrl(card.id, url)
+            reloadCards(card.collectionId)
+        }
     }
 
     val onCardDelete = useCallback(store, hiddenCollectionIds) { card: Card ->
@@ -1765,10 +1768,11 @@ val App = FC<AppProps> { props ->
 
     // A card renamed or deleted among the search results is a card of some collection: the results on
     // screen and the collection it lives in are both re-read, or one of the two would be stale.
-    val onResultRename = useCallback(store, query, selectedId, hiddenCollectionIds) { card: Card, title: String ->
+    val onResultRename = useCallback(store, query, selectedId, hiddenCollectionIds) { card: Card, title: String, url: String ->
         val s = store ?: return@useCallback
         scope.launch {
-            s.cards.rename(card.id, title)
+            if (title != card.title) s.cards.rename(card.id, title)
+            if (url != card.url) s.cards.updateUrl(card.id, url)
             searchResults = s.cards.search(query.trim())
             reloadCards(selectedId)
         }
@@ -3544,22 +3548,13 @@ val App = FC<AppProps> { props ->
         }
 
         renameModal?.let { m ->
-            // The model is offered to the box only once it is *on this machine*: a title cleaned up
-            // on-device costs the user nothing and leaves nothing, which is why this does not ask who
-            // they chose to answer their questions — a web chat is never handed a title here. A model
-            // that would first have to be downloaded is not offered at all: nobody asked for a few
-            // hundred megabytes by pressing the edit icon.
-            //
-            // Read out here rather than in the builder below, where `ai` is the prop being set.
-            val titleCleaner = ai.takeIf { aiState == AiAvailability.AVAILABLE }
             RenameCardModal {
                 strings = t
                 this.card = m.card
-                this.ai = titleCleaner
                 onClose = { renameModal = null }
-                onSave = { renamed ->
-                    if (renamed != m.card.title) {
-                        if (m.fromSearch) onResultRename(m.card, renamed) else onCardRename(m.card, renamed)
+                onSave = { renamed, url ->
+                    if (renamed != m.card.title || url != m.card.url) {
+                        if (m.fromSearch) onResultRename(m.card, renamed, url) else onCardRename(m.card, renamed, url)
                     }
                     renameModal = null
                 }

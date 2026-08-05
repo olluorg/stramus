@@ -317,17 +317,10 @@ interface Strings {
     val cardNamePrompt: String
     val renameHeading: String
 
-    /** The link's address, which the rename box keeps folded away until it is asked for. */
+    /** The link's address, which the edit box keeps folded away until it is asked for. */
     val renameShowUrl: String
     val renameHideUrl: String
-
-    // Renaming a link, where the browser's own model can take the rubbish out of the page's own title
-    val aiTitleCleaning: String
-    val aiTitleUse: String
-    val aiTitleUseHint: String
-
-    /** What the model is told before it is shown a title: clean it, and invent nothing. */
-    val aiTitleSystemPrompt: String
+    val renameUrlPrompt: String
 
     // Note editor
     val newNote: String
@@ -686,21 +679,12 @@ private object EnStrings : Strings {
 
     override val emptyNote = "Empty note"
     override val fileLabel = "file"
-    override val renameCard = "Rename"
+    override val renameCard = "Edit"
     override val cardNamePrompt = "Card title"
-    override val renameHeading = "Rename card"
+    override val renameHeading = "Edit card"
     override val renameShowUrl = "Show address"
     override val renameHideUrl = "Hide address"
-
-    override val aiTitleCleaning = "Cleaning up the title…"
-    override val aiTitleUse = "Use"
-    override val aiTitleUseHint = "Put this title in the field. Nothing has been renamed yet."
-    override val aiTitleSystemPrompt = "You clean up the titles of web pages. You are given a page title " +
-        "and its address; reply with the title alone, with everything that is not the page's own name " +
-        "removed: the site's name trailing after a dash, a pipe or a bullet, unread counters like “(3)”, " +
-        "marketing tails, decorative symbols. Keep the words that are left exactly as they are — never " +
-        "translate, never rephrase, never add a word that is not already in the title. Reply with the " +
-        "title and nothing else."
+    override val renameUrlPrompt = "Address"
 
     override val newNote = "New note"
     override val editNote = "Edit note"
@@ -1066,21 +1050,12 @@ private object RuStrings : Strings {
 
     override val emptyNote = "Пустая заметка"
     override val fileLabel = "файл"
-    override val renameCard = "Переименовать"
+    override val renameCard = "Изменить"
     override val cardNamePrompt = "Название карточки"
-    override val renameHeading = "Переименовать карточку"
+    override val renameHeading = "Изменить карточку"
     override val renameShowUrl = "Показать адрес"
     override val renameHideUrl = "Скрыть адрес"
-
-    override val aiTitleCleaning = "Чищу заголовок…"
-    override val aiTitleUse = "Взять"
-    override val aiTitleUseHint = "Подставить этот заголовок в поле. Карточка ещё не переименована."
-    override val aiTitleSystemPrompt = "Ты чистишь заголовки веб-страниц. Тебе дают заголовок страницы " +
-        "и её адрес; ответь одним только заголовком, убрав из него всё, что не является названием самой " +
-        "страницы: имя сайта после тире, вертикальной черты или точки-разделителя, счётчики вроде «(3)», " +
-        "рекламные хвосты, декоративные символы. Оставшиеся слова оставь ровно такими, какие они есть: " +
-        "не переводи, не переформулируй, не добавляй ни одного слова, которого не было в заголовке. " +
-        "В ответе — только заголовок."
+    override val renameUrlPrompt = "Адрес"
 
     override val newNote = "Новая заметка"
     override val editNote = "Изменить заметку"
