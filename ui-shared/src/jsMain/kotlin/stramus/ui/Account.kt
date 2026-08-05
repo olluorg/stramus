@@ -37,10 +37,14 @@ fun serverBaseUrl(): String =
  * The OAuth client id of this application, as registered with Google — the same one the server checks the
  * token's audience against.
  *
- * Blank until someone registers one, and while it is blank the Google button is simply not there. A button
- * that opens Google and comes back with "invalid client" is worse than no button.
+ * Baked in at build time ([DEFAULT_GOOGLE_CLIENT_ID], see build.gradle.kts) because it is a public
+ * identifier and not a secret, and because the alternative was worse: read only from `localStorage`, it was
+ * absent in every browser profile nobody had prepared by hand, and there the sign-in button did nothing at
+ * all. `localStorage` still wins where it is set, which is how a fork or a test build points at its own
+ * client. Blank means the Google door is not offered, and a button that comes back with "invalid client" is
+ * worse than no button.
  */
-fun googleClientId(): String = localStorage.getItem("stramus.googleClientId") ?: ""
+fun googleClientId(): String = localStorage.getItem("stramus.googleClientId") ?: DEFAULT_GOOGLE_CLIENT_ID
 
 /** What the badge in the corner is saying. */
 enum class SyncStatus { SIGNED_OUT, IDLE, RUNNING, OFFLINE, ERROR }

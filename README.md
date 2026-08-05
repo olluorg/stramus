@@ -130,16 +130,27 @@ localStorage.setItem("stramus.server", "https://example.org")
 - веб-версия — `https://stramus.space/oauth.html` (и `http://localhost:8080/oauth.html` для разработки);
 - расширение — `https://<extension-id>.chromiumapp.org/`.
 
-Один и тот же client ID прописывается **и серверу** (`STRAMUS_GOOGLE_CLIENT_ID`), **и клиенту**:
+Один и тот же client ID знают **и сервер** (`STRAMUS_GOOGLE_CLIENT_ID`), **и клиент**. В клиенте он
+**запекается на сборке** (`:ui-shared:generateBuildDefaults`, переменная окружения
+`STRAMUS_GOOGLE_CLIENT_ID`, по умолчанию — опубликованный): это публичный идентификатор приложения, а
+не секрет, ровно как client id расширения в `manifest.json`. Раньше он жил только в `localStorage`, и в
+каждом не подготовленном руками браузере кнопка входа просто ничего не делала — так и вышло в Edge.
+Переопределить (форк, свой клиент, тестовая сборка) по-прежнему можно из консоли:
 
 ```js
 localStorage.setItem("stramus.googleClientId", "…apps.googleusercontent.com")
 ```
 
-Пока client ID не задан, кнопки «Продолжить с Google» просто нет — кнопка, которая открывает Google и
+Если client ID пустой, кнопки «Продолжить с Google» просто нет — кнопка, которая открывает Google и
 возвращается с «invalid client», хуже, чем её отсутствие. Сервер проверяет подпись токена, издателя и
 то, что токен выписан **именно этому** приложению (`aud`): без последней проверки любой человек со своим
 приложением в Google мог бы войти под кем угодно.
+
+**Не в Chrome (Edge и прочие).** Первый, тихий шаг — `chrome.identity.getAuthToken` — спрашивает аккаунт
+**самого браузера**, а в Edge это аккаунт Microsoft: там он отвечает отказом, пустотой или не отвечает
+вовсе. Поэтому на нём стоит таймаут (4 с), и дальше всегда идёт окно `launchWebAuthFlow`. Каждый шаг
+пишет в консоль строку `[stramus:google] …` — в том числе redirect URI, который надо разрешить в Google
+Cloud Console, если id расширения в этом браузере другой.
 
 Расширению нужен `host_permissions` на этот адрес — сейчас в `manifest.json` стоят `localhost:8090`
 (разработка) и `api.stramus.space` (прод).
