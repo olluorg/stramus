@@ -2042,8 +2042,20 @@ val App = FC<AppProps> { props ->
             val remaining = s.collections.all()
             collections = remaining
             if (selectedId == collection.id) selectedId = remaining.firstOrNull()?.id
+
+            // A section left with no collections is not a place anything can be saved to any more —
+            // it goes with the last collection taken out of it, unless it is the default section.
+            val section = sections.find { it.id == collection.sectionId }
+            val emptiedSection = if (section != null && section.deletable && remaining.none { it.sectionId == section.id }) {
+                s.sections.delete(section.id)?.also { sections = s.sections.all() }
+            } else {
+                null
+            }
+
             undo = Undo(t.deletedCollection(collection.title)) {
                 s.collections.restore(deleted)
+                emptiedSection?.let { s.sections.restore(it) }
+                sections = s.sections.all()
                 collections = s.collections.all()
                 selectedId = collection.id // put the user back where they were, looking at it
             }
