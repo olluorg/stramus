@@ -303,9 +303,6 @@ interface Strings {
     val paneTabs: String
     val paneHistory: String
 
-    /** Toolbar toggle in the tabs sidebar: switches its rows between a list and a grid of cards. */
-    val tabsViewToggleToCards: String
-    val tabsViewToggleToList: String
     val searchHistory: String
     val noHistory: String
     val noMatchingHistory: String
@@ -681,8 +678,6 @@ private object EnStrings : Strings {
 
     override val paneTabs = "Tabs"
     override val paneHistory = "History"
-    override val tabsViewToggleToCards = "Show as cards"
-    override val tabsViewToggleToList = "Show as list"
     override val searchHistory = "Search history…"
     override val noHistory = "Nothing in history yet."
     override val noMatchingHistory = "Nothing in history matches."
@@ -1064,8 +1059,6 @@ private object RuStrings : Strings {
 
     override val paneTabs = "Вкладки"
     override val paneHistory = "История"
-    override val tabsViewToggleToCards = "Показывать карточками"
-    override val tabsViewToggleToList = "Показывать списком"
     override val searchHistory = "Поиск по истории…"
     override val noHistory = "История пуста."
     override val noMatchingHistory = "В истории ничего не найдено."

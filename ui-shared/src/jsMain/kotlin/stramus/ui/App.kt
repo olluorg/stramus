@@ -3056,21 +3056,6 @@ val App = FC<AppProps> { props ->
                                 }
                             }
                         }
-                        // A quick switch beside the collapse button — the same choice as the setting in
-                        // Settings, for when reaching there is more than the moment is worth. Only where
-                        // there is a Tabs pane to switch the shape of at all.
-                        if (pane == RightPane.TABS) {
-                            button {
-                                className = ClassName("icon view-toggle")
-                                hint(if (tabsCardView) t.tabsViewToggleToList else t.tabsViewToggleToCards)
-                                onClick = {
-                                    val next = !tabsCardView
-                                    tabsCardView = next
-                                    prefSet("tabsCardView", if (next) "1" else "0")
-                                }
-                                +(if (tabsCardView) "☰" else "⊞")
-                            }
-                        }
                         button {
                             className = ClassName("icon collapse-btn")
                             hint(t.hideTabs)
