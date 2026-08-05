@@ -158,6 +158,14 @@ private data class DropGroup(val sectionId: Uuid?)
  * ([onDropFiles]) rather than moved from somewhere else in the app. Which of the two a drag is can
  * only be told from the event ([draggingFiles]) — the app knows nothing of a file until it lands —
  * so both are wired and each event settles it for itself.
+ *
+ * [folder] is the folder view (see the `groupsFolderView` setting): the same group, the same header,
+ * the same drop zone, worn as a tile in a grid of folders. Nothing inside changes — a closed folder is
+ * its header alone, restyled into a tile, and an open one is spread back over the full row and drawn
+ * exactly as the list view draws it. That is why the difference is two class names and not a second
+ * way of building the group: everything the header does — rename, drag, the tools, the drops — is one
+ * piece of markup, and a folder that had its own copy of it would be a folder that slowly stopped
+ * matching.
  */
 private fun ChildrenBuilder.cardGroup(
     accepts: Boolean,
@@ -169,6 +177,9 @@ private fun ChildrenBuilder.cardGroup(
     groupKey: Key? = null,
     /** This group is the one being carried somewhere else — it fades where it stands. */
     dragging: Boolean = false,
+    folder: Boolean = false,
+    /** Only read in folder view: whether this folder is the one spread open across the grid. */
+    open: Boolean = false,
     content: ChildrenBuilder.() -> Unit,
 ) {
     div {
@@ -178,6 +189,7 @@ private fun ChildrenBuilder.cardGroup(
                 append("card-group")
                 if (active) append(" drop-active")
                 if (dragging) append(" dragging")
+                if (folder) append(if (open) " folder open" else " folder")
             },
         )
         if (accepts || acceptsFiles) {
@@ -201,6 +213,18 @@ private fun ChildrenBuilder.cardGroup(
         }
         content()
     }
+}
+
+/**
+ * The frame the card sections sit in: a grid of folder tiles under the folder view, and nothing at all
+ * under the list view, where each section is simply the next block down the page.
+ *
+ * Nothing at all — rather than a `<div>` that is only ever a wrapper — because the sections are laid
+ * out by the flow of the content pane in list view, and a bare element in the middle of it is one more
+ * thing between a section and its margins.
+ */
+private fun ChildrenBuilder.folderGrid(on: Boolean, content: ChildrenBuilder.() -> Unit) {
+    if (on) div { className = ClassName("folder-grid"); content() } else content()
 }
 
 /**
@@ -704,6 +728,14 @@ val App = FC<AppProps> { props ->
     // Whether the tabs sidebar shows its rows as a grid of [TabCard]s — the same shape as the middle
     // pane's saved cards, and the same width as that pane too — instead of [TabRow]'s list.
     var tabsCardView by useState(prefGet("tabsCardView") == "1")
+    // Whether a collection's card sections are drawn as folders — a grid of closed tiles, one at a time
+    // opening to the full width where it stands — instead of one section under another, all open at once.
+    var groupsFolderView by useState(prefGet("groupsFolderView") == "1")
+    // Which section folder view has open, if any — its own state, not [CardSection.collapsed]: that one
+    // is the list view's memory of what it left open, and folder view browses one section at a time
+    // without rewriting it. Stale after a switch of collection or a deleted section, harmlessly: nothing
+    // in the section list will match it, and the grid shows.
+    var openFolderId by useState<Uuid?>(null)
     var rightPane by useState(RightPane.from(prefGet("rightPane")))
     var autoLockMinutes by useState(prefGet("autoLock")?.toIntOrNull() ?: DEFAULT_AUTO_LOCK_MINUTES)
     // What the page opens on: where the user left off, or the first collection. Read once, on the
@@ -2744,130 +2776,174 @@ val App = FC<AppProps> { props ->
                             }
                         }
 
-                        orderedCardSections.forEach { cs ->
-                            val groupCards = cardsByGroup[cs.id] ?: emptyList()
-                            // A section dragged over another one is a reorder, and it is dropped on the
-                            // whole group, header and cards alike — the header strip alone would be a
-                            // needle to thread, exactly as it is for a card (see [cardGroup]).
-                            val takesSection = editable &&
-                                draggingCardSectionId != null && draggingCardSectionId != cs.id
-                            val activateCardSectionTitle = {
-                                onTitleClick {
-                                    val s = store
-                                    if (s != null) scope.launch {
-                                        s.cardSections.setCollapsed(cs.id, !cs.collapsed)
-                                        cardSections = s.cardSections.byCollection(current.id)
+                        // Folder view lays the sections out as a grid of tiles; list view leaves them
+                        // one under another, as everything else on the page is. The grid is the only
+                        // difference between the two at this level — what each section *is* is the
+                        // same block either way (see [cardGroup]).
+                        //
+                        // Opening a folder there is a drill-down, not an accordion: the one section that
+                        // is open is shown alone, full width, and every other tile disappears with the
+                        // grid it stood in. [openFolderId] can only ever name one, so there is nothing
+                        // here to reconcile the way [openFolderSection] once had to.
+                        val openFolderSection = if (groupsFolderView) {
+                            orderedCardSections.firstOrNull { it.id == openFolderId }
+                        } else null
+                        val visibleSections = openFolderSection?.let(::listOf) ?: orderedCardSections
+
+                        folderGrid(groupsFolderView) {
+                            visibleSections.forEach { cs ->
+                                val groupCards = cardsByGroup[cs.id] ?: emptyList()
+                                // A section dragged over another one is a reorder, and it is dropped on the
+                                // whole group, header and cards alike — the header strip alone would be a
+                                // needle to thread, exactly as it is for a card (see [cardGroup]).
+                                val takesSection = editable &&
+                                    draggingCardSectionId != null && draggingCardSectionId != cs.id
+                                // Folder view reads and writes [openFolderId] alone — never the section's
+                                // own [CardSection.collapsed], which is the list view's to keep.
+                                val isOpen = if (groupsFolderView) cs.id == openFolderId else !cs.collapsed
+                                // A closed tile is a name and a count: it still takes a drop, and a link
+                                // dragged onto it joins the section same as always, but there is nothing
+                                // on screen yet to add a card next to or sort. Both return once it opens.
+                                val closedFolderTile = groupsFolderView && !isOpen
+                                val activateCardSectionTitle = {
+                                    onTitleClick {
+                                        if (groupsFolderView) {
+                                            openFolderId = if (openFolderId == cs.id) null else cs.id
+                                        } else {
+                                            val s = store
+                                            if (s != null) scope.launch {
+                                                s.cardSections.setCollapsed(cs.id, !cs.collapsed)
+                                                cardSections = s.cardSections.byCollection(current.id)
+                                            }
+                                        }
                                     }
                                 }
-                            }
-                            cardGroup(
-                                groupKey = key(cs.id),
-                                accepts = groupAccepts || takesSection,
-                                acceptsFiles = editable,
-                                active = dropGroup == DropGroup(cs.id),
-                                dragging = draggingCardSectionId == cs.id,
-                                onOver = {
-                                    if (dropGroup != DropGroup(cs.id)) dropGroup = DropGroup(cs.id)
-                                    leaveTabsSidebar()
-                                },
-                                onDropHere = {
-                                    if (draggingCardSectionId != null) moveCardSection(cs.id)
-                                    else dropOnGroup(current.id, cs.id, Int.MAX_VALUE)
-                                },
-                                // A file dropped on a section joins that section, as a dragged tab does.
-                                onDropFiles = { files -> saveFiles(files, current.id, cs.id) },
-                            ) {
-                                div {
-                                    className = ClassName("card-section-head")
-                                    // The header is the handle the section is dragged by — except while
-                                    // it is being renamed, when the pointer belongs to the text field.
-                                    draggable = editable && renamingId != cs.id
-                                    onDragStart = { e ->
-                                        e.dataTransfer.setData("text/plain", cs.id.toString())
-                                        draggingCardSectionId = cs.id
-                                    }
-                                    onDragEnd = {
-                                        draggingCardSectionId = null
-                                        dropGroup = null
-                                    }
-                                    span {
-                                        className = ClassName("card-section-title")
-                                        // Collapsing is not editing — it stays. Renaming does not.
-                                        hint(if (editable) t.renameHint else "")
-                                        tabIndex = 0
-                                        onClick = { activateCardSectionTitle() }
-                                        onDoubleClick = { if (editable) onTitleDoubleClick(cs.id) }
-                                        onKeyDown = { e ->
-                                            when (e.key) {
-                                                "Enter", " " -> { e.preventDefault(); activateCardSectionTitle() }
-                                                "F2" -> if (editable) { e.preventDefault(); onTitleDoubleClick(cs.id) }
-                                            }
+                                cardGroup(
+                                    groupKey = key(cs.id),
+                                    accepts = groupAccepts || takesSection,
+                                    acceptsFiles = editable,
+                                    active = dropGroup == DropGroup(cs.id),
+                                    dragging = draggingCardSectionId == cs.id,
+                                    folder = groupsFolderView,
+                                    open = isOpen,
+                                    onOver = {
+                                        if (dropGroup != DropGroup(cs.id)) dropGroup = DropGroup(cs.id)
+                                        leaveTabsSidebar()
+                                    },
+                                    onDropHere = {
+                                        if (draggingCardSectionId != null) moveCardSection(cs.id)
+                                        else dropOnGroup(current.id, cs.id, Int.MAX_VALUE)
+                                    },
+                                    // A file dropped on a section joins that section, as a dragged tab does.
+                                    onDropFiles = { files -> saveFiles(files, current.id, cs.id) },
+                                ) {
+                                    div {
+                                        className = ClassName("card-section-head")
+                                        // The header is the handle the section is dragged by — except while
+                                        // it is being renamed, when the pointer belongs to the text field.
+                                        draggable = editable && renamingId != cs.id
+                                        onDragStart = { e ->
+                                            e.dataTransfer.setData("text/plain", cs.id.toString())
+                                            draggingCardSectionId = cs.id
+                                        }
+                                        onDragEnd = {
+                                            draggingCardSectionId = null
+                                            dropGroup = null
                                         }
                                         span {
-                                            className = ClassName(if (cs.collapsed) "chevron closed" else "chevron")
-                                            +"▾"
-                                        }
-                                        if (renamingId == cs.id && editable) {
-                                            InlineEdit {
-                                                initial = cs.title
-                                                onCommit = { name -> renameCardSection(cs, name) }
-                                                onCancel = { renamingId = null }
+                                            className = ClassName("card-section-title")
+                                            // Collapsing is not editing — it stays. Renaming does not.
+                                            hint(if (editable) t.renameHint else "")
+                                            tabIndex = 0
+                                            onClick = { activateCardSectionTitle() }
+                                            onDoubleClick = { if (editable) onTitleDoubleClick(cs.id) }
+                                            onKeyDown = { e ->
+                                                when (e.key) {
+                                                    "Enter", " " -> { e.preventDefault(); activateCardSectionTitle() }
+                                                    "F2" -> if (editable) { e.preventDefault(); onTitleDoubleClick(cs.id) }
+                                                }
                                             }
+                                            span {
+                                                // The open folder's own way back to the grid: title and
+                                                // chevron already toggle it shut (see [isOpen] above), so
+                                                // the glyph just says what that click does here — sized up
+                                                // from the chevron it replaces, which is easy to miss as a
+                                                // way back out rather than a fold-away arrow.
+                                                val back = groupsFolderView && isOpen
+                                                className = ClassName(
+                                                    when {
+                                                        back -> "chevron back"
+                                                        isOpen -> "chevron"
+                                                        else -> "chevron closed"
+                                                    },
+                                                )
+                                                if (back) hint(t.folderBack)
+                                                +(if (back) "←" else "▾")
+                                            }
+                                            if (renamingId == cs.id && editable) {
+                                                InlineEdit {
+                                                    initial = cs.title
+                                                    onCommit = { name -> renameCardSection(cs, name) }
+                                                    onCancel = { renamingId = null }
+                                                }
+                                            } else {
+                                                +cs.title
+                                            }
+                                            span { className = ClassName("count"); +" ${groupCards.size}" }
+                                        }
+                                        if (editable || groupCards.any { it.kind == CardKind.LINK }) div {
+                                            className = ClassName("card-section-tools")
+                                            groupOpenAllButton(groupCards)
+                                            if (editable) {
+                                                if (!closedFolderTile) {
+                                                    groupAddMenu(cs.id)
+                                                    groupSortMenu(cs.id)
+                                                }
+                                                button {
+                                                    className = ClassName("icon edit")
+                                                    hint(t.editDescription)
+                                                    onClick = { e ->
+                                                        e.stopPropagation()
+                                                        descModal = DescModal(cs.id, cs.title, cs.description ?: "")
+                                                    }
+                                                    +"✎"
+                                                }
+                                                button {
+                                                    className = ClassName("icon del")
+                                                    hint(t.deleteCardSectionHint)
+                                                    onClick = { e ->
+                                                        e.stopPropagation()
+                                                        deleteCardSection(cs, current.id)
+                                                    }
+                                                    +"×"
+                                                }
+                                            }
+                                        }
+                                    }
+                                    // A collapsed section still takes drops — its header is inside the
+                                    // group — and the card joins it, out of sight.
+                                    Collapsible {
+                                        open = isOpen
+                                        if (!cs.description.isNullOrBlank()) {
+                                            markdownBlock("card-section-desc", cs.description!!)
+                                        }
+                                        if (groupCards.isEmpty()) {
+                                            div { className = ClassName("empty small"); +t.dragLinksHere }
                                         } else {
-                                            +cs.title
+                                            cardGrid(
+                                                strings = t,
+                                                cards = groupCards,
+                                                draggingCardId = draggingCardId,
+                                                readOnly = !editable,
+                                                showUrls = showCardUrls,
+                                                onOpen = onCardOpen,
+                                                onRename = onCardRenameRequest,
+                                                onDelete = onCardDelete,
+                                                onStartDrag = onCardStartDrag,
+                                                onEndDrag = onCardEndDrag,
+                                                onDropOnTile = onDropOnTile,
+                                            )
                                         }
-                                        span { className = ClassName("count"); +" ${groupCards.size}" }
-                                    }
-                                    if (editable || groupCards.any { it.kind == CardKind.LINK }) div {
-                                        className = ClassName("card-section-tools")
-                                        groupOpenAllButton(groupCards)
-                                        if (editable) {
-                                            groupAddMenu(cs.id)
-                                            groupSortMenu(cs.id)
-                                            button {
-                                                className = ClassName("icon edit")
-                                                hint(t.editDescription)
-                                                onClick = { e ->
-                                                    e.stopPropagation()
-                                                    descModal = DescModal(cs.id, cs.title, cs.description ?: "")
-                                                }
-                                                +"✎"
-                                            }
-                                            button {
-                                                className = ClassName("icon del")
-                                                hint(t.deleteCardSectionHint)
-                                                onClick = { e ->
-                                                    e.stopPropagation()
-                                                    deleteCardSection(cs, current.id)
-                                                }
-                                                +"×"
-                                            }
-                                        }
-                                    }
-                                }
-                                // A collapsed section still takes drops — its header is inside the
-                                // group — and the card joins it, out of sight.
-                                Collapsible {
-                                    open = !cs.collapsed
-                                    if (!cs.description.isNullOrBlank()) {
-                                        markdownBlock("card-section-desc", cs.description!!)
-                                    }
-                                    if (groupCards.isEmpty()) {
-                                        div { className = ClassName("empty small"); +t.dragLinksHere }
-                                    } else {
-                                        cardGrid(
-                                            strings = t,
-                                            cards = groupCards,
-                                            draggingCardId = draggingCardId,
-                                            readOnly = !editable,
-                                            showUrls = showCardUrls,
-                                            onOpen = onCardOpen,
-                                            onRename = onCardRenameRequest,
-                                            onDelete = onCardDelete,
-                                            onStartDrag = onCardStartDrag,
-                                            onEndDrag = onCardEndDrag,
-                                            onDropOnTile = onDropOnTile,
-                                        )
                                     }
                                 }
                             }
@@ -3195,6 +3271,11 @@ val App = FC<AppProps> { props ->
                 onTabsCardViewChange = { cards ->
                     tabsCardView = cards
                     prefSet("tabsCardView", if (cards) "1" else "0")
+                }
+                this.groupsFolderView = groupsFolderView
+                onGroupsFolderViewChange = { folders ->
+                    groupsFolderView = folders
+                    prefSet("groupsFolderView", if (folders) "1" else "0")
                 }
                 this.syncUsage = syncUsage
                 onSyncUsageChange = { on ->

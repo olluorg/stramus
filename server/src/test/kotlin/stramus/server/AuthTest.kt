@@ -153,6 +153,28 @@ class AuthTest {
     }
 
     @Test
+    fun `a server with the email doors shut refuses all four of them, and says why`() = testApplication {
+        // The default: no STRAMUS_EMAIL_AUTH, so only Google gets anybody in.
+        val config = ServerConfig(databasePath = createTempDirectory("stramus-noemail").resolve("s.db").toString())
+        application { stramusModule(config, openServerDatabase(config)) }
+        val client = createClient { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+        val device = Uuid.random().toString()
+
+        val refused = listOf(
+            client.postJson("/v1/auth/register", RegisterRequest("ada@example.org", "correct horse battery", device)),
+            client.postJson("/v1/auth/login", LoginRequest("ada@example.org", "correct horse battery", device)),
+            client.postJson("/v1/auth/code/request", CodeRequest("ada@example.org")),
+            client.postJson("/v1/auth/code/verify", CodeVerifyRequest("ada@example.org", "123456", device)),
+        )
+        refused.forEach { assertEquals(HttpStatusCode.NotImplemented, it.status) }
+        // A client that still has the form gets a sentence to show, not a bare status.
+        assertTrue(refused.first().bodyAsTextSafe().contains("Google"))
+
+        // And nothing was made on the way past: the address that was refused has no account.
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/v1/me").status)
+    }
+
+    @Test
     fun `a device id already claimed by another account is refused`() = testServer { client, _ ->
         val device = Uuid.random().toString()
         client.postJson("/v1/auth/register", RegisterRequest("ada@example.org", "correct horse battery", device))
@@ -174,6 +196,10 @@ private fun testServer(block: suspend ApplicationTestBuilder.(io.ktor.client.Htt
     val mailer = RecordingMailer()
     val config = ServerConfig(
         databasePath = createTempDirectory("stramus-server-test").resolve("server.db").toString(),
+        // Turned on here on purpose: the doors are shut on a default server (the clients offer Google
+        // alone for now), and switched-off machinery that nothing exercises is machinery that quietly
+        // rots until the day somebody switches it back on.
+        emailAuthEnabled = true,
     )
     application { stramusModule(config, openServerDatabase(config), mailer) }
     // The test client has to be told about JSON too, or `body<TokenPair>()` has nothing to parse with.

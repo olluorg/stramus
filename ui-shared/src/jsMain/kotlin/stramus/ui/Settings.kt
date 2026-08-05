@@ -49,6 +49,12 @@ external interface SettingsModalProps : Props {
     var tabsCardView: Boolean
     var onTabsCardViewChange: (Boolean) -> Unit
 
+    /** Whether a collection's card sections are drawn as folders — closed tiles in a grid, each opening
+     *  out where it stands — instead of one open section under another. Unlike the two above this is
+     *  about the middle pane, which every host has, so it is offered everywhere. */
+    var groupsFolderView: Boolean
+    var onGroupsFolderViewChange: (Boolean) -> Unit
+
     /** Whether the browsing statistics go up to the account with everything else. Off unless asked for. */
     var syncUsage: Boolean
     var onSyncUsageChange: (Boolean) -> Unit
@@ -186,6 +192,13 @@ private fun ChildrenBuilder.appearancePane(props: SettingsModalProps, s: Strings
             s.cardUrls, s.cardUrlsHint, props.showCardUrls,
             listOf(false to s.cardUrlsHide, true to s.cardUrlsShow),
             props.onShowCardUrlsChange,
+        )
+
+        toggleRow(
+            s.groupsView, s.groupsViewHint, props.groupsFolderView,
+            listOf(false to s.groupsViewList, true to s.groupsViewFolders),
+            props.onGroupsFolderViewChange,
+            titleExtra = { span { className = ClassName("settings-badge"); +s.experimental } },
         )
 
         // Only worth offering where there is a second sidebar to trade places with — the web app's

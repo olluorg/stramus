@@ -61,7 +61,7 @@ object EnLanding : LandingStrings {
     override val tryWithoutAccountHint = "Everything stays in this browser. Sign in later and it comes with you."
 
     override val signInTitle = "Sign in"
-    override val signInLead = "Your mail and a one-time code — there is no password to invent."
+    override val signInLead = "One click through Google — there is no password to invent."
     override val signedInAs = { email: String -> "Signed in as $email" }
 
     override val featuresTitle = "What it does"
@@ -113,7 +113,7 @@ object RuLanding : LandingStrings {
     override val tryWithoutAccountHint = "Всё останется в этом браузере. Войдёте позже — уедет вместе с вами."
 
     override val signInTitle = "Вход"
-    override val signInLead = "Почта и одноразовый код — пароль придумывать не обязательно."
+    override val signInLead = "Один клик через Google — пароль придумывать не надо."
     override val signedInAs = { email: String -> "Вы вошли как $email" }
 
     override val featuresTitle = "Что он умеет"

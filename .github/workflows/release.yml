@@ -42,6 +42,9 @@ jobs:
       - name: Build production extension bundle
         env:
           STRAMUS_SERVER_URL: ${{ vars.STRAMUS_SERVER_URL }}
+          # Optional: a fork's own OAuth client. Unset means the published one, baked into
+          # :ui-shared:generateBuildDefaults.
+          STRAMUS_GOOGLE_CLIENT_ID: ${{ vars.STRAMUS_GOOGLE_CLIENT_ID }}
         run: ./gradlew :extension:jsBrowserDistribution --no-daemon
 
       # Package the loadable extension directory. Source maps are dropped to keep the

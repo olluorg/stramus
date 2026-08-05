@@ -147,6 +147,9 @@ private fun googleServer(block: suspend ApplicationTestBuilder.(io.ktor.client.H
         val mailer = RecordingMailer()
         val config = ServerConfig(
             databasePath = createTempDirectory("stramus-google").resolve("server.db").toString(),
+            // Two of these tests are about Google meeting an account that was made with a password, so
+            // this server has to be one where a password could be made in the first place.
+            emailAuthEnabled = true,
         )
         application { stramusModule(config, openServerDatabase(config), mailer, fakeGoogle) }
         val client = createClient { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }

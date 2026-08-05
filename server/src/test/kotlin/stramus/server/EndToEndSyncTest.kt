@@ -292,7 +292,9 @@ private fun sampleFile(seed: Byte): String {
  * throwing away what a fresh install seeded itself — otherwise the user would end up with two "Main"s.
  */
 private fun twoDevices(syncUsage: () -> Boolean = { false }, block: suspend (Device, Device) -> Unit) = testApplication {
-    val config = ServerConfig(databasePath = tempPath("server"))
+    // A password is how these two devices get their tokens, and it is the least interesting thing here —
+    // this test is about the rows, not the door, so it opens the one that needs no Google.
+    val config = ServerConfig(databasePath = tempPath("server"), emailAuthEnabled = true)
     application { stramusModule(config, openServerDatabase(config)) }
 
     val http = createClient { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }

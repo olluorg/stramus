@@ -21,8 +21,10 @@ services:
       # be added to develop against this server — and taken out again afterwards. This list is who may
       # speak to the API on a user's behalf; ids that no longer belong to anything are worth removing.
       STRAMUS_ALLOWED_ORIGINS: "https://stramus.space,chrome-extension://accjfifjflckbinniekamhehcjdampjh"
-      # Optional: a mail relay for the one-time sign-in codes. Leave it out and that door is simply closed
-      # (401/501 on the mailed-code endpoints, not codes printed to the log) — password and Google still work.
+      # Signing in by email — a password, or a one-time code on the mail — is off, and this is where it would
+      # be turned back on. The clients offer Google alone for now, so the four endpoints answer 501 and no
+      # mail relay is needed. Set this to "1" *and* the SMTP lines below to open those doors again.
+      # STRAMUS_EMAIL_AUTH: "1"
       # STRAMUS_SMTP_HOST: "smtp.example.org"
       # STRAMUS_SMTP_PORT: "587"
       # STRAMUS_SMTP_USER: "apikey"

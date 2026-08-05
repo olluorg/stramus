@@ -13,8 +13,6 @@ import react.dom.html.ReactHTML.h2
 import react.dom.html.ReactHTML.h3
 import react.dom.html.ReactHTML.header
 import react.dom.html.ReactHTML.img
-import react.dom.html.ReactHTML.input
-import react.dom.html.ReactHTML.label
 import react.dom.html.ReactHTML.p
 import react.dom.html.ReactHTML.section
 import react.dom.html.ReactHTML.span
@@ -26,16 +24,10 @@ import stramus.core.sync.StramusApi
 import stramus.ui.Lang
 import stramus.ui.Strings
 import web.cssom.ClassName
-import web.html.InputType
 
 /** Where the source and the extension live — the two links the page makes a promise about. */
 private const val SOURCE_URL = "https://github.com/olluorg/stramus"
 private const val EXTENSION_URL = "https://github.com/olluorg/stramus/releases/latest"
-
-// The wrappers' InputType is opaque; named here the way the account dialog names the same three.
-private val EMAIL_INPUT: InputType = "email".unsafeCast<InputType>()
-private val PASSWORD_INPUT: InputType = "password".unsafeCast<InputType>()
-private val TEXT_INPUT: InputType = "text".unsafeCast<InputType>()
 
 private val landingScope = MainScope()
 
@@ -198,9 +190,9 @@ val Landing = FC<LandingProps> { props ->
 }
 
 /**
- * The same two doors the account dialog has, on the page in front of the app: a one-time code on the mail,
- * or a password. The wording is the app's own ([Strings]) so that signing in here and signing in there are
- * plainly the same act.
+ * The same door the account dialog has, on the page in front of the app: Google, and nothing else for now —
+ * the password and the mailed code are switched off on the server too. The wording is the app's own
+ * ([Strings]) so that signing in here and signing in there are plainly the same act.
  *
  * What it does *not* do is touch the database — there is none yet on this page. It gets a session, and the
  * app attaches that session to whatever database it finds when it opens (see `App.kt`), which is also where
@@ -216,11 +208,6 @@ private external interface SignInFormProps : Props {
 private val SignInForm = FC<SignInFormProps> { props ->
     val t = props.strings
 
-    var email by useState("")
-    var password by useState("")
-    var code by useState("")
-    var usingCode by useState(true)
-    var codeSent by useState(false)
     var busy by useState(false)
     var error by useState<String?>(null)
 
@@ -229,125 +216,35 @@ private val SignInForm = FC<SignInFormProps> { props ->
         busy = false
     }
 
-    props.google?.let { google ->
-        button {
-            className = ClassName("lp-btn lp-google")
-            disabled = busy
-            onClick = {
-                busy = true
-                error = null
-                landingScope.launch {
-                    // Null means the user closed Google's window. They know they did.
-                    val token = runCatching { google.idToken() }.getOrNull()
-                    if (token == null) {
-                        busy = false
-                    } else {
-                        runCatching { props.api.signInWithGoogle(token) }
-                            .onSuccess { props.onSignedIn() }
-                            .onFailure(::fail)
-                    }
-                }
-            }
-            +t.signInWithGoogle
-        }
-    }
-
-    fun proceed() {
-        busy = true
-        error = null
-        landingScope.launch {
-            runCatching {
-                val me = when {
-                    usingCode && codeSent -> props.api.verifyCode(email.trim(), code.trim())
-                    usingCode -> {
-                        // The address may or may not have an account; the server answers the same either
-                        // way, and the code that arrives makes one if it did not.
-                        props.api.requestCode(email.trim())
-                        codeSent = true
-                        busy = false
-                        null
-                    }
-                    else -> props.api.login(email.trim(), password)
-                }
-                if (me != null) props.onSignedIn()
-            }.onFailure(::fail)
-        }
-    }
-
-    label {
-        +t.email
-        input {
-            type = EMAIL_INPUT
-            value = email
-            autoFocus = true
-            onChange = { e -> email = e.target.value }
-        }
-    }
-
-    if (usingCode) {
-        if (codeSent) {
-            p { className = ClassName("lp-hint"); +t.codeSent }
-            label {
-                +t.codeFromEmail
-                input {
-                    type = TEXT_INPUT
-                    value = code
-                    onChange = { e -> code = e.target.value }
-                }
-            }
-        }
-    } else {
-        label {
-            +t.password
-            input {
-                type = PASSWORD_INPUT
-                value = password
-                onChange = { e -> password = e.target.value }
-            }
-        }
-    }
-
-    error?.let { p { className = ClassName("lp-error"); +it } }
-
-    div {
-        className = ClassName("lp-row")
-        button {
-            className = ClassName("lp-btn lp-primary")
-            disabled = busy
-            onClick = { proceed() }
-            +when {
-                usingCode && codeSent -> t.signIn
-                usingCode -> t.sendCode
-                else -> t.signIn
-            }
-        }
-        if (!usingCode) {
-            button {
-                className = ClassName("lp-btn")
-                disabled = busy
-                onClick = {
-                    busy = true
-                    error = null
-                    landingScope.launch {
-                        runCatching { props.api.register(email.trim(), password) }
-                            .onSuccess { props.onSignedIn() }
-                            .onFailure(::fail)
-                    }
-                }
-                +t.signUp
-            }
-        }
+    val google = props.google
+    if (google == null) {
+        // No client id in this build, and there is no second door to fall back to at the moment.
+        p { className = ClassName("lp-hint"); +t.signInUnavailable }
+        return@FC
     }
 
     button {
-        className = ClassName("lp-btn lp-plain")
+        className = ClassName("lp-btn lp-google lp-primary")
+        disabled = busy
         onClick = {
-            usingCode = !usingCode
-            codeSent = false
+            busy = true
             error = null
+            landingScope.launch {
+                // Null means the user closed Google's window. They know they did.
+                val token = runCatching { google.idToken() }.getOrNull()
+                if (token == null) {
+                    busy = false
+                } else {
+                    runCatching { props.api.signInWithGoogle(token) }
+                        .onSuccess { props.onSignedIn() }
+                        .onFailure(::fail)
+                }
+            }
         }
-        +if (usingCode) t.signInWithPassword else t.signInWithCode
+        +t.signInWithGoogle
     }
+
+    error?.let { p { className = ClassName("lp-error"); +it } }
 }
 
 /**

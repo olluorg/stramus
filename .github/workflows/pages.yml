@@ -41,6 +41,9 @@ jobs:
       - name: Build production web bundle
         env:
           STRAMUS_SERVER_URL: ${{ vars.STRAMUS_SERVER_URL }}
+          # Optional: a fork's own OAuth client. Unset means the published one, baked into
+          # :ui-shared:generateBuildDefaults.
+          STRAMUS_GOOGLE_CLIENT_ID: ${{ vars.STRAMUS_GOOGLE_CLIENT_ID }}
         run: ./gradlew :webapp:jsBrowserDistribution --no-daemon
 
       - name: Upload Pages artifact
