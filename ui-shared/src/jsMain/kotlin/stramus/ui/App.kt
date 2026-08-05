@@ -57,6 +57,13 @@ import kotlin.uuid.Uuid
 private val scope = MainScope()
 
 /**
+ * What was on screen when this browser last closed, read once — before the first render, and long
+ * before [openStramusStore] has opened the WASM database. Seeds the state below so the very first paint
+ * shows the sidebar and a handful of collections instead of an empty page; see `StoreCache.kt`.
+ */
+private val cachedPaint: PaintCache? by lazy { readPaintCache() }
+
+/**
  * How often the app checks in with the server.
  *
  * A minute: often enough that a card saved on the laptop is on the phone by the time the user has picked
@@ -96,6 +103,13 @@ private const val UNDO_MS = 30_000
  * dropping into a collapsed collection does not mean stopping there first to open it by hand.
  */
 private const val HOVER_OPEN_MS = 600
+
+/**
+ * How long a collection has to stay selected before it counts as a visit for [recordCollectionVisit] —
+ * long enough that a collection only passed through (a hover-open drag, a delete's fallback reselection,
+ * a click that immediately moves on) does not skew which collections the cache thinks are popular.
+ */
+private const val VISIT_DWELL_MS = 3_000L
 
 internal fun key(id: Uuid): Key = id.toString().unsafeCast<Key>()
 
@@ -633,11 +647,11 @@ val App = FC<AppProps> { props ->
     val syncUsageRef = useRef(syncUsage)
     syncUsageRef.current = syncUsage
 
-    var sections by useState<List<Section>>(emptyList())
-    var collections by useState<List<Collection>>(emptyList())
-    var selectedId by useState<Uuid?>(null)
-    var cards by useState<List<Card>>(emptyList())
-    var cardSections by useState<List<CardSection>>(emptyList())
+    var sections by useState(cachedPaint?.sections ?: emptyList())
+    var collections by useState(cachedPaint?.collections ?: emptyList())
+    var selectedId by useState(cachedPaint?.selectedId)
+    var cards by useState(cachedPaint?.selectedId?.let { cachedPaint?.content?.get(it)?.cards } ?: emptyList())
+    var cardSections by useState(cachedPaint?.selectedId?.let { cachedPaint?.content?.get(it)?.cardSections } ?: emptyList())
     // Bumped when the one-shot preview backfill writes a thumbnail, to redraw the cards it changed.
     var thumbsVersion by useState(0)
     var query by useState("")
@@ -712,6 +726,12 @@ val App = FC<AppProps> { props ->
     val clickTimer = useRef<Int>(null)
     // The pending auto-open of a sidebar collection a dragged card is hovering. See [scheduleHoverOpen].
     val hoverOpenTimer = useRef<Int>(null)
+    // Whether the current `selectedId` is still the one the mount effect restored, as opposed to
+    // anywhere the user has actually navigated since — see the visit-tracking effect below. A New Tab
+    // page opens many times a day and restores the same collection every time; none of those opens are
+    // a real visit to it, and counting them would leave the cache always favouring whatever happened to
+    // be open last, rather than what is actually used often.
+    val restoringSelection = useRef(true)
 
     // Persisted UI preferences (localStorage): theme, language, and sidebar collapse state. Card order
     // is not among them — a sort writes the cards' own order (see [CardSort]), it does not remember one.
@@ -852,6 +872,8 @@ val App = FC<AppProps> { props ->
             sections = secs
             collections = cols
             selectedId = startCollection(cols, secs, startView)
+            // From here on, a change to `selectedId` is the user going somewhere — see [restoringSelection].
+            restoringSelection.current = false
 
             // Files saved before previews existed have none, and their bytes are no longer part of a
             // card: make each one a preview, once. Behind the first paint — it reads whole files, and
@@ -878,6 +900,16 @@ val App = FC<AppProps> { props ->
         val sel = selectedId ?: return@useEffect
         if (sel in hiddenCollectionIds) return@useEffect
         prefSet(LAST_COLLECTION_PREF, sel.toString())
+
+        // The mount effect's own restore of where the user left off is not a visit — see
+        // [restoringSelection] — and neither is a collection only passed through: React cancels this
+        // coroutine the moment `selectedId` moves on, so a switch inside [VISIT_DWELL_MS] never reaches
+        // [recordCollectionVisit] at all. Counted here, not in the content-caching effect below: this
+        // runs once per actual switch, where that effect runs on every edit made inside one — recording
+        // a "visit" there would count every card added or renamed as a fresh open.
+        if (restoringSelection.current == true) return@useEffect
+        kotlinx.coroutines.delay(VISIT_DWELL_MS)
+        recordCollectionVisit(sel)
     }
 
     // The cards of a locked section are not merely hidden: they are never read out of the database, so
@@ -885,17 +917,35 @@ val App = FC<AppProps> { props ->
     // one shows the PIN screen instead, and entering the PIN (which changes `unlockedSections`) runs
     // this again — as does the idle timer locking it back up, which drops the cards from the page.
     useEffect(store, selectedId, unlockedSections, thumbsVersion) {
-        val s = store ?: return@useEffect
         val sel = selectedId
         if (sel == null || sel in hiddenCollectionIds) {
             cards = emptyList()
             cardSections = emptyList()
         } else {
-            scope.launch {
-                cards = s.cards.byCollection(sel)
-                cardSections = s.cardSections.byCollection(sel)
+            // A collection switched to before the store has read it back for real — either because the
+            // database is still opening, or simply because this particular fetch has not landed yet —
+            // paints from the cache first if this one is in it, rather than sitting empty until it does.
+            // See `StoreCache.kt`: real data always wins once it arrives, this is only the placeholder.
+            cachedPaint?.content?.get(sel)?.let { cached ->
+                cards = cached.cards
+                cardSections = cached.cardSections
+            }
+            val s = store
+            if (s != null) {
+                scope.launch {
+                    cards = s.cards.byCollection(sel)
+                    cardSections = s.cardSections.byCollection(sel)
+                }
             }
         }
+    }
+
+    // What the next open paints before it can read the real database — see [cachedPaint]. Gated on
+    // `store` so the placeholder values this state starts from (the cache from the open before this
+    // one) are not simply written straight back before anything real has loaded.
+    useEffect(store, sections, collections, selectedId, cards, cardSections) {
+        if (store == null) return@useEffect
+        writePaintCache(sections, collections, selectedId, cards, cardSections)
     }
 
     // Auto-lock: the whole point of a PIN is the machine left unattended, so an unlocked section does
@@ -1101,7 +1151,6 @@ val App = FC<AppProps> { props ->
             stopWatchingFocus()
         }
     }
-
 
     // The open tabs, reachable from a callback without being one of its dependencies: [onCardOpen] is
     // a prop of every memoized card tile, and a tab opening or navigating anywhere in the browser must

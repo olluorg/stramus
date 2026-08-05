@@ -75,8 +75,12 @@ internal fun forgetUse(url: String) {
  * separates the site someone used every day last year from the one they use every day this week, so
  * it is a multiplier on the count rather than a term beside it: an old habit fades however deep it
  * once was, and a fortnight of daily use outranks it.
+ *
+ * Not specific to pages: `StoreCache.kt` ranks how often a collection is opened the same way, for the
+ * same reason — a collection lived in every day last month should not permanently outrank one lived in
+ * every day this week.
  */
-private fun frecency(hits: Int, lastUsedAt: Instant): Double {
+internal fun frecency(hits: Int, lastUsedAt: Instant): Double {
     val days = (Clock.System.now() - lastUsedAt).inWholeDays
     val weight = when {
         days <= 1 -> 1.0

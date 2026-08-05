@@ -70,6 +70,30 @@ class StramusStore internal constructor(
 /** Words past this in one query are dropped: each one is another LIKE over every card. */
 private const val SEARCH_MAX_WORDS = 4
 
+/**
+ * Bumped whenever the ALTER-TABLE cascade, [migrateToOrderKeys] or the data-shape cleanup below
+ * [openStramusStore] changes — recorded in `PRAGMA user_version` so that a database already at this
+ * version skips straight past all of it.
+ *
+ * Every one of those steps is written to be idempotent, so running them again would do no harm — but
+ * "no harm" is not "no cost": a dozen `ALTER TABLE` attempts that fail because the column is already
+ * there, and a legacy-schema probe, are still a query each, on every single open. For most browsers
+ * that is every new tab, and a schema does not change between them. This is what lets an open skip to
+ * [purgeTombstones] and the read the page is actually waiting on.
+ */
+private const val SCHEMA_VERSION = 1
+
+/** `PRAGMA user_version` — 0 on any database that has never had it set, migrated or not. */
+@OptIn(DelicateKormiumApi::class)
+private suspend fun schemaVersion(db: SuspendDatabase<StramusDb>): Int = db.suspendAutocommit {
+    execute("PRAGMA user_version", emptyMap(), invalidates = emptyList()) { it.next(); it.getInt(0) ?: 0 }
+}.first()
+
+@OptIn(DelicateKormiumApi::class)
+private suspend fun setSchemaVersion(db: SuspendDatabase<StramusDb>, version: Int) {
+    db.suspendAutocommit { Sections.execSql("PRAGMA user_version = $version") }
+}
+
 /** How long a tombstone is kept once the row is gone, so that a device offline for a while still hears. */
 private val TOMBSTONE_RETENTION = 30.days
 
@@ -121,30 +145,36 @@ data class StoreSeed(
  * run, and checked, outside a browser.
  */
 suspend fun openStramusStore(db: SuspendDatabase<StramusDb>, seed: StoreSeed = StoreSeed.Default): StramusStore {
-    db.suspendTransaction {
-        schemaTableDdl.forEach { Sections.execSql(it) }
-        // Columns added by versions of the app that came after the table did (ignore if already
-        // present). These run before the order-key migration below, which expects the full old shape.
-        runCatching { Collections.execSql("""ALTER TABLE "collections" ADD COLUMN "sectionId" text NOT NULL DEFAULT ''""") }
-        runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "cardSectionId" text""") }
-        runCatching { Sections.execSql("""ALTER TABLE "sections" ADD COLUMN "collapsed" integer NOT NULL DEFAULT 0""") }
-        runCatching { CardSections.execSql("""ALTER TABLE "card_sections" ADD COLUMN "collapsed" integer NOT NULL DEFAULT 0""") }
-        runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "kind" text NOT NULL DEFAULT 'link'""") }
-        runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "content" text""") }
-        runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "mime" text""") }
-        runCatching { Sections.execSql("""ALTER TABLE "sections" ADD COLUMN "pinSalt" text""") }
-        runCatching { Sections.execSql("""ALTER TABLE "sections" ADD COLUMN "pinHash" text""") }
-        runCatching { Collections.execSql("""ALTER TABLE "collections" ADD COLUMN "readOnly" integer NOT NULL DEFAULT 0""") }
-        runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "thumb" text""") }
-        runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "blobSha" text""") }
-        runCatching { Usage.execSql("""ALTER TABLE "usage" ADD COLUMN "deletedAt" text""") }
+    // Everything gated on this is a migration or a one-time cleanup of a shape an older version of the
+    // app left behind — all of it idempotent, none of it needed once a database is already at
+    // [SCHEMA_VERSION]. Skipping it is what keeps every open after the first one fast.
+    val needsMigration = schemaVersion(db) < SCHEMA_VERSION
+    if (needsMigration) {
+        db.suspendTransaction {
+            schemaTableDdl.forEach { Sections.execSql(it) }
+            // Columns added by versions of the app that came after the table did (ignore if already
+            // present). These run before the order-key migration below, which expects the full old shape.
+            runCatching { Collections.execSql("""ALTER TABLE "collections" ADD COLUMN "sectionId" text NOT NULL DEFAULT ''""") }
+            runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "cardSectionId" text""") }
+            runCatching { Sections.execSql("""ALTER TABLE "sections" ADD COLUMN "collapsed" integer NOT NULL DEFAULT 0""") }
+            runCatching { CardSections.execSql("""ALTER TABLE "card_sections" ADD COLUMN "collapsed" integer NOT NULL DEFAULT 0""") }
+            runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "kind" text NOT NULL DEFAULT 'link'""") }
+            runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "content" text""") }
+            runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "mime" text""") }
+            runCatching { Sections.execSql("""ALTER TABLE "sections" ADD COLUMN "pinSalt" text""") }
+            runCatching { Sections.execSql("""ALTER TABLE "sections" ADD COLUMN "pinHash" text""") }
+            runCatching { Collections.execSql("""ALTER TABLE "collections" ADD COLUMN "readOnly" integer NOT NULL DEFAULT 0""") }
+            runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "thumb" text""") }
+            runCatching { Cards.execSql("""ALTER TABLE "cards" ADD COLUMN "blobSha" text""") }
+            runCatching { Usage.execSql("""ALTER TABLE "usage" ADD COLUMN "deletedAt" text""") }
+        }
+
+        migrateToOrderKeys(db)
+
+        // Left until after the migration: on a database still carrying integer positions, an index over
+        // the column that replaces them cannot be built.
+        db.suspendTransaction { schemaIndexDdl.forEach { Sections.execSql(it) } }
     }
-
-    migrateToOrderKeys(db)
-
-    // Left until after the migration: on a database still carrying integer positions, an index over
-    // the column that replaces them cannot be built.
-    db.suspendTransaction { schemaIndexDdl.forEach { Sections.execSql(it) } }
 
     // Nothing has ever been in this database — a first install, as opposed to one the user has emptied
     // out (a section always remains there, and a card or a collection may). Asked before the default
@@ -164,41 +194,46 @@ suspend fun openStramusStore(db: SuspendDatabase<StramusDb>, seed: StoreSeed = S
         cards.addNote(welcome.id, seed.noteTitle, seed.noteBody)
     }
 
-    db.suspendTransaction {
-        // A collection whose section is not there — one written before sections existed, and so given
-        // the empty string by the `ALTER TABLE` above — belongs to the default section.
-        Collections.update {
-            Collections.sectionId set defaultId
-            where { Sections.none { Sections.id eq Collections.sectionId } }
+    if (needsMigration) {
+        db.suspendTransaction {
+            // A collection whose section is not there — one written before sections existed, and so given
+            // the empty string by the `ALTER TABLE` above — belongs to the default section.
+            Collections.update {
+                Collections.sectionId set defaultId
+                where { Sections.none { Sections.id eq Collections.sectionId } }
+            }
+
+            // Un-group cards pointing at a card section of another collection: earlier builds moved a
+            // card between collections without clearing its section, and such a card matched no group
+            // and so was drawn nowhere. Ungrouped is the only place it can be shown.
+            Cards.update(CardRow().apply { cardSectionId = null }) {
+                where {
+                    CardSections.none {
+                        (CardSections.id eq Cards.cardSectionId) and (CardSections.collectionId eq Cards.collectionId)
+                    } and Cards.cardSectionId.isNotNull()
+                }
+            }
+
+            // Earlier builds held a file's bytes in cards.content, which put every file of a collection
+            // into the page each time it was drawn and into every LIKE the search ran. Move them out;
+            // the grid's preview (thumb) is regenerated from the bytes by the UI, once, on next start.
+            val inlined = Cards.find { where { (Cards.kind eq CardKind.FILE.id) and Cards.content.isNotNull() } }
+            inlined.forEach { card ->
+                // The bytes may already be where they belong: a previous run of this could have been
+                // interrupted between moving them out and clearing the column.
+                if (CardBlobs.findOne { where { CardBlobs.cardId eq card.id } } == null) {
+                    CardBlobs.insert(CardBlobRow().apply { cardId = card.id; data = card.content!! })
+                }
+            }
+            if (inlined.isNotEmpty()) {
+                Cards.update(CardRow().apply { content = null }) {
+                    where { Cards.kind eq CardKind.FILE.id }
+                }
+            }
         }
 
-        // Un-group cards pointing at a card section of another collection: earlier builds moved a
-        // card between collections without clearing its section, and such a card matched no group
-        // and so was drawn nowhere. Ungrouped is the only place it can be shown.
-        Cards.update(CardRow().apply { cardSectionId = null }) {
-            where {
-                CardSections.none {
-                    (CardSections.id eq Cards.cardSectionId) and (CardSections.collectionId eq Cards.collectionId)
-                } and Cards.cardSectionId.isNotNull()
-            }
-        }
-
-        // Earlier builds held a file's bytes in cards.content, which put every file of a collection
-        // into the page each time it was drawn and into every LIKE the search ran. Move them out;
-        // the grid's preview (thumb) is regenerated from the bytes by the UI, once, on next start.
-        val inlined = Cards.find { where { (Cards.kind eq CardKind.FILE.id) and Cards.content.isNotNull() } }
-        inlined.forEach { card ->
-            // The bytes may already be where they belong: a previous run of this could have been
-            // interrupted between moving them out and clearing the column.
-            if (CardBlobs.findOne { where { CardBlobs.cardId eq card.id } } == null) {
-                CardBlobs.insert(CardBlobRow().apply { cardId = card.id; data = card.content!! })
-            }
-        }
-        if (inlined.isNotEmpty()) {
-            Cards.update(CardRow().apply { content = null }) {
-                where { Cards.kind eq CardKind.FILE.id }
-            }
-        }
+        // Everything above is done: a re-open finds this version and skips straight to purging tombstones.
+        setSchemaVersion(db, SCHEMA_VERSION)
     }
 
     purgeTombstones(db)
