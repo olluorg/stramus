@@ -2104,6 +2104,119 @@ val App = FC<AppProps> { props ->
                     // it has traded places with the tabs sidebar and sits against the right edge instead.
                     icon(if (swapSidebars) "chevron-left" else "chevron-right")
                 }
+                // Miniature stand-ins for the tree the full sidebar would show: one square per
+                // section (its initial, or a padlock while locked) and, under each unlocked one, a
+                // square per collection — enough to tell them apart and jump straight to a collection
+                // without expanding the sidebar back out. A locked section's collections stay out of
+                // it, same as the expanded tree.
+                div {
+                    className = ClassName("rail-tree")
+                    sections.forEach { section ->
+                        val isLocked = section.id in lockedSectionIds
+                        val sectionLabel = section.title.ifBlank { t.untitled }
+                        div {
+                            key = key(section.id)
+                            className = ClassName("rail-section")
+                            button {
+                                className = ClassName("rail-chip section-chip")
+                                hint(sectionLabel)
+                                onClick = {
+                                    leftCollapsed = false
+                                    prefSet("leftCollapsed", "0")
+                                    if (isLocked) {
+                                        pendingUnlockId = section.id
+                                        unlockError = null
+                                    }
+                                }
+                                if (isLocked) icon("lock") else +sectionLabel.take(1).uppercase()
+                            }
+                            if (!isLocked) {
+                                collections.filter { it.sectionId == section.id }.forEach { c ->
+                                    val collLabel = c.title.ifBlank { t.untitled }
+                                    // A read-only collection still takes a click, but nothing a drag
+                                    // carries — same guard the expanded row uses.
+                                    val takesContent = !c.readOnly
+                                    // What a drag dropped right on the chip would mean: a page (tab or
+                                    // history entry), a card, or a file from the desktop. A dragged
+                                    // section or card-section has no business on a collection chip —
+                                    // the expanded row excludes them for the same reason.
+                                    val takesDrag = takesContent && draggingSectionId == null &&
+                                        draggingCardSectionId == null &&
+                                        (draggingCardId != null || draggingTab != null || draggingHistory != null)
+                                    button {
+                                        key = key(c.id)
+                                        className = ClassName(
+                                            buildString {
+                                                append("rail-chip")
+                                                if (c.id == selectedId) append(" selected")
+                                                if (c.id == dropCollectionId) append(" drop-target")
+                                            },
+                                        )
+                                        hint(collLabel)
+                                        onClick = {
+                                            selectedId = c.id
+                                            pendingUnlockId = null
+                                            unlockError = null
+                                        }
+                                        onDragEnter = { e ->
+                                            if (takesDrag || (takesContent && draggingFiles(e.dataTransfer))) {
+                                                e.preventDefault()
+                                            }
+                                        }
+                                        // Hovering a chip with a dragged card schedules the same
+                                        // auto-open as the expanded row (see [scheduleHoverOpen]): the
+                                        // rail has no grid of its own to drop into, so opening the
+                                        // collection is the only way a card dragged over its chip can
+                                        // land anywhere but ungrouped at the end.
+                                        onDragOver = { e ->
+                                            val files = takesContent && draggingFiles(e.dataTransfer)
+                                            if (takesDrag || files) {
+                                                e.preventDefault()
+                                                if (files) e.dataTransfer.dropEffect = DropEffect.copy
+                                                if (dropCollectionId != c.id) {
+                                                    dropCollectionId = c.id
+                                                    if (draggingCardId != null && c.id != selectedId) {
+                                                        scheduleHoverOpen(c.id)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        onDragLeave = { e ->
+                                            val to = e.asDynamic().relatedTarget
+                                            val inside = to != null &&
+                                                e.currentTarget.asDynamic().contains(to) == true
+                                            if (!inside && dropCollectionId == c.id) {
+                                                dropCollectionId = null
+                                                cancelHoverOpen()
+                                            }
+                                        }
+                                        onDrop = { e ->
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            cancelHoverOpen()
+                                            val tab = draggingTab
+                                            val visit = draggingHistory
+                                            val draggedCard = draggingCardId
+                                            when {
+                                                draggingFiles(e.dataTransfer) ->
+                                                    if (takesContent) saveFiles(droppedFiles(e.dataTransfer), c.id)
+                                                !takesContent -> Unit
+                                                tab != null -> saveTab(tab, c.id)
+                                                visit != null -> saveHistoryEntry(visit, c.id)
+                                                draggedCard != null -> moveCard(draggedCard, c.id, null, Int.MAX_VALUE)
+                                            }
+                                            draggingCardId = null
+                                            draggingTab = null
+                                            draggingHistory = null
+                                            dropCollectionId = null
+                                        }
+                                        +collLabel.take(1).uppercase()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 button {
                     className = ClassName("rail-toggle settings-rail")
                     hint(t.settings)
