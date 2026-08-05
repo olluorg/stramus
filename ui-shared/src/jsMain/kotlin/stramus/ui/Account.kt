@@ -11,7 +11,6 @@ import react.dom.html.ReactHTML.button
 import react.dom.html.ReactHTML.div
 import react.dom.html.ReactHTML.h3
 import react.dom.html.ReactHTML.p
-import react.dom.html.ReactHTML.span
 import react.useState
 import web.cssom.ClassName
 import kotlin.uuid.ExperimentalUuidApi
@@ -65,39 +64,6 @@ data class SyncUi(
     /** Notes that came back doubled because two devices edited them at once. Worth telling the user. */
     val conflictCopies: Int = 0,
 )
-
-/**
- * The small round thing in the toolbar. It says one word, and clicking it opens the account.
- *
- * It is deliberately quiet: a dot and a title, not a banner. Synchronisation working is the normal state
- * of the world and does not deserve the user's attention; synchronisation *failing* does not deserve much
- * either, because nothing has been lost — the work is on this machine, and it will go up when it can.
- */
-external interface SyncBadgeProps : Props {
-    var strings: Strings
-    var state: SyncUi
-    var onOpen: () -> Unit
-}
-
-val SyncBadge = FC<SyncBadgeProps> { props ->
-    val t = props.strings
-    val state = props.state
-
-    val (glyph, text) = when (state.status) {
-        SyncStatus.SIGNED_OUT -> "○" to t.syncSignedOut
-        SyncStatus.IDLE -> "●" to (state.syncedAt?.let { t.syncedAt(it) } ?: t.syncIdle)
-        SyncStatus.RUNNING -> "◍" to t.syncRunning
-        SyncStatus.OFFLINE -> "◌" to t.syncOffline
-        SyncStatus.ERROR -> "◍" to (state.error ?: t.syncOffline)
-    }
-
-    button {
-        className = ClassName("btn sync-badge sync-${state.status.name.lowercase()}")
-        hint(text)
-        onClick = { props.onOpen() }
-        span { +glyph }
-    }
-}
 
 external interface AccountDialogProps : Props {
     var strings: Strings
@@ -188,7 +154,7 @@ val AccountDialog = FC<AccountDialogProps> { props ->
         div {
             className = ClassName("modal-head")
             h3 { +t.account }
-            button { className = ClassName("icon del"); onClick = { props.onClose() }; +"×" }
+            button { className = ClassName("icon del"); onClick = { props.onClose() }; icon("x") }
         }
 
         val choosing = joining

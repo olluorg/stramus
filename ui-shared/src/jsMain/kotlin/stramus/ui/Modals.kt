@@ -215,13 +215,13 @@ val NoteEditor = FC<NoteEditorProps> { props ->
 
     // Toolbar buttons must not steal focus (which would drop the editor's selection); preventing the
     // default mousedown keeps the caret/selection in the contenteditable so execCommand applies.
-    fun ChildrenBuilder.toolButton(label: String, tooltip: String, action: () -> Unit) {
+    fun ChildrenBuilder.toolButton(tooltip: String, content: ChildrenBuilder.() -> Unit, action: () -> Unit) {
         button {
             className = ClassName("tool")
             hint(tooltip)
             onMouseDown = { it.preventDefault() }
             onClick = { action() }
-            +label
+            content()
         }
     }
 
@@ -236,7 +236,7 @@ val NoteEditor = FC<NoteEditorProps> { props ->
             key = "head".unsafeCast<Key>()
             className = ClassName("modal-head")
             h3 { +(if (editing) props.heading else props.viewHeading ?: props.heading) }
-            button { className = ClassName("icon del"); onClick = { props.onClose() }; +"×" }
+            button { className = ClassName("icon del"); onClick = { props.onClose() }; icon("x") }
         }
         if (props.showTitle) {
             input {
@@ -267,13 +267,13 @@ val NoteEditor = FC<NoteEditorProps> { props ->
             div {
                 key = "toolbar".unsafeCast<Key>()
                 className = ClassName("wysiwyg-toolbar")
-                toolButton("B", s.toolBold) { cmd("bold") }
-                toolButton("I", s.toolItalic) { cmd("italic") }
-                toolButton("H", s.toolHighlight) { wrapSelection("<mark>", s.highlightPlaceholder, "</mark>") }
-                toolButton("</>", s.toolCode) { wrapSelection("<code>", s.codePlaceholder, "</code>") }
-                toolButton("🔗", s.toolLink) { addLink() }
-                toolButton("H2", s.toolHeading) { cmd("formatBlock", "H2") }
-                toolButton(s.toolListLabel, s.toolList) { cmd("insertUnorderedList") }
+                toolButton(s.toolBold, { +"B" }) { cmd("bold") }
+                toolButton(s.toolItalic, { +"I" }) { cmd("italic") }
+                toolButton(s.toolHighlight, { +"H" }) { wrapSelection("<mark>", s.highlightPlaceholder, "</mark>") }
+                toolButton(s.toolCode, { +"</>" }) { wrapSelection("<code>", s.codePlaceholder, "</code>") }
+                toolButton(s.toolLink, { icon("link") }) { addLink() }
+                toolButton(s.toolHeading, { +"H2" }) { cmd("formatBlock", "H2") }
+                toolButton(s.toolList, { icon("list"); +" ${s.toolListLabel}" }) { cmd("insertUnorderedList") }
             }
         }
         div {
@@ -294,7 +294,8 @@ val NoteEditor = FC<NoteEditorProps> { props ->
                 viewOnly && !locked -> button {
                     className = ClassName("btn primary")
                     onClick = { editing = true }
-                    +s.editNoteAction
+                    icon("edit")
+                    +" ${s.editNoteAction}"
                 }
                 !viewOnly -> button {
                     className = ClassName("btn primary")
@@ -346,7 +347,7 @@ val FileViewer = FC<FileViewerProps> { props ->
         div {
             className = ClassName("modal-head")
             h3 { +(if (existing != null) existing.title else s.addFile) }
-            button { className = ClassName("icon del"); onClick = { props.onClose() }; +"×" }
+            button { className = ClassName("icon del"); onClick = { props.onClose() }; icon("x") }
         }
 
         if (existing == null) {
@@ -378,7 +379,8 @@ val FileViewer = FC<FileViewerProps> { props ->
                     className = ClassName("btn")
                     href = dataUri
                     download = fileName
-                    +s.download
+                    icon("download")
+                    +" ${s.download}"
                 }
             }
             button { className = ClassName("btn"); onClick = { props.onClose() }; +s.close }

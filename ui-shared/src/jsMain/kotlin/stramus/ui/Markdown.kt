@@ -134,7 +134,7 @@ private fun wrap(node: dynamic, pre: String, post: String): String {
 private fun attr(node: dynamic, name: String): String = (node.getAttribute(name) as? String) ?: ""
 
 /** A `{ __html: ... }` object for React's `dangerouslySetInnerHTML`, built without wrapper helpers. */
-private fun innerHtml(html: String): dynamic {
+internal fun innerHtml(html: String): dynamic {
     val o = js("({})")
     o.__html = html
     return o

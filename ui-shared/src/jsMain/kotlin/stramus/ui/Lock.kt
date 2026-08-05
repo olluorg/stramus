@@ -53,7 +53,7 @@ val LockScreen = FC<LockScreenProps> { props ->
 
     div {
         className = ClassName("lock-screen")
-        div { className = ClassName("lock-icon"); +"🔒" }
+        div { className = ClassName("lock-icon"); icon("lock") }
         div { className = ClassName("lock-title"); +props.sectionTitle }
         p { className = ClassName("lock-hint"); +s.enterPinToView }
         input {
@@ -105,7 +105,7 @@ val PinModal = FC<PinModalProps> { props ->
         div {
             className = ClassName("modal-head")
             h3 { +(if (props.change) s.changePinHeading else s.setPinHeading) }
-            button { className = ClassName("icon del"); onClick = { props.onClose() }; +"×" }
+            button { className = ClassName("icon del"); onClick = { props.onClose() }; icon("x") }
         }
         div {
             className = ClassName("pin-body")
@@ -161,7 +161,7 @@ val LockMenuModal = FC<LockMenuModalProps> { props ->
         div {
             className = ClassName("modal-head")
             h3 { +s.sectionProtection }
-            button { className = ClassName("icon del"); onClick = { props.onClose() }; +"×" }
+            button { className = ClassName("icon del"); onClick = { props.onClose() }; icon("x") }
         }
         div {
             className = ClassName("pin-body")

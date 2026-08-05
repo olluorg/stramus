@@ -256,20 +256,20 @@ private fun ChildrenBuilder.addMenu(
     onNote: () -> Unit,
     onFile: () -> Unit,
 ) {
-    // A bare "+", like the ✎ and × beside it: the header is a strip, not a toolbar, and it carries one
-    // of these per section. What the click does is left to the tooltip.
-    hoverMenu(glyph = "+", tooltip = strings.addCardHint, onGlyphClick = onLink) {
-        menuItem(strings.addLinkItem, onLink)
-        menuItem(strings.addNoteItem, onNote)
-        menuItem(strings.addFileItem, onFile)
+    // A bare plus, like the edit and delete icons beside it: the header is a strip, not a toolbar, and
+    // it carries one of these per section. What the click does is left to the tooltip.
+    hoverMenu(glyph = "plus", tooltip = strings.addCardHint, onGlyphClick = onLink) {
+        menuItem(label = strings.addLinkItem, iconName = "link", onSelect = onLink)
+        menuItem(label = strings.addNoteItem, iconName = "file-text", onSelect = onNote)
+        menuItem(label = strings.addFileItem, iconName = "paperclip", onSelect = onFile)
     }
 }
 
 /**
- * A glyph in a card-section header that reveals a list of actions under it — the "+" that adds a card,
- * the ⇅ that sorts the section. [onGlyphClick] is the one action the glyph itself performs, for the
- * menus that have an obvious default (the "+" adds a link); a menu whose actions are all equals leaves
- * it out, and then the glyph only opens the list.
+ * A glyph in a card-section header that reveals a list of actions under it — the plus that adds a
+ * card, the crossed arrows that sort the section. [onGlyphClick] is the one action the glyph itself
+ * performs, for the menus that have an obvious default (the plus adds a link); a menu whose actions
+ * are all equals leaves it out, and then the glyph only opens the list.
  *
  * Built out of buttons rather than a `select`, which cannot be styled into anything like the rest of
  * the app once its list is open. That leaves the two things a `select` gave for free to be done here:
@@ -291,7 +291,7 @@ private fun ChildrenBuilder.hoverMenu(
             className = ClassName("icon menu-btn")
             hint(tooltip)
             onClick = { e -> e.stopPropagation(); onGlyphClick?.invoke() }
-            +glyph
+            icon(glyph)
         }
         div {
             className = ClassName("menu-dropdown")
@@ -300,11 +300,12 @@ private fun ChildrenBuilder.hoverMenu(
     }
 }
 
-/** One action in a [hoverMenu]. */
-private fun ChildrenBuilder.menuItem(label: String, onSelect: () -> Unit) {
+/** One action in a [hoverMenu], with an optional leading icon for a menu whose items differ in kind. */
+private fun ChildrenBuilder.menuItem(label: String, iconName: String? = null, onSelect: () -> Unit) {
     button {
         className = ClassName("menu-item")
         onClick = { e -> e.stopPropagation(); onSelect() }
+        iconName?.let { icon(it) }
         +label
     }
 }
@@ -413,9 +414,9 @@ private fun ChildrenBuilder.tabCardGrid(
  * the browser's tabs once and is done, and a tab opened a second later lands wherever the browser puts
  * it. So it always shows the ⇅ back, never the choice last made.
  *
- * The ⤓ next to it saves the whole window into the open collection ([onSave]) — the drag, done to every
- * tab at once. [saveHint] is both its tooltip and its condition: null where there is no collection to
- * save into, and then the button is not there at all.
+ * The download button next to it saves the whole window into the open collection ([onSave]) — the drag,
+ * done to every tab at once. [saveHint] is both its tooltip and its condition: null where there is no
+ * collection to save into, and then the button is not there at all.
  */
 private fun ChildrenBuilder.tabWindow(
     strings: Strings,
@@ -457,23 +458,25 @@ private fun ChildrenBuilder.tabWindow(
                         className = ClassName("tab-save")
                         hint(saveHint)
                         onClick = { onSave() }
-                        +"⤓"
+                        icon("download")
                     }
                 }
-                // Beside the ⤓ rather than in place of it: this window's tabs are saved into the open
-                // collection by one and read by the model into several by the other, and which of those
-                // the user wants is not something to decide for them.
+                // Beside the save button rather than in place of it: this window's tabs are saved into
+                // the open collection by one and read by the model into several by the other, and which
+                // of those the user wants is not something to decide for them.
                 if (triageHint != null) {
                     button {
                         className = ClassName("tab-triage")
                         hint(triageHint)
                         onClick = { onTriage() }
-                        +"✨"
+                        icon("sparkles")
                     }
                 }
                 select {
                     className = ClassName("tab-sort")
                     hint(strings.sortTabs)
+                    // An <option> can only ever hold text — no icon fits here, so the glyph the sort
+                    // menu opens on stays a plain character; it is the one glyph in the app that must.
                     value = "" // the ⇅ itself: see above, this is a menu, not the window's state
                     onChange = { e -> TabSort.from(e.target.value)?.let(onSort) }
                     option { value = ""; +"⇅" }
@@ -571,7 +574,7 @@ val TabRow = memo(
                     e.stopPropagation() // closing the tab is not jumping to it
                     props.onClose(tab)
                 }
-                +"×"
+                icon("x")
             }
         }
     },
@@ -1700,7 +1703,7 @@ val App = FC<AppProps> { props ->
         }
     }
 
-    // The ✎ on a tile asks for the box, it does not do the renaming: the box is where the title is
+    // The edit icon on a tile asks for the box, it does not do the renaming: the box is where the title is
     // edited, and — for a link, on a machine whose browser has a model of its own — where the same title
     // with the rubbish taken out of it is offered. See [RenameCardModal].
     val onCardRenameRequest = useCallback { card: Card -> renameModal = RenameModal(card, fromSearch = false) }
@@ -2099,13 +2102,13 @@ val App = FC<AppProps> { props ->
                     onClick = { leftCollapsed = false; prefSet("leftCollapsed", "0") }
                     // Points away from the edge this sidebar is anchored to — right normally, left once
                     // it has traded places with the tabs sidebar and sits against the right edge instead.
-                    +(if (swapSidebars) "«" else "»")
+                    icon(if (swapSidebars) "chevron-left" else "chevron-right")
                 }
                 button {
                     className = ClassName("rail-toggle settings-rail")
                     hint(t.settings)
                     onClick = { settingsOpen = true }
-                    +"⚙"
+                    icon("settings")
                 }
             }
         } else {
@@ -2129,7 +2132,7 @@ val App = FC<AppProps> { props ->
                         onClick = { leftCollapsed = true; prefSet("leftCollapsed", "1") }
                         // Points back towards the edge this sidebar collapses into. See the expand
                         // button above for why the direction flips with [swapSidebars].
-                        +(if (swapSidebars) "»" else "«")
+                        icon(if (swapSidebars) "chevron-right" else "chevron-left")
                     }
                 }
                 button {
@@ -2239,7 +2242,7 @@ val App = FC<AppProps> { props ->
                                     className = ClassName(
                                         if (section.collapsed && !isLocked) "chevron closed" else "chevron",
                                     )
-                                    +(if (isLocked) "🔒" else "▾")
+                                    icon(if (isLocked) "lock" else "chevron-down")
                                 }
                                 if (renamingId == section.id && !isLocked) {
                                     InlineEdit {
@@ -2266,7 +2269,7 @@ val App = FC<AppProps> { props ->
                                         if (section.locked) lockMenuId = section.id
                                         else pinDialog = PinDialog(section.id, change = false)
                                     }
-                                    +(if (section.locked) "🔓" else "🔐")
+                                    icon(if (section.locked) "unlock" else "lock")
                                 }
                                 button {
                                     className = ClassName("icon add")
@@ -2283,7 +2286,7 @@ val App = FC<AppProps> { props ->
                                             }
                                         }
                                     }
-                                    +"+"
+                                    icon("plus")
                                 }
                                 if (section.deletable) {
                                     button {
@@ -2293,7 +2296,7 @@ val App = FC<AppProps> { props ->
                                             e.stopPropagation()
                                             deleteSection(section)
                                         }
-                                        +"×"
+                                        icon("x")
                                     }
                                 }
                             }
@@ -2498,7 +2501,7 @@ val App = FC<AppProps> { props ->
                                             span {
                                                 className = ClassName("col-lock")
                                                 hint(t.readOnlyHint)
-                                                +"🔒"
+                                                icon("lock")
                                             }
                                         }
                                         // Deleting a read-only collection is the one edit that cannot
@@ -2511,7 +2514,7 @@ val App = FC<AppProps> { props ->
                                                     e.stopPropagation()
                                                     deleteCollection(c)
                                                 }
-                                                +"×"
+                                                icon("x")
                                             }
                                         }
                                     }
@@ -2526,7 +2529,7 @@ val App = FC<AppProps> { props ->
                     button {
                         className = ClassName("btn settings-btn")
                         onClick = { settingsOpen = true }
-                        span { className = ClassName("gear"); +"⚙" }
+                        span { className = ClassName("gear"); icon("settings") }
                         +" ${t.settings}"
                     }
                 }
@@ -2599,14 +2602,6 @@ val App = FC<AppProps> { props ->
                     onForget = { hit ->
                         forgetUse(hit.stat.url)
                         usageVersion += 1
-                    }
-                }
-                div {
-                    className = ClassName("toolbar")
-                    SyncBadge {
-                        strings = t
-                        state = syncUi
-                        onOpen = { accountOpen = true }
                     }
                 }
             }
@@ -2694,7 +2689,8 @@ val App = FC<AppProps> { props ->
                                             }
                                         }
                                     }
-                                    +t.addCardSection
+                                    icon("plus")
+                                    +" ${t.addCardSection}"
                                 }
                             }
                             // The read-only switch closes the row: everything before it edits, and
@@ -2703,7 +2699,7 @@ val App = FC<AppProps> { props ->
                                 className = ClassName("btn")
                                 hint(if (editable) t.makeReadOnlyHint else t.allowEditingHint)
                                 onClick = { toggleReadOnly(current) }
-                                +(if (editable) t.makeReadOnly else t.allowEditing)
+                                if (editable) icon("lock") else { icon("edit"); +" ${t.allowEditing}" }
                             }
                         }
                     }
@@ -2731,10 +2727,10 @@ val App = FC<AppProps> { props ->
                         onFile = { fileModal = FileModal(current.id, sectionId, null) },
                     )
 
-                    // The ⇅ beside it puts that same group's cards in order. Sorting belongs to a
-                    // section for the same reason adding does: what a sort means is "these cards, in
-                    // this order", and a collection-wide one would shuffle sections the user never
-                    // looked at.
+                    // The crossed-arrows icon beside it puts that same group's cards in order. Sorting
+                    // belongs to a section for the same reason adding does: what a sort means is "these
+                    // cards, in this order", and a collection-wide one would shuffle sections the user
+                    // never looked at.
                     //
                     // A menu of actions, not a setting: nothing in it is ever ticked, because the sort
                     // is over the moment it is chosen — it moved the cards, and there is no "sorted by
@@ -2743,7 +2739,7 @@ val App = FC<AppProps> { props ->
                     // And it writes, so it is drawn only where the tools are — a read-only collection
                     // has none of it.
                     fun ChildrenBuilder.groupSortMenu(sectionId: Uuid?) {
-                        hoverMenu(glyph = "⇅", tooltip = t.sortLinks) {
+                        hoverMenu(glyph = "arrows-sort", tooltip = t.sortLinks) {
                             menuTitle(t.sortMenuTitle)
                             CardSort.entries.forEach { by ->
                                 menuItem(by.label(t)) { sortCards(current.id, sectionId, by) }
@@ -2761,7 +2757,7 @@ val App = FC<AppProps> { props ->
                             className = ClassName("icon open-all")
                             hint(t.openAllHint(linkCount))
                             onClick = { e -> e.stopPropagation(); openAllCards(groupCards) }
-                            +"↗"
+                            icon("arrow-up-right")
                         }
                     }
 
@@ -2927,7 +2923,7 @@ val App = FC<AppProps> { props ->
                                                     },
                                                 )
                                                 if (back) hint(t.folderBack)
-                                                +(if (back) "←" else "▾")
+                                                icon(if (back) "chevron-left" else "chevron-down")
                                             }
                                             if (renamingId == cs.id && editable) {
                                                 InlineEdit {
@@ -2955,7 +2951,7 @@ val App = FC<AppProps> { props ->
                                                         e.stopPropagation()
                                                         descModal = DescModal(cs.id, cs.title, cs.description ?: "")
                                                     }
-                                                    +"✎"
+                                                    icon("edit")
                                                 }
                                                 button {
                                                     className = ClassName("icon del")
@@ -2964,7 +2960,7 @@ val App = FC<AppProps> { props ->
                                                         e.stopPropagation()
                                                         deleteCardSection(cs, current.id)
                                                     }
-                                                    +"×"
+                                                    icon("x")
                                                 }
                                             }
                                         }
@@ -3016,7 +3012,7 @@ val App = FC<AppProps> { props ->
                         onClick = { rightCollapsed = false; prefSet("rightCollapsed", "0") }
                         // See the sections sidebar's own expand button for why this flips with
                         // [swapSidebars]: it always points away from the edge this panel is anchored to.
-                        +(if (swapSidebars) "»" else "«")
+                        icon(if (swapSidebars) "chevron-right" else "chevron-left")
                     }
                 }
             } else {
@@ -3060,7 +3056,7 @@ val App = FC<AppProps> { props ->
                             className = ClassName("icon collapse-btn")
                             hint(t.hideTabs)
                             onClick = { rightCollapsed = true; prefSet("rightCollapsed", "1") }
-                            +(if (swapSidebars) "«" else "»")
+                            icon(if (swapSidebars) "chevron-left" else "chevron-right")
                         }
                     }
 
@@ -3427,7 +3423,7 @@ val App = FC<AppProps> { props ->
             // on-device costs the user nothing and leaves nothing, which is why this does not ask who
             // they chose to answer their questions — a web chat is never handed a title here. A model
             // that would first have to be downloaded is not offered at all: nobody asked for a few
-            // hundred megabytes by pressing ✎.
+            // hundred megabytes by pressing the edit icon.
             //
             // Read out here rather than in the builder below, where `ai` is the prop being set.
             val titleCleaner = ai.takeIf { aiState == AiAvailability.AVAILABLE }
@@ -3551,7 +3547,7 @@ val App = FC<AppProps> { props ->
                     className = ClassName("icon del undo-dismiss")
                     hint(t.close)
                     onClick = { undo = null }
-                    +"×"
+                    icon("x")
                 }
             }
         }

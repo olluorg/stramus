@@ -421,7 +421,7 @@ val TabTriageModal = FC<TabTriageProps> { props ->
                 span { className = ClassName("ai-badge"); +s.aiChip }
                 +s.triageHeading
             }
-            button { className = ClassName("icon del"); onClick = { props.onClose() }; +"×" }
+            button { className = ClassName("icon del"); onClick = { props.onClose() }; icon("x") }
         }
 
         div {
@@ -448,14 +448,14 @@ val TabTriageModal = FC<TabTriageProps> { props ->
                             className = ClassName("icon ai-tool")
                             hint(s.aiCopy)
                             onClick = { copyToClipboard(summary) }
-                            +"⧉"
+                            icon("copy")
                         }
                         if (props.canSaveSummary) {
                             button {
                                 className = ClassName("icon ai-tool")
                                 hint(s.aiSaveNote)
                                 onClick = { props.onSaveSummary(s.triageSummaryTitle, summary) }
-                                +"⊞"
+                                icon("file-text")
                             }
                         }
                     }

@@ -159,7 +159,7 @@ val AiChat = FC<AiChatProps> { props ->
                 span { className = ClassName("ai-badge"); +s.aiChip }
                 +s.aiHeading
             }
-            button { className = ClassName("icon del"); onClick = { props.onClose() }; +"×" }
+            button { className = ClassName("icon del"); onClick = { props.onClose() }; icon("x") }
         }
 
         div {
@@ -199,7 +199,7 @@ val AiChat = FC<AiChatProps> { props ->
                                     className = ClassName("icon ai-tool")
                                     hint(s.aiCopy)
                                     onClick = { copyToClipboard(turn.answer) }
-                                    +"⧉"
+                                    icon("copy")
                                 }
                                 if (props.canSave) {
                                     button {
@@ -208,7 +208,7 @@ val AiChat = FC<AiChatProps> { props ->
                                         onClick = {
                                             props.onSaveNote(turn.question.take(NOTE_TITLE_LIMIT), turn.answer)
                                         }
-                                        +"⊞"
+                                        icon("file-text")
                                     }
                                 }
                             }

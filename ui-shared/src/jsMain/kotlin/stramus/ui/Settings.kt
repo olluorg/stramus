@@ -126,13 +126,13 @@ external interface SettingsModalProps : Props {
  * before it is drawn.
  */
 private enum class SettingsTab(val icon: String, val title: (Strings) -> String) {
-    ACCOUNT("👤", { it.account }),
-    APPEARANCE("🎨", { it.appearance }),
-    STARTUP("🚀", { it.startupSection }),
-    TABS("🗂", { it.tabsSection }),
-    SECURITY("🔒", { it.security }),
-    AI("✨", { it.aiSection }),
-    DATA("💾", { it.dataSection }),
+    ACCOUNT("user", { it.account }),
+    APPEARANCE("palette", { it.appearance }),
+    STARTUP("rocket", { it.startupSection }),
+    TABS("layout", { it.tabsSection }),
+    SECURITY("lock", { it.security }),
+    AI("sparkles", { it.aiSection }),
+    DATA("save", { it.dataSection }),
 }
 
 /** What the settings page says about the model: which one, and whether it can actually answer. */
@@ -156,6 +156,9 @@ private fun <T> ChildrenBuilder.toggleRow(
     choices: List<Pair<T, String>>,
     onPick: (T) -> Unit,
     titleExtra: (ChildrenBuilder.() -> Unit)? = null,
+    // Only the theme picker tells its three choices apart with an icon as well as a word; every other
+    // row here is plain text, so this stays null and unused for all of them.
+    icons: List<String>? = null,
 ) {
     div {
         className = ClassName("settings-row")
@@ -170,10 +173,11 @@ private fun <T> ChildrenBuilder.toggleRow(
         }
         div {
             className = ClassName("theme-toggle")
-            choices.forEach { (value, label) ->
+            choices.forEachIndexed { i, (value, label) ->
                 button {
                     className = ClassName(if (current == value) "theme-opt active" else "theme-opt")
                     onClick = { onPick(value) }
+                    icons?.getOrNull(i)?.let { icon(it); +" " }
                     +label
                 }
             }
@@ -190,6 +194,7 @@ private fun ChildrenBuilder.appearancePane(props: SettingsModalProps, s: Strings
             s.theme, s.themeHint, props.theme,
             listOf("auto" to s.themeAuto, "light" to s.themeLight, "dark" to s.themeDark),
             props.onThemeChange,
+            icons = listOf("circle-half", "sun", "moon"),
         )
 
         toggleRow(
@@ -397,8 +402,18 @@ private fun ChildrenBuilder.dataPane(props: SettingsModalProps, s: Strings) {
         p { className = ClassName("settings-hint"); +s.exportHint }
         div {
             className = ClassName("settings-actions")
-            button { className = ClassName("btn"); onClick = { props.onExportCsv() }; +s.exportCsv }
-            button { className = ClassName("btn"); onClick = { props.onExportBookmarks() }; +s.exportBookmarks }
+            button {
+                className = ClassName("btn")
+                onClick = { props.onExportCsv() }
+                icon("upload")
+                +" ${s.exportCsv}"
+            }
+            button {
+                className = ClassName("btn")
+                onClick = { props.onExportBookmarks() }
+                icon("upload")
+                +" ${s.exportBookmarks}"
+            }
         }
     }
 
@@ -414,7 +429,8 @@ private fun ChildrenBuilder.dataPane(props: SettingsModalProps, s: Strings) {
             className = ClassName("settings-actions")
             label {
                 className = ClassName("btn")
-                +s.importFile
+                icon("download")
+                +" ${s.importFile}"
                 input {
                     type = FILE_INPUT_TYPE
                     className = ClassName("hidden-file-input")
@@ -451,7 +467,7 @@ val SettingsModal = FC<SettingsModalProps> { props ->
         div {
             className = ClassName("modal-head")
             h3 { +s.settings }
-            button { className = ClassName("icon del"); onClick = { props.onClose() }; +"×" }
+            button { className = ClassName("icon del"); onClick = { props.onClose() }; icon("x") }
         }
 
         div {
@@ -463,7 +479,7 @@ val SettingsModal = FC<SettingsModalProps> { props ->
                     button {
                         className = ClassName(if (tab == active) "settings-nav-item active" else "settings-nav-item")
                         onClick = { active = tab }
-                        span { className = ClassName("settings-nav-icon"); +tab.icon }
+                        span { className = ClassName("settings-nav-icon"); icon(tab.icon) }
                         +tab.title(s)
                     }
                 }

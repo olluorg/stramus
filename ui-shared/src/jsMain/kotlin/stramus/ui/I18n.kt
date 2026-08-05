@@ -252,10 +252,9 @@ interface Strings {
 
     // Read-only collections
     /**
-     * The two ends of the toggle in the collection's header — the locking one is a bare 🔒, so its
+     * The two ends of the toggle in the collection's header — the locking one is a bare icon, so its
      * tooltip is the only place it says what it does — and the badge a guarded collection wears.
      */
-    val makeReadOnly: String
     val makeReadOnlyHint: String
     val allowEditing: String
     val allowEditingHint: String
@@ -445,10 +444,6 @@ interface Strings {
     val signInAccount: String
     val signOut: String
     val syncNow: String
-    val syncIdle: String
-    val syncRunning: String
-    val syncOffline: String
-    val syncSignedOut: String
     fun syncedAt(time: String): String
     fun conflictCopies(count: Int): String
     val joinAccountTitle: String
@@ -553,7 +548,7 @@ private object EnStrings : Strings {
         "Answer briefly and to the point, in the language the question is asked in. Markdown is welcome."
 
     override val aiTriageSetting = "Sort tabs with the built-in model"
-    override val aiTriageSettingHint = "Adds ✨ to a window of tabs: the model reads them and proposes " +
+    override val aiTriageSettingHint = "Adds a button to a window of tabs: the model reads them and proposes " +
         "a collection for each, for you to check before anything is saved. Everything stays on this " +
         "machine. It takes a minute or two on a large window, and it leaves out whatever it cannot place."
     override val triageTabs = "Sort into collections"
@@ -609,11 +604,11 @@ private object EnStrings : Strings {
     override val createCollectionToStart = "Create a collection to start saving links."
     override val sortLinks = "Sort this group's cards"
     override val sortMenuTitle = "Sort by"
-    override val addCardSection = "+ Group"
+    override val addCardSection = "Group"
     override val pasteUrl = "Paste a URL"
-    override val addLinkItem = "🔗 Link"
-    override val addNoteItem = "📝 Note"
-    override val addFileItem = "📎 File"
+    override val addLinkItem = "Link"
+    override val addNoteItem = "Note"
+    override val addFileItem = "File"
     override val noLinksYet = "No links yet — add one, or drag one here."
     override val ungrouped = "Ungrouped"
     override val dragLinksHere = "Drag links or files here."
@@ -643,9 +638,8 @@ private object EnStrings : Strings {
         "it is entered, and their cards stay out of search and export. There is no way to reset a " +
         "forgotten PIN."
 
-    override val makeReadOnly = "🔒"
     override val makeReadOnlyHint = "Make read-only: nothing can then be added, changed or deleted here."
-    override val allowEditing = "✎ Allow editing"
+    override val allowEditing = "Allow editing"
     override val allowEditingHint = "Allow editing again."
     override val readOnlyBadge = "read-only"
     override val readOnlyHint = "Read-only: nothing here can be added, changed or deleted."
@@ -711,7 +705,7 @@ private object EnStrings : Strings {
     override val newNote = "New note"
     override val editNote = "Edit note"
     override val viewNote = "Note"
-    override val editNoteAction = "✎ Edit"
+    override val editNoteAction = "Edit"
     override val sectionDescription = "Group description"
     override val titlePlaceholder = "Title"
     override val noteDefaultTitle = "Note"
@@ -722,7 +716,7 @@ private object EnStrings : Strings {
     override val toolLink = "Link"
     override val toolHeading = "Heading"
     override val toolList = "Bulleted list"
-    override val toolListLabel = "• List"
+    override val toolListLabel = "List"
     override val highlightPlaceholder = "highlight"
     override val codePlaceholder = "code"
     override val linkUrlPrompt = "Link URL"
@@ -731,16 +725,16 @@ private object EnStrings : Strings {
 
     override val addFile = "Add file"
     override val chooseFile = "Choose a file…"
-    override val download = "⤓ Download"
+    override val download = "Download"
     override val fileDefaultTitle = "File"
     override fun noPreviewFor(mime: String) = "No inline preview for $mime — use Download."
 
     override val appearance = "Appearance"
     override val theme = "Theme"
     override val themeHint = "Follow the system, or force day/night."
-    override val themeAuto = "◑ Auto"
-    override val themeLight = "☀ Light"
-    override val themeDark = "☾ Dark"
+    override val themeAuto = "Auto"
+    override val themeLight = "Light"
+    override val themeDark = "Dark"
     override val language = "Language"
     override val languageHint = "The language of the interface."
     override val cardUrls = "Card addresses"
@@ -775,14 +769,14 @@ private object EnStrings : Strings {
     override val export = "Export"
     override val exportHint = "Download every saved link across all collections. A section still behind " +
         "its PIN is left out."
-    override val exportCsv = "⤒ Export CSV"
-    override val exportBookmarks = "⤒ Export bookmarks"
+    override val exportCsv = "Export CSV"
+    override val exportBookmarks = "Export bookmarks"
 
     override val import = "Import"
     override val importHint = "Bring in a bookmarks file from any browser, or a CSV exported here. " +
         "Folders become sections, collections and groups; a link already saved where it would " +
         "land is left alone."
-    override val importFile = "⤓ Choose a file"
+    override val importFile = "Choose a file"
     override val importedTitle = "Imported"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
         0 -> "Imported $added links."
@@ -801,10 +795,6 @@ private object EnStrings : Strings {
     override val signInAccount = "Sign in"
     override val signOut = "Sign out"
     override val syncNow = "Sync now"
-    override val syncIdle = "Synced"
-    override val syncRunning = "Syncing…"
-    override val syncOffline = "Waiting for the network"
-    override val syncSignedOut = "Not signed in"
     override fun syncedAt(time: String) = "Synced at $time"
     override fun conflictCopies(count: Int) =
         if (count == 1) "A note was edited on two devices at once. Both versions were kept."
@@ -937,7 +927,7 @@ private object RuStrings : Strings {
         "Отвечай кратко и по делу, на языке вопроса. Markdown приветствуется."
 
     override val aiTriageSetting = "Разбирать вкладки встроенной моделью"
-    override val aiTriageSettingHint = "Добавляет ✨ к окну вкладок: модель читает их и предлагает " +
+    override val aiTriageSettingHint = "Добавляет кнопку к окну вкладок: модель читает их и предлагает " +
         "коллекцию для каждой — вы проверяете до того, как что-либо сохранится. Всё остаётся на этой " +
         "машине. На большом окне занимает минуту-другую, а то, что не смогла определить, оставляет вам."
     override val triageTabs = "Разобрать по коллекциям"
@@ -994,11 +984,11 @@ private object RuStrings : Strings {
     override val createCollectionToStart = "Создайте коллекцию, чтобы сохранять ссылки."
     override val sortLinks = "Отсортировать карточки этой секции"
     override val sortMenuTitle = "Сортировать"
-    override val addCardSection = "+ Секция"
+    override val addCardSection = "Секция"
     override val pasteUrl = "Вставьте ссылку"
-    override val addLinkItem = "🔗 Ссылка"
-    override val addNoteItem = "📝 Заметка"
-    override val addFileItem = "📎 Файл"
+    override val addLinkItem = "Ссылка"
+    override val addNoteItem = "Заметка"
+    override val addFileItem = "Файл"
     override val noLinksYet = "Пока нет ссылок — добавьте одну или перетащите сюда."
     override val ungrouped = "Без секции"
     override val dragLinksHere = "Перетащите сюда ссылки или файлы."
@@ -1027,10 +1017,9 @@ private object RuStrings : Strings {
     override val pinNote = "PIN-код скрывает раздел целиком: пока он не введён, не видно даже названий " +
         "коллекций, а их карточки не попадают в поиск и экспорт. Забытый PIN-код восстановить нельзя."
 
-    override val makeReadOnly = "🔒"
     override val makeReadOnlyHint = "Сделать только для чтения: ничего нельзя будет добавить, изменить " +
         "или удалить."
-    override val allowEditing = "✎ Разрешить правку"
+    override val allowEditing = "Разрешить правку"
     override val allowEditingHint = "Снова разрешить правку."
     override val readOnlyBadge = "только чтение"
     override val readOnlyHint = "Только чтение: ничего нельзя добавить, изменить или удалить."
@@ -1096,7 +1085,7 @@ private object RuStrings : Strings {
     override val newNote = "Новая заметка"
     override val editNote = "Изменить заметку"
     override val viewNote = "Заметка"
-    override val editNoteAction = "✎ Изменить"
+    override val editNoteAction = "Изменить"
     override val sectionDescription = "Описание секции"
     override val titlePlaceholder = "Заголовок"
     override val noteDefaultTitle = "Заметка"
@@ -1107,7 +1096,7 @@ private object RuStrings : Strings {
     override val toolLink = "Ссылка"
     override val toolHeading = "Заголовок"
     override val toolList = "Маркированный список"
-    override val toolListLabel = "• Список"
+    override val toolListLabel = "Список"
     override val highlightPlaceholder = "выделение"
     override val codePlaceholder = "код"
     override val linkUrlPrompt = "Адрес ссылки"
@@ -1116,16 +1105,16 @@ private object RuStrings : Strings {
 
     override val addFile = "Добавить файл"
     override val chooseFile = "Выберите файл…"
-    override val download = "⤓ Скачать"
+    override val download = "Скачать"
     override val fileDefaultTitle = "Файл"
     override fun noPreviewFor(mime: String) = "Нет предпросмотра для $mime — используйте «Скачать»."
 
     override val appearance = "Оформление"
     override val theme = "Тема"
     override val themeHint = "Следовать системе или выбрать день/ночь."
-    override val themeAuto = "◑ Авто"
-    override val themeLight = "☀ День"
-    override val themeDark = "☾ Ночь"
+    override val themeAuto = "Авто"
+    override val themeLight = "День"
+    override val themeDark = "Ночь"
     override val language = "Язык"
     override val languageHint = "Язык интерфейса."
     override val cardUrls = "Адреса на карточках"
@@ -1160,14 +1149,14 @@ private object RuStrings : Strings {
     override val export = "Экспорт"
     override val exportHint = "Скачайте все сохранённые ссылки из всех коллекций. Разделы, PIN-код " +
         "которых не введён, в экспорт не попадают."
-    override val exportCsv = "⤒ Экспорт CSV"
-    override val exportBookmarks = "⤒ Экспорт закладок"
+    override val exportCsv = "Экспорт CSV"
+    override val exportBookmarks = "Экспорт закладок"
 
     override val import = "Импорт"
     override val importHint = "Загрузите файл закладок из любого браузера или CSV, экспортированный " +
         "здесь. Папки станут разделами, коллекциями и секциями; ссылка, которая уже сохранена там, " +
         "куда попала бы, останется одна."
-    override val importFile = "⤓ Выбрать файл"
+    override val importFile = "Выбрать файл"
     override val importedTitle = "Импорт"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
         0 -> "Импортировано ссылок: $added."
@@ -1186,10 +1175,6 @@ private object RuStrings : Strings {
     override val signInAccount = "Войти"
     override val signOut = "Выйти"
     override val syncNow = "Синхронизировать"
-    override val syncIdle = "Синхронизировано"
-    override val syncRunning = "Синхронизация…"
-    override val syncOffline = "Ждём сеть"
-    override val syncSignedOut = "Вы не вошли"
     override fun syncedAt(time: String) = "Синхронизировано в $time"
     override fun conflictCopies(count: Int) =
         if (count == 1) "Заметку правили на двух устройствах сразу. Обе версии сохранены."

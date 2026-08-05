@@ -115,7 +115,7 @@ val TabCard = memo(
                         e.stopPropagation() // closing the tab is not jumping to it
                         props.onClose(tab)
                     }
-                    +"×"
+                    icon("x")
                 }
             }
         }

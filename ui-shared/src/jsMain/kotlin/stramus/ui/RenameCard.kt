@@ -166,7 +166,7 @@ val RenameCardModal = FC<RenameCardProps> { props ->
         div {
             className = ClassName("modal-head")
             h3 { +s.renameHeading }
-            button { className = ClassName("icon del"); onClick = { props.onClose() }; +"×" }
+            button { className = ClassName("icon del"); onClick = { props.onClose() }; icon("x") }
         }
         input {
             ref = inputRef

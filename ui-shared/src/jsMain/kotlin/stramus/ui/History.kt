@@ -139,7 +139,7 @@ internal fun ChildrenBuilder.historyPane(
                                         e.stopPropagation() // forgetting the page is not opening it
                                         onDelete(entry)
                                     }
-                                    +"×"
+                                    icon("x")
                                 }
                             }
                         }

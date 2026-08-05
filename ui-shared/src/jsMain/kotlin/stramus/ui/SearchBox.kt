@@ -18,15 +18,15 @@ import stramus.core.model.CardKind
 import web.cssom.ClassName
 import web.html.HTMLInputElement
 
-/** The glyph a row is drawn with when it stands for no page of its own (so there is no favicon). */
-private fun glyphOf(hit: Hit): String = when (hit) {
-    is CollectionHit -> "📁"
-    is WebSearchHit -> "🔍"
-    is AiHit -> "✨"
-    is OpenUrlHit -> "↗"
+/** The icon a row is drawn with when it stands for no page of its own (so there is no favicon). */
+private fun iconNameOf(hit: Hit): String = when (hit) {
+    is CollectionHit -> "folder"
+    is WebSearchHit -> "search"
+    is AiHit -> "sparkles"
+    is OpenUrlHit -> "arrow-up-right"
     // A card with no URL is a note or a file — the same two glyphs the card itself wears.
-    is CardHit -> if (hit.card.kind == CardKind.FILE) "📎" else "📝"
-    else -> "🔗"
+    is CardHit -> if (hit.card.kind == CardKind.FILE) "paperclip" else "file-text"
+    else -> "link"
 }
 
 /** The badge on the right of a row: what activating it will actually do. */
@@ -198,7 +198,7 @@ val SearchBox = FC<SearchBoxProps> { props ->
                                             className = "fav hit-icon"
                                         }
                                     } else {
-                                        span { className = ClassName("hit-glyph"); +glyphOf(hit) }
+                                        span { className = ClassName("hit-glyph"); icon(iconNameOf(hit)) }
                                     }
 
                                     span {
@@ -231,7 +231,7 @@ val SearchBox = FC<SearchBoxProps> { props ->
                                                 e.stopPropagation()
                                                 props.onForget(hit)
                                             }
-                                            +"×"
+                                            icon("x")
                                         }
                                     }
                                 }

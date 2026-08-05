@@ -170,7 +170,7 @@ private fun <T : HTMLElement> HTMLAttributes<T>.cardTileBody(props: CardTileProp
             url = card.url
             favicon = card.favicon
         }
-        CardKind.NOTE -> span { className = ClassName("glyph"); +"📝" }
+        CardKind.NOTE -> span { className = ClassName("glyph"); icon("file-text") }
         // The card carries a downscaled preview, never the file itself — the bytes stay in the
         // database until the file is opened. No preview (not an image, or one that would not
         // decode) means a glyph.
@@ -184,7 +184,7 @@ private fun <T : HTMLElement> HTMLAttributes<T>.cardTileBody(props: CardTileProp
                     draggable = false
                 }
             } else {
-                span { className = ClassName("glyph"); +fileGlyph(card.mime) }
+                span { className = ClassName("glyph"); icon(fileIconName(card.mime)) }
             }
         }
     }
@@ -215,7 +215,7 @@ private fun <T : HTMLElement> HTMLAttributes<T>.cardTileBody(props: CardTileProp
                     e.stopPropagation()
                     props.onRename(card)
                 }
-                +"✎"
+                icon("edit")
             }
             button {
                 className = ClassName("icon del")
@@ -225,16 +225,15 @@ private fun <T : HTMLElement> HTMLAttributes<T>.cardTileBody(props: CardTileProp
                     e.stopPropagation()
                     props.onDelete(card)
                 }
-                +"×"
+                icon("x")
             }
         }
     }
 }
 
-private fun fileGlyph(mime: String?): String = when {
-    mime == null -> "📄"
-    mime.startsWith("video/") -> "🎬"
-    mime.startsWith("audio/") -> "🎵"
-    mime == "application/pdf" -> "📕"
-    else -> "📄"
+private fun fileIconName(mime: String?): String = when {
+    mime == null -> "file"
+    mime.startsWith("video/") -> "film"
+    mime.startsWith("audio/") -> "music"
+    else -> "file"
 }
