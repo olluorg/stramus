@@ -378,6 +378,15 @@ interface Strings {
     val cardUrlsShow: String
     val cardUrlsHide: String
 
+    /** Settings: whether a collection's card sections are stacked open, or shown as folders to open. */
+    val groupsView: String
+    val groupsViewHint: String
+    val groupsViewList: String
+    val groupsViewFolders: String
+
+    /** Folder view: the link back to the grid, shown above the one folder currently open. */
+    val folderBack: String
+
     /** Settings: which side the sections/collections sidebar sits on, vs. the tabs/history one. */
     val swapSidebars: String
     val swapSidebarsHint: String
@@ -738,6 +747,12 @@ private object EnStrings : Strings {
     override val cardUrlsHint = "Whether a link card shows its address under the title."
     override val cardUrlsShow = "Show"
     override val cardUrlsHide = "Hide"
+    override val groupsView = "Sections view"
+    override val groupsViewHint =
+        "Show a collection's sections one under another, or as folders that open where they stand."
+    override val groupsViewList = "List"
+    override val groupsViewFolders = "Folders"
+    override val folderBack = "Back to folders"
     override val swapSidebars = "Sidebar order"
     override val swapSidebarsHint = "Which side the sections sidebar sits on, vs. the tabs/history one."
     override val swapSidebarsLeft = "Sections left"
@@ -1115,6 +1130,12 @@ private object RuStrings : Strings {
     override val cardUrlsHint = "Показывать ли под заголовком карточки-ссылки её адрес."
     override val cardUrlsShow = "Показывать"
     override val cardUrlsHide = "Скрывать"
+    override val groupsView = "Вид секций"
+    override val groupsViewHint =
+        "Показывать секции коллекции одну под другой или папками, которые раскрываются на месте."
+    override val groupsViewList = "Списком"
+    override val groupsViewFolders = "Папками"
+    override val folderBack = "Назад к папкам"
     override val swapSidebars = "Порядок боковых панелей"
     override val swapSidebarsHint = "С какой стороны сайдбар секций, а с какой — сайдбар вкладок/истории."
     override val swapSidebarsLeft = "Секции слева"

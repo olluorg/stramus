@@ -322,6 +322,11 @@
         .chevron { font-size: 9px; color: var(--muted); display: inline-block; transition: transform .18s ease; }
         /* The chevron points down when the section is open and turns as it folds shut. */
         .chevron.closed { transform: rotate(-90deg); }
+        /* The open folder's way back to the grid, standing in for the chevron: sized and weighted like
+           the header's other icons rather than the small arrow it replaces, so it reads as a way out and
+           not as a fold-away toggle nobody would think to click. */
+        .chevron.back { font-size: 15px; font-weight: 600; }
+        .card-section-title:hover .chevron.back { color: var(--accent); }
 
         /* A section folds instead of blinking away: the content sits in a one-row grid whose row goes
            from 1fr to 0fr, so the height is animated without anything having to be measured first.
@@ -509,6 +514,55 @@
         .card-section-head[draggable="true"]:active { cursor: grabbing; }
         .card-group.dragging { opacity: .45; }
         .card.dragging { opacity: .4; }
+
+        /* Folder view (the "Sections view" setting): a collection's sections as a grid of closed
+           folders, each opening out across the full row where it stands. Every rule here restyles the
+           group the list view already draws — the same header, the same tools, the same drop zone (see
+           [cardGroup]) — so a folder is not a second kind of section that could drift out of step with
+           the first. What the click does is unchanged too: it sets the section's own `collapsed`. */
+        .folder-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 12px; align-items: start; margin-top: 18px;
+        }
+        /* An open folder takes the whole row and is, from there down, an ordinary section. */
+        .folder-grid > .card-group.folder.open { grid-column: 1 / -1; }
+        .folder-grid > .card-group.folder.open > .card-section-head { margin-top: 2px; }
+        /* A closed one is a tile — and the tile is the header, stood up. The group's own padding and
+           negative margins are dropped: they would push it out of the grid cell it was given. */
+        .card-group.folder:not(.open) { margin: 0; padding: 0; }
+        .card-group.folder:not(.open) > .card-section-head {
+            position: relative;
+            flex-direction: column; align-items: flex-start; justify-content: flex-start;
+            margin: 0; padding: 12px;
+            border: 1px solid var(--border); border-radius: 10px; background: var(--panel);
+            box-shadow: 0 1px 2px rgba(16, 24, 40, .05);
+            transition: border-color .12s, transform .12s, box-shadow .12s;
+        }
+        .card-group.folder:not(.open) > .card-section-head:hover,
+        .card-group.folder:not(.open) > .card-section-head:focus-within {
+            border-color: var(--accent); transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(16, 24, 40, .12);
+        }
+        /* The folder glyph stands in for the chevron: on a tile there is no row folded away above the
+           cards, and the one thing a click does here is open the folder. The title wraps rather than
+           ends in an ellipsis — a tile is wide enough for two words and a name cut short is a name. */
+        .card-group.folder:not(.open) .chevron { display: none; }
+        /* The icon sits above the title as a corner decoration ([::before], taken out of flow) rather
+           than a flex item beside it, so the only two things left in flow — the name and its count —
+           share a row instead of each standing alone on one: a lone number under the name is the tile
+           looking half-finished, not a second fact about the folder. */
+        .card-group.folder:not(.open) .card-section-title {
+            flex-direction: row; align-items: baseline; flex-wrap: wrap; gap: 4px 6px;
+            max-width: 100%; overflow-wrap: anywhere; padding-right: 20px; padding-top: 30px;
+        }
+        .card-group.folder:not(.open) .card-section-title::before {
+            content: "📁"; font-size: 22px; line-height: 1;
+            position: absolute; top: 12px; left: 12px;
+        }
+        /* Out of the flow and into the corner, exactly as .card-tools sit on a card: in the column the
+           title is in, they would take a row of their own and leave a gap under every closed folder. */
+        .card-group.folder:not(.open) .card-section-tools { position: absolute; top: 6px; right: 6px; }
         /* An open tab drawn as a card ([TabCard]): the tab selected in its window, and the one a drag
            would land on. Mirrors .tab.current / .tab.drop-target — same states, card-shaped. */
         .card.current { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
@@ -533,7 +587,7 @@
            styling, so the ⇅ could never have been made to read like the "+" beside it. */
         .menu { position: relative; display: inline-block; }
         .card-section-head .menu { opacity: 0; transition: opacity .12s; }
-        .card-section-head:hover .menu, .card-section-head .menu:focus-within { opacity: 1; }
+        .card-section-head:hover .menu, .card-section-head:focus-within .menu { opacity: 1; }
         .icon.menu-btn { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px; }
         .icon.menu-btn:hover { color: var(--accent); }
         .menu:hover .icon.menu-btn { color: var(--accent); }
