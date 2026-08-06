@@ -8,7 +8,13 @@ enum class Lang(val id: String, val label: String) {
     RU("ru", "Русский"),
     ;
 
-    val strings: Strings get() = if (this == RU) RuStrings else EnStrings
+    // An exhaustive `when`, not an `if` — so a new entry here is a compile error until it is given a
+    // branch, and the "adding a language is a compile error until translated" promise above actually
+    // holds instead of silently falling back to English.
+    val strings: Strings get() = when (this) {
+        EN -> EnStrings
+        RU -> RuStrings
+    }
 
     companion object {
         /** The persisted choice, or — on first run — the browser's language if we speak it. */
@@ -342,6 +348,10 @@ interface Strings {
     val sectionDescription: String
     val titlePlaceholder: String
     val noteDefaultTitle: String
+
+    /** Shown, greyed out, in an empty note body — an `::empty::before` in CSS, so it lives here rather
+     *  than in index.html's CSS, which cannot see [Lang]. */
+    val notePlaceholder: String
     val toolBold: String
     val toolItalic: String
     val toolHighlight: String
@@ -474,6 +484,9 @@ interface Strings {
 
     /** Google is the only door at the moment, so a build with no client id has none to offer. */
     val signInUnavailable: String
+
+    /** Why a button that talks to the server is greyed out: the last check found nobody there. */
+    val serverUnavailable: String
 
     val seed: StoreSeed
 }
@@ -714,6 +727,7 @@ private object EnStrings : Strings {
     override val sectionDescription = "Group description"
     override val titlePlaceholder = "Title"
     override val noteDefaultTitle = "Note"
+    override val notePlaceholder = "Start writing…"
     override val toolBold = "Bold"
     override val toolItalic = "Italic"
     override val toolHighlight = "Highlight"
@@ -827,6 +841,7 @@ private object EnStrings : Strings {
     override val optionOff = "Off"
     override val signInWithGoogle = "Continue with Google"
     override val signInUnavailable = "Signing in is not set up in this build. The app works without an account, as it always has."
+    override val serverUnavailable = "The server is not answering right now. This needs it — try again once it's back."
 
     override val seed = StoreSeed(
         sectionTitle = "Main",
@@ -1096,6 +1111,7 @@ private object RuStrings : Strings {
     override val sectionDescription = "Описание секции"
     override val titlePlaceholder = "Заголовок"
     override val noteDefaultTitle = "Заметка"
+    override val notePlaceholder = "Начните писать…"
     override val toolBold = "Жирный"
     override val toolItalic = "Курсив"
     override val toolHighlight = "Выделение"
@@ -1209,6 +1225,7 @@ private object RuStrings : Strings {
     override val optionOff = "Выкл"
     override val signInWithGoogle = "Продолжить с Google"
     override val signInUnavailable = "В этой сборке вход не настроен. Приложение работает и без аккаунта — ровно как раньше."
+    override val serverUnavailable = "Сервер сейчас не отвечает. Для этого он нужен — попробуйте, когда он снова будет доступен."
 
     override val seed = StoreSeed(
         sectionTitle = "Главный",

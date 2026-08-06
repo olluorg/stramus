@@ -279,6 +279,9 @@ val NoteEditor = FC<NoteEditorProps> { props ->
         div {
             key = "editor".unsafeCast<Key>()
             className = ClassName(if (viewOnly) "wysiwyg reading" else "wysiwyg")
+            // Read by the CSS placeholder (`.wysiwyg:empty::before` in index.html) — the localized text
+            // has to reach a plain `content:` rule somehow, and `attr()` is how CSS reads a data attribute.
+            if (!viewOnly) asDynamic()["data-placeholder"] = s.notePlaceholder
             ref = editorRef
             // Every edit — typed, pasted, or made by a toolbar button, which `execCommand` reports as
             // an input of its own — goes straight to the draft. Nothing is left waiting for a Save

@@ -721,7 +721,7 @@
         .tool:hover { border-color: var(--accent); color: var(--accent); }
         .wysiwyg { margin: 12px 18px; flex: 1; min-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; background: var(--bg); font-size: 14px; line-height: 1.6; }
         .wysiwyg:focus { outline: none; border-color: var(--accent); }
-        .wysiwyg:empty::before { content: "Start writing…"; color: var(--muted); }
+        .wysiwyg:empty::before { content: attr(data-placeholder); color: var(--muted); }
         /* A note being read: a page, not a field — and an empty one prompts nobody to write in it. */
         .wysiwyg.reading { background: var(--panel); }
         .wysiwyg.reading:empty::before { content: ""; }
