@@ -20,6 +20,10 @@ import web.cssom.ClassName
 /** The idle timeouts offered for auto-locking a section; 0 = never lock on its own. */
 private val AUTO_LOCK_CHOICES = listOf(1, 5, 15, 30, 60, 0)
 
+/** The accent-color presets offered in Appearance, in swatch order. "blue" is the default and needs
+ *  no `data-accent` override of its own — see the `:root[data-accent="…"]` rules in index.html. */
+private val ACCENT_COLORS = listOf("blue", "purple", "green", "orange", "rose")
+
 /** The default: five minutes away from the machine and an unlocked section shuts itself again. */
 const val DEFAULT_AUTO_LOCK_MINUTES = 5
 
@@ -28,6 +32,9 @@ external interface SettingsModalProps : Props {
     /** Current theme id: "auto" | "light" | "dark". */
     var theme: String
     var onThemeChange: (String) -> Unit
+    /** Current accent-color preset id: "blue" | "purple" | "green" | "orange" | "rose". */
+    var accentColor: String
+    var onAccentColorChange: (String) -> Unit
     /** Current language id: "en" | "ru". */
     var lang: String
     var onLangChange: (String) -> Unit
@@ -186,6 +193,40 @@ private fun <T> ChildrenBuilder.toggleRow(
     }
 }
 
+/**
+ * The accent-color picker: a row of round swatches, one per [ACCENT_COLORS] entry, each carrying its
+ * own colour as a CSS class (`accent-swatch-blue`, …) rather than as a label — unlike [toggleRow]'s
+ * text buttons, the choice here *is* a color, so showing it beats naming it.
+ */
+private fun ChildrenBuilder.accentRow(
+    title: String,
+    hint: String,
+    current: String,
+    labels: Map<String, String>,
+    onPick: (String) -> Unit,
+) {
+    div {
+        className = ClassName("settings-row")
+        div {
+            className = ClassName("settings-label")
+            span { className = ClassName("settings-title"); +title }
+            span { className = ClassName("settings-hint"); +hint }
+        }
+        div {
+            className = ClassName("accent-swatches")
+            ACCENT_COLORS.forEach { id ->
+                button {
+                    className = ClassName(
+                        "accent-swatch accent-swatch-$id" + if (current == id) " active" else ""
+                    )
+                    hint(labels[id] ?: id)
+                    onClick = { onPick(id) }
+                }
+            }
+        }
+    }
+}
+
 private fun ChildrenBuilder.appearancePane(props: SettingsModalProps, s: Strings) {
     div {
         className = ClassName("settings-section")
@@ -196,6 +237,15 @@ private fun ChildrenBuilder.appearancePane(props: SettingsModalProps, s: Strings
             listOf("auto" to s.themeAuto, "light" to s.themeLight, "dark" to s.themeDark),
             props.onThemeChange,
             icons = listOf("circle-half", "sun", "moon"),
+        )
+
+        accentRow(
+            s.accentColor, s.accentColorHint, props.accentColor,
+            mapOf(
+                "blue" to s.accentBlue, "purple" to s.accentPurple, "green" to s.accentGreen,
+                "orange" to s.accentOrange, "rose" to s.accentRose,
+            ),
+            props.onAccentColorChange,
         )
 
         toggleRow(

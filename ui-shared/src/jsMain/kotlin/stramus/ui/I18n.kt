@@ -370,6 +370,13 @@ interface Strings {
     val themeAuto: String
     val themeLight: String
     val themeDark: String
+    val accentColor: String
+    val accentColorHint: String
+    val accentBlue: String
+    val accentPurple: String
+    val accentGreen: String
+    val accentOrange: String
+    val accentRose: String
     val language: String
     val languageHint: String
     val cardUrls: String
@@ -733,6 +740,13 @@ private object EnStrings : Strings {
     override val themeAuto = "Auto"
     override val themeLight = "Light"
     override val themeDark = "Dark"
+    override val accentColor = "Accent color"
+    override val accentColorHint = "The brand color behind buttons, selection, and highlights."
+    override val accentBlue = "Blue"
+    override val accentPurple = "Purple"
+    override val accentGreen = "Green"
+    override val accentOrange = "Orange"
+    override val accentRose = "Rose"
     override val language = "Language"
     override val languageHint = "The language of the interface."
     override val cardUrls = "Card addresses"
@@ -1108,6 +1122,13 @@ private object RuStrings : Strings {
     override val themeAuto = "Авто"
     override val themeLight = "День"
     override val themeDark = "Ночь"
+    override val accentColor = "Цвет акцента"
+    override val accentColorHint = "Основной цвет кнопок, выделения и подсветки."
+    override val accentBlue = "Синий"
+    override val accentPurple = "Фиолетовый"
+    override val accentGreen = "Зелёный"
+    override val accentOrange = "Оранжевый"
+    override val accentRose = "Розовый"
     override val language = "Язык"
     override val languageHint = "Язык интерфейса."
     override val cardUrls = "Адреса на карточках"

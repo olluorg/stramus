@@ -435,6 +435,12 @@ internal fun applyTheme(theme: String) {
     browserWindow().document.documentElement.setAttribute("data-theme", theme)
 }
 
+/** Apply an accent-color preset by stamping `data-accent` on <html>; "blue" matches no preset rule in
+ *  index.html, which is exactly the base palette every other colour already falls back to. */
+internal fun applyAccent(accent: String) {
+    browserWindow().document.documentElement.setAttribute("data-accent", accent)
+}
+
 /** The browser's preferred language tag ("ru-RU", "en-US", …), lowercased; "" if unavailable. */
 internal fun browserLanguage(): String =
     runCatching { browserWindow().navigator.language }.getOrNull()?.lowercase() ?: ""

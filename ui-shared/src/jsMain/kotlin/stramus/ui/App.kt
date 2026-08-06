@@ -739,6 +739,9 @@ val App = FC<AppProps> { props ->
     // Persisted UI preferences (localStorage): theme, language, and sidebar collapse state. Card order
     // is not among them — a sort writes the cards' own order (see [CardSort]), it does not remember one.
     var theme by useState(prefGet("theme") ?: "auto")
+    // Which brand-colour preset stands in for the default blue; see the `accent-swatch-*` rules and
+    // `:root[data-accent="…"]` blocks in index.html for the full set.
+    var accentColor by useState(prefGet("accent") ?: "blue")
     var lang by useState(Lang.from(prefGet("lang")))
     // A card is its title, not its address: the URL under it says the same thing twice for most links
     // and pushes the ones it does not to a second line of noise. Hidden unless asked for.
@@ -888,6 +891,11 @@ val App = FC<AppProps> { props ->
     useEffect(theme) {
         applyTheme(theme)
         prefSet("theme", theme)
+    }
+
+    useEffect(accentColor) {
+        applyAccent(accentColor)
+        prefSet("accent", accentColor)
     }
 
     useEffect(lang) {
@@ -3413,6 +3421,8 @@ val App = FC<AppProps> { props ->
                 strings = t
                 this.theme = theme
                 onThemeChange = { theme = it }
+                this.accentColor = accentColor
+                onAccentColorChange = { accentColor = it }
                 this.lang = lang.id
                 onLangChange = { lang = Lang.from(it) }
                 this.showCardUrls = showCardUrls
