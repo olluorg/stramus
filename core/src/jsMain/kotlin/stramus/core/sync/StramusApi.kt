@@ -90,6 +90,13 @@ class StramusApi(
     /** Whether this browser has a session to resume. It may still turn out to be expired. */
     fun hasSession(): Boolean = refreshToken != null
 
+    /**
+     * Whether the server is there at all — no token, no session, just a knock at the door. The one
+     * call in this file that never throws: a dead gateway is exactly the answer the caller is asking
+     * for, not a failure to report past it.
+     */
+    suspend fun health(): Boolean = runCatching { http.get("$baseUrl/health").status.isSuccess() }.getOrDefault(false)
+
     /*
      * The email doors — a password, and a code on the mail. Nothing in the app calls these at the moment:
      * the UI offers Google alone, and a default server answers all four with 501 (`emailAuthEnabled`). They

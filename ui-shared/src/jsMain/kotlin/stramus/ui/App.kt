@@ -637,6 +637,10 @@ val App = FC<AppProps> { props ->
     val api = useMemo { props.api ?: StramusApi(serverBaseUrl()) }
     var engine by useState<SyncEngine?>(null)
     var syncUi by useState(SyncUi())
+    // Whether the server answered the last time anyone asked. Unlike [syncUi] this one thing IS
+    // depended on: it is what greys out the sign-in door and the account pane's buttons before a
+    // click that would only ever come back with "the server did not answer".
+    var serverOnline by useState(true)
     var accountOpen by useState(false)
 
     // Set when a session was signed in somewhere the database was not open yet — the landing page — and
@@ -1117,6 +1121,27 @@ val App = FC<AppProps> { props ->
                     if ((result?.applied ?: 0) > 0 || (result?.conflictCopies ?: 0) > 0) reloadAfterSync()
                 }
                 .onFailure { syncUi = syncUi.copy(status = SyncStatus.OFFLINE, error = it.message) }
+        }
+    }
+
+    /** Knocks on the server once and records whether anyone answered. Unlike [runSync] this asks
+     *  whether or not there is a session — the sign-in door needs the answer too. */
+    fun pingServer() {
+        scope.launch { serverOnline = runCatching { api.health() }.getOrDefault(false) }
+    }
+
+    // The same rhythm as the sync loop below, but for a question worth asking whether or not anyone
+    // is signed in: is the server even there. Its own effect, so a build with no session still greys
+    // out the sign-in door the moment the server goes away.
+    useEffect(Unit) {
+        pingServer()
+        val ticking = repeatEvery(SYNC_INTERVAL_MS) { pingServer() }
+        val stopWatchingFocus = onWindowFocus { pingServer() }
+        try {
+            awaitCancellation()
+        } finally {
+            cancelRepeat(ticking)
+            stopWatchingFocus()
         }
     }
 
@@ -3402,6 +3427,7 @@ val App = FC<AppProps> { props ->
             AccountDialog {
                 strings = t
                 state = syncUi
+                this.serverOnline = serverOnline
                 this.api = api
                 this.engine = liveEngine
                 this.store = liveStore
@@ -3457,6 +3483,7 @@ val App = FC<AppProps> { props ->
                 }
                 this.signedIn = syncUi.email != null && syncUi.status != SyncStatus.SIGNED_OUT
                 this.accountEmail = syncUi.email
+                this.serverOnline = serverOnline
                 onSignIn = {
                     settingsOpen = false
                     accountOpen = true

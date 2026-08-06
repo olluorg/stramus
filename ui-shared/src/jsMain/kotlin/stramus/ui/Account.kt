@@ -68,6 +68,9 @@ data class SyncUi(
 external interface AccountDialogProps : Props {
     var strings: Strings
     var state: SyncUi
+    /** Whether the server answered the last health check — greys out everything here that talks to
+     *  it. Signing out is exempt: that is a local decision the server cannot stand in the way of. */
+    var serverOnline: Boolean
     var api: StramusApi
     var engine: SyncEngine
     var store: StramusStore
@@ -190,7 +193,7 @@ val AccountDialog = FC<AccountDialogProps> { props ->
                 className = ClassName("row")
                 button {
                     className = ClassName("btn")
-                    disabled = busy
+                    disabled = busy || !props.serverOnline
                     onClick = {
                         scope.launch {
                             props.onState(props.state.copy(status = SyncStatus.RUNNING))
@@ -227,13 +230,17 @@ val AccountDialog = FC<AccountDialogProps> { props ->
                 }
             }
 
+            if (!props.serverOnline) {
+                p { className = ClassName("muted"); +t.serverUnavailable }
+            }
+
             p {
                 className = ClassName("muted")
                 +t.exportAccountDataHint
             }
             button {
                 className = ClassName("btn")
-                disabled = exporting
+                disabled = exporting || !props.serverOnline
                 onClick = {
                     exporting = true
                     error = null
@@ -256,6 +263,7 @@ val AccountDialog = FC<AccountDialogProps> { props ->
             }
             button {
                 className = ClassName("btn danger")
+                disabled = !props.serverOnline
                 onClick = {
                     if (confirmDialog(t.deleteAccountConfirm)) {
                         scope.launch {
@@ -284,9 +292,13 @@ val AccountDialog = FC<AccountDialogProps> { props ->
             return@modalShell
         }
 
+        if (!props.serverOnline) {
+            p { className = ClassName("muted"); +t.serverUnavailable }
+        }
+
         button {
             className = ClassName("btn google")
-            disabled = busy
+            disabled = busy || !props.serverOnline
             onClick = {
                 busy = true
                 error = null

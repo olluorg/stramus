@@ -76,6 +76,11 @@ external interface SettingsModalProps : Props {
     var onSignIn: () -> Unit
     var onSignOut: () -> Unit
 
+    /** Whether the server answered the last health check. Greys out the sign-in door: there is no
+     *  point opening it on a server that would only send back an error. Signing out stays open — it
+     *  is a local decision the server cannot stand in the way of. */
+    var serverOnline: Boolean
+
     /** What the page opens on: "last" | "first". See [StartView]. */
     var startView: String
     var onStartViewChange: (String) -> Unit
@@ -312,7 +317,15 @@ private fun ChildrenBuilder.accountPane(props: SettingsModalProps, s: Strings) {
             p { className = ClassName("settings-hint"); +s.accountSignedOutHint }
             div {
                 className = ClassName("settings-actions")
-                button { className = ClassName("btn"); onClick = { props.onSignIn() }; +s.signInAccount }
+                button {
+                    className = ClassName("btn")
+                    disabled = !props.serverOnline
+                    onClick = { props.onSignIn() }
+                    +s.signInAccount
+                }
+            }
+            if (!props.serverOnline) {
+                p { className = ClassName("settings-hint"); +s.serverUnavailable }
             }
         }
     }
