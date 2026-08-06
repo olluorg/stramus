@@ -13,6 +13,8 @@ enum class Lang(val id: String, val label: String) {
     JA("ja", "日本語"),
     KO("ko", "한국어"),
     ZH_CN("zh-CN", "简体中文"),
+    IT("it", "Italiano"),
+    TR("tr", "Türkçe"),
     ;
 
     // An exhaustive `when`, not an `if` — so a new entry here is a compile error until it is given a
@@ -28,6 +30,8 @@ enum class Lang(val id: String, val label: String) {
         JA -> JaStrings
         KO -> KoStrings
         ZH_CN -> ZhCnStrings
+        IT -> ItStrings
+        TR -> TrStrings
     }
 
     companion object {
@@ -3939,6 +3943,771 @@ private object KoStrings : Strings {
             - 설정에는 테마, 언어, 그리고 모든 것을 CSV나 북마크로 내보내는 기능이 있습니다.
 
             이 컬렉션의 이름을 바꾸거나 이 메모를 삭제하세요——이제부터는 모두 당신의 것입니다.
+        """.trimIndent(),
+    )
+}
+
+private object ItStrings : Strings {
+    override val on = "Attivo"
+    override val off = "Disattivo"
+    override val experimental = "sperimentale"
+    override val settings = "Impostazioni"
+    override val close = "Chiudi"
+    override val cancel = "Annulla"
+    override val save = "Salva"
+    override val about = "Informazioni"
+    override fun aboutVersion(version: String) = "Versione $version"
+    override fun aboutCopyright(year: String) = "© $year Stramus"
+    override val aboutHomepage = "stramus.space"
+
+    override val expandSidebar = "Espandi pannello"
+    override val collapseSidebar = "Comprimi pannello"
+    override val newSection = "+ Nuova sezione"
+    override val sectionNamePrompt = "Nome della sezione"
+    override val sectionNameDefault = "Nuova sezione"
+    override val collectionNamePrompt = "Nome della raccolta"
+    override val collectionNameDefault = "Nuova raccolta"
+    override val renameHint = "Clic per comprimere, doppio clic per rinominare, trascina per riordinare"
+    override val renameCollectionHint = "Doppio clic per rinominare"
+    override val untitled = "Senza titolo"
+
+    override val newSectionHint = "Aggiungi una sezione al pannello"
+    override val addCollectionHint = "Aggiungi una raccolta a questa sezione"
+    override val deleteSectionHint = "Elimina questa sezione e le raccolte che contiene"
+    override val deleteCollectionHint = "Elimina questa raccolta e le sue schede"
+    override val addCardSectionHint = "Aggiungi un gruppo a questa raccolta"
+    override val deleteCardSectionHint = "Elimina questo gruppo — le sue schede restano nella raccolta, senza gruppo"
+    override val addCardHint = "Aggiungi un link — oppure, dal menu, una nota o un file"
+    override val deleteCardHint = "Elimina questa scheda"
+    override fun openAllHint(count: Int) = "Apri tutte le $count schede in nuove schede del browser"
+
+    override fun confirmDeleteSection(title: String, cards: Int) =
+        "“$title” e le sue raccolte contengono $cards elementi salvati. Eliminare la sezione?"
+    override fun confirmDeleteCollection(title: String, cards: Int) =
+        "“$title” contiene $cards elementi salvati. Eliminare la raccolta?"
+    override fun confirmDeleteCardSection(title: String, cards: Int) =
+        "“$title” contiene $cards schede. Eliminare il gruppo? Le schede restano, senza gruppo."
+    override fun deletedSection(title: String) = "Sezione “$title” eliminata"
+    override fun deletedCollection(title: String) = "Raccolta “$title” eliminata"
+    override fun deletedCardSection(title: String) = "Gruppo “$title” eliminato"
+    override fun deletedCard(title: String) = "“$title” eliminata"
+    override fun movedCard(title: String) = "“$title” spostata"
+    override val sortedCards = "Schede ordinate"
+    override val undo = "Annulla"
+
+    override val searchPlaceholder = "Cerca, digita un indirizzo, o fai una domanda…"
+
+    override val hitsTopSites = "Aperti di frequente"
+    override val hitsTabs = "Schede aperte"
+    override val hitsCards = "Salvato"
+    override val hitsHistory = "Cronologia"
+    override val hitsSites = "Siti"
+    override val hitsCollections = "Raccolte"
+
+    override val hitSwitchToTab = "Passa a"
+    override val hitOpenCollection = "Apri"
+    override val hitAskAi = "Chiedi"
+
+    // Il motore è quello del browser stesso — qualunque esso sia — quindi qui non viene nominato.
+    override fun hitWebSearch(query: String) = "Cerca “$query” nel web"
+    override fun hitOpenUrl(query: String) = "Apri $query"
+    override fun hitAskAiRow(assistant: String, query: String) = "Chiedi a $assistant: “$query”"
+
+    override val forgetSite = "Non suggerire più questa pagina"
+    override val searchHints = "↑↓ scegli · Invio apri · Alt+Invio cerca nel web · ⌘/Ctrl+Invio tutti i risultati · Esc chiudi"
+
+    override val aiChip = "IA"
+    override val aiHeading = "Assistente"
+    override val aiEmpty = "Chiedi qualcosa sulla raccolta aperta, o su qualsiasi altra cosa."
+    override val aiPlaceholder = "Fai un'altra domanda…"
+    override val aiSend = "Chiedi"
+    override val aiThinking = "Sto pensando…"
+    override val aiCopy = "Copia"
+    override val aiSaveNote = "Salva come nota"
+    override val aiUnavailable = "Questo browser non ha nessun modello integrato disponibile."
+    override val aiFailed = "Il modello non è riuscito a rispondere."
+    override fun aiDownloading(percent: Int) = "Download del modello — $percent%. Questo avviene una sola volta."
+    override val aiSystemPrompt = "Sei l'assistente all'interno di stramus, un gestore di segnalibri e schede. " +
+        "Rispondi in modo breve e diretto, nella lingua della domanda. Il Markdown è benvenuto."
+
+    override val aiTriageSetting = "Ordina le schede con il modello integrato"
+    override val aiTriageSettingHint = "Aggiunge un pulsante a una finestra di schede: il modello le legge e propone " +
+        "una raccolta per ciascuna, da controllare prima che venga salvato qualcosa. Tutto resta su " +
+        "questo dispositivo. Su una finestra grande richiede uno o due minuti, e lascia fuori ciò che non riesce a classificare."
+    override val triageTabs = "Ordina in raccolte"
+    override val triageHeading = "Ordina le schede in raccolte"
+    override val triageSummaryHeading = "Di cosa parlava questa sessione"
+    override val triageSummaryTitle = "Riepilogo della sessione"
+    override val triageNew = "nuova"
+    override fun triageNewHint(section: String) = "Questa raccolta non esiste ancora — verrà creata in “$section”."
+    override val triageNewSectionHint = "Questo gruppo non esiste ancora in questa raccolta — verrà creato."
+    override val triageGroupHint = "In quale sezione del pannello verrà creata questa nuova raccolta"
+    override val triageSectionHint = "In quale gruppo della raccolta andrà questa scheda"
+    override val triageNoSection = "Nessun gruppo"
+    override fun triageProgress(done: Int, total: Int) = "Ordinamento dei siti — $done di $total…"
+    override val triageUnsorted = "Non ordinate"
+    override val triageUnsortedHint = "Il modello non ha proposto nulla per queste. Scegli una raccolta, o lasciale aperte."
+    override val triageSkip = "Non salvare"
+    override val triageMoveHint = "In quale raccolta andrà questa scheda"
+    override val triageDuplicate = "già salvato"
+    override val triageDuplicateHint = "Questa pagina è già in una raccolta. Selezionala per salvarla di nuovo."
+    override fun triageRelated(site: String, count: Int) = "Già salvato da $site ($count):"
+    override fun triageApply(count: Int, closesTabs: Boolean) =
+        if (closesTabs) "Salva ($count) e chiudi" else "Salva ($count)"
+    override val aiTriageSystemPrompt = "Ordini le schede aperte nel browser di un utente nelle sue raccolte. " +
+        "Ti vengono fornite le schede e le raccolte esistenti. Per ogni scheda, rispondi con l'unica " +
+        "raccolta a cui appartiene — riusa un nome esistente ovunque la scheda vi si adatti, e inventa " +
+        "un nome breve (una o due parole) solo se non si adatta a nessuna. All'interno di una raccolta " +
+        "puoi indicare un gruppo, riusando anche quelli esistenti. Schede dello stesso sito possono " +
+        "appartenere a raccolte diverse. Rispondi solo con il JSON richiesto."
+
+    override val aiSection = "IA"
+    override val aiAssistant = "Assistente"
+    override val aiAssistantHint = "Chi risponde a una domanda posta dalla barra di ricerca."
+    override val aiProviderLocal = "Sul dispositivo"
+    override fun aiWebChatHint(assistant: String) =
+        "La domanda apre $assistant in questa scheda, già posta. Viene inviata ai server di $assistant — " +
+            "a differenza del modello integrato, che risponde qui e mantiene tutto su questo dispositivo."
+
+    override val aiModel = "Modello"
+    override val aiModelReadyHint = "Il modello integrato del browser. Funziona su questo dispositivo — senza chiave, e nulla ne esce."
+    override val aiModelDownloadableHint = "Il browser lo scaricherà alla prima domanda — qualche centinaio di megabyte, una sola volta."
+    override val aiModelDownloadingHint = "Il browser lo sta scaricando in questo momento."
+    override val aiModelNone = "Non disponibile"
+    override val aiModelNoneHint =
+        "Questo browser non fornisce alla pagina alcun modello integrato, quindi la ricerca non offre di interpellarlo. " +
+            "In Chrome è disponibile per l'estensione; una normale pagina web ha bisogno dei flag per questo."
+    override fun aiModelUnsupported(name: String) = "$name — non disponibile"
+    override val aiModelUnsupportedHint =
+        "Il browser dispone del modello ma non può eseguirlo qui: servono ~22 GB liberi sul disco che " +
+            "contiene il profilo di Chrome, e una GPU con più di 4 GB di memoria."
+
+    override fun resultsFor(query: String) = "Risultati per “$query”"
+    override val noMatchingLinks = "Nessun link corrispondente."
+    override val createCollectionToStart = "Crea una raccolta per iniziare a salvare link."
+    override val sortLinks = "Ordina le schede di questo gruppo"
+    override val sortMenuTitle = "Ordina per"
+    override val addCardSection = "Gruppo"
+    override val pasteUrl = "Incolla un URL"
+    override val addLinkItem = "Link"
+    override val addNoteItem = "Nota"
+    override val addFileItem = "File"
+    override val noLinksYet = "Ancora nessun link — aggiungine uno, o trascinane uno qui."
+    override val ungrouped = "Senza gruppo"
+    override val dragLinksHere = "Trascina qui link o file."
+    override val editDescription = "Modifica descrizione"
+
+    override fun filesTooLarge(names: List<String>, maxMb: Int) =
+        "Non salvato — oltre $maxMb MB: ${names.joinToString(", ")}"
+
+    override val protectSection = "Proteggi con un PIN"
+    override val sectionProtection = "Protezione della sezione"
+    override val changePin = "Cambia PIN"
+    override val removeProtection = "Rimuovi protezione"
+    override val lockNow = "Blocca ora"
+    override val lockedSection = "Protetta con un PIN"
+    override val unlockedSection = "Sbloccata — clic per bloccarla di nuovo"
+    override val enterPinToView = "Inserisci il PIN per vedere le raccolte di questa sezione."
+    override val pinPlaceholder = "PIN"
+    override val unlock = "Sblocca"
+    override val wrongPin = "PIN errato."
+    override val setPinHeading = "Proteggi sezione"
+    override val changePinHeading = "Cambia PIN"
+    override val newPinLabel = "Nuovo PIN"
+    override val repeatPinLabel = "Ripeti il PIN"
+    override val pinMismatch = "I due PIN non coincidono."
+    override fun pinTooShort(min: Int) = "Il PIN deve avere almeno $min cifre."
+    override val pinNote = "Il PIN nasconde l'intera sezione: le sue raccolte non vengono nemmeno nominate " +
+        "finché non viene inserito, e le loro schede restano fuori dalla ricerca e dall'esportazione. " +
+        "Non esiste modo di ripristinare un PIN dimenticato."
+
+    override val makeReadOnlyHint = "Rendi di sola lettura: qui non sarà più possibile aggiungere, modificare o eliminare nulla."
+    override val allowEditing = "Consenti modifica"
+    override val allowEditingHint = "Consenti di nuovo la modifica."
+    override val readOnlyBadge = "sola lettura"
+    override val readOnlyHint = "Sola lettura: qui non è possibile aggiungere, modificare o eliminare nulla."
+
+    override val security = "Sicurezza"
+    override val autoLock = "Blocco automatico"
+    override val autoLockHint = "Blocca di nuovo le sezioni sbloccate dopo questo tempo di inattività."
+    override val autoLockNever = "Mai"
+    override fun autoLockMinutes(minutes: Int) = "$minutes min"
+
+    override val openTabs = "Schede aperte"
+    override val showTabs = "Mostra schede aperte"
+    override val hideTabs = "Nascondi schede aperte"
+    override val noOpenTabs = "Nessuna scheda aperta da salvare."
+    override val searchTabs = "Cerca nelle schede…"
+    override val noMatchingTabs = "Nessuna scheda corrispondente."
+    override val thisWindow = "Questa finestra"
+    override fun windowLabel(number: Int) = "Finestra $number"
+    override val closeTab = "Chiudi scheda"
+    override val sortTabs = "Ordina le schede di questa finestra"
+    override fun saveTabsHint(count: Int, closing: Boolean) =
+        "Salva le schede di questa finestra ($count) nella raccolta aperta, senza gruppo — " +
+            if (closing) "e chiudile" else "e lasciale aperte"
+
+    override fun confirmSaveTabs(count: Int, collection: String, closing: Boolean) =
+        if (closing) "Salvare le schede di questa finestra ($count) in “$collection” e chiuderle?"
+        else "Salvare le schede di questa finestra ($count) in “$collection”?"
+
+    override val tabsSection = "Schede"
+    override val closeSavedTabs = "Dopo aver salvato le schede"
+    override val closeSavedTabsHint =
+        "Cosa succede alle schede di una finestra una volta salvate in una raccolta."
+    override val closeSavedTabsClose = "Chiudile"
+    override val closeSavedTabsKeep = "Lasciale aperte"
+
+    override val paneTabs = "Schede"
+    override val paneHistory = "Cronologia"
+    override val searchHistory = "Cerca nella cronologia…"
+    override val noHistory = "Ancora nulla nella cronologia."
+    override val noMatchingHistory = "Nulla corrisponde nella cronologia."
+    override val today = "Oggi"
+    override val yesterday = "Ieri"
+    override val removeFromHistory = "Rimuovi dalla cronologia"
+
+    override val emptyNote = "Nota vuota"
+    override val fileLabel = "file"
+    override val renameCard = "Modifica"
+    override val cardNamePrompt = "Titolo della scheda"
+    override val renameHeading = "Modifica scheda"
+    override val renameShowUrl = "Mostra indirizzo"
+    override val renameHideUrl = "Nascondi indirizzo"
+    override val renameUrlPrompt = "Indirizzo"
+
+    override val newNote = "Nuova nota"
+    override val editNote = "Modifica nota"
+    override val viewNote = "Nota"
+    override val editNoteAction = "Modifica"
+    override val sectionDescription = "Descrizione del gruppo"
+    override val titlePlaceholder = "Titolo"
+    override val noteDefaultTitle = "Nota"
+    override val notePlaceholder = "Inizia a scrivere…"
+    override val toolBold = "Grassetto"
+    override val toolItalic = "Corsivo"
+    override val toolHighlight = "Evidenzia"
+    override val toolCode = "Codice"
+    override val toolLink = "Link"
+    override val toolHeading = "Titolo"
+    override val toolList = "Elenco puntato"
+    override val toolListLabel = "Elenco"
+    override val highlightPlaceholder = "evidenziato"
+    override val codePlaceholder = "codice"
+    override val linkUrlPrompt = "URL del link"
+    override val draftRestored = "Bozza non salvata ripristinata"
+    override val discardDraft = "Ripristina"
+
+    override val addFile = "Aggiungi file"
+    override val chooseFile = "Scegli un file…"
+    override val download = "Scarica"
+    override val fileDefaultTitle = "File"
+    override fun noPreviewFor(mime: String) = "Nessuna anteprima per $mime — usa Scarica."
+
+    override val appearance = "Aspetto"
+    override val theme = "Tema"
+    override val themeHint = "Segui il sistema, o forza giorno/notte."
+    override val themeAuto = "Auto"
+    override val themeLight = "Chiaro"
+    override val themeDark = "Scuro"
+    override val accentColor = "Colore accento"
+    override val accentColorHint = "Il colore del marchio dietro pulsanti, selezione ed evidenziazioni."
+    override val accentBlue = "Blu"
+    override val accentPurple = "Viola"
+    override val accentGreen = "Verde"
+    override val accentOrange = "Arancione"
+    override val accentRose = "Rosa"
+    override val language = "Lingua"
+    override val languageHint = "La lingua dell'interfaccia."
+    override val cardUrls = "Indirizzi sulle schede"
+    override val cardUrlsHint = "Se una scheda link mostra il suo indirizzo sotto il titolo."
+    override val cardUrlsShow = "Mostra"
+    override val cardUrlsHide = "Nascondi"
+    override val groupsView = "Vista delle sezioni"
+    override val groupsViewHint =
+        "Mostra le sezioni di una raccolta una sotto l'altra, o come cartelle che si aprono dove si trovano."
+    override val groupsViewList = "Elenco"
+    override val groupsViewFolders = "Cartelle"
+    override val folderBack = "Torna alle cartelle"
+    override val swapSidebars = "Ordine dei pannelli"
+    override val swapSidebarsHint = "Da che lato si trova il pannello delle sezioni, rispetto a quello di schede/cronologia."
+    override val swapSidebarsLeft = "Sezioni a sinistra"
+    override val swapSidebarsRight = "Sezioni a destra"
+    override val tabsCardView = "Vista delle schede"
+    override val tabsCardViewHint =
+        "Mostra le schede aperte come elenco, o come griglia di schede della stessa larghezza del pannello centrale."
+    override val tabsCardViewList = "Elenco"
+    override val tabsCardViewCards = "Schede"
+
+    override val startupSection = "Avvio"
+    override val startView = "All'apertura"
+    override val startViewHint = "Quale raccolta viene mostrata all'apertura di stramus. Una raccolta protetta " +
+        "da un PIN non lo è mai — ogni ricaricamento blocca di nuovo la sua sezione."
+    override val startViewLast = "Ultima aperta"
+    override val startViewFirst = "Prima raccolta"
+
+    override val dataSection = "Dati"
+
+    override val export = "Esporta"
+    override val exportHint = "Scarica tutti i link salvati in tutte le raccolte. Una sezione ancora protetta " +
+        "dal suo PIN viene esclusa."
+    override val exportCsv = "Esporta CSV"
+    override val exportBookmarks = "Esporta segnalibri"
+
+    override val import = "Importa"
+    override val importHint = "Importa un file di segnalibri da qualsiasi browser, o un CSV esportato qui. " +
+        "Le cartelle diventano sezioni, raccolte e gruppi; un link già salvato dove finirebbe viene " +
+        "lasciato invariato."
+    override val importFile = "Scegli un file"
+    override val importedTitle = "Importato"
+    override fun importDone(added: Int, skipped: Int) = when (skipped) {
+        0 -> "$added link importati."
+        else -> "$added link importati; $skipped erano già salvati."
+    }
+    override val importNothing = "Nessun link da importare in quel file."
+
+    override val sortTitle = "Titolo A–Z"
+    override val sortUrl = "URL"
+    override val sortDomain = "Dominio"
+    override val sortNewest = "Più recenti prima"
+    override val sortOldest = "Più vecchi prima"
+
+    override val account = "Account"
+    override val accountSignedOutHint = "Accedi per mantenere le tue raccolte su ogni browser che usi. Tutto funziona senza account — resta semplicemente su questo dispositivo."
+    override val signInAccount = "Accedi"
+    override val signOut = "Esci"
+    override val syncNow = "Sincronizza ora"
+    override fun syncedAt(time: String) = "Sincronizzato alle $time"
+    override fun conflictCopies(count: Int) =
+        if (count == 1) "Una nota è stata modificata su due dispositivi contemporaneamente. Entrambe le versioni sono state conservate."
+        else "$count note sono state modificate su due dispositivi contemporaneamente. Di ciascuna sono state conservate entrambe le versioni."
+    override val joinAccountTitle = "Questo browser ha già delle raccolte"
+    override val joinAccountHint = "Puoi aggiungerle all'account, oppure lasciarle qui e prendere ciò che l'account ha già."
+    override val joinAccountKeep = "Aggiungile all'account"
+    override val joinAccountDiscard = "Usa le raccolte dell'account"
+    override val exportAccountData = "Scarica i miei dati"
+    override val exportAccountDataHint = "Tutto ciò che il server conserva su questo account, in formato JSON."
+    override val exportAccountDataFailed = "Impossibile scaricare l'esportazione."
+    override val deleteAccount = "Elimina account"
+    override val deleteAccountHint = "Cancella tutto ciò che il server conserva. Ciò che è su questo dispositivo resta."
+    override val deleteAccountConfirm = "Eliminare l'account e tutto ciò che il server conserva? L'operazione non può essere annullata."
+    override val syncUsage = "Sincronizza statistiche di navigazione"
+    override val syncUsageHint = "Quali pagine apri e con quale frequenza — ciò su cui si basa l'ordinamento della ricerca. Disattivato significa che resta su questo dispositivo."
+    override val optionOn = "Attivo"
+    override val optionOff = "Disattivo"
+    override val signInWithGoogle = "Continua con Google"
+    override val signInUnavailable = "L'accesso non è configurato in questa build. L'app funziona senza account, come sempre."
+    override val serverUnavailable = "Il server non risponde in questo momento. Questa funzione ne ha bisogno — riprova quando sarà di nuovo raggiungibile."
+
+    override val seed = StoreSeed(
+        sectionTitle = "Principale",
+        collectionTitle = "Per iniziare",
+        noteTitle = "Come usare stramus",
+        // Ogni punto elenco è una sola riga: questo è il markdown che legge `Markdown.kt`, e un ritorno
+        // a capo al suo interno termina l'elenco invece di farlo continuare.
+        noteBody = """
+            # Benvenuto in stramus
+
+            Il pannello a sinistra contiene **sezioni**, una sezione contiene **raccolte**, e una raccolta contiene schede — link, file e note come questa.
+
+            ## Salvare una pagina
+            - Trascina una scheda dal pannello destro su una raccolta, oppure usa **⤓ Salva schede aperte** per un'intera finestra in una volta sola.
+            - Passa il mouse sull'intestazione di una sezione e premi il suo **+** per aggiungere un indirizzo incollato, una nota o un file direttamente in quella sezione.
+            - **+ Gruppo** divide una raccolta grande in gruppi — trascina una scheda su uno di essi per spostarla lì.
+
+            ## Trovare una pagina
+            - La barra di ricerca in alto cerca ovunque in una volta sola: ciò che hai salvato, le schede che hai aperte, e dove sei stato.
+            - Digita un indirizzo per aprirlo, o una domanda per interpellare il modello integrato del browser.
+            - ↑↓ per scegliere, Invio per aprire, Esc per chiudere.
+
+            ## Mantenere l'ordine
+            - **Proteggi con un PIN**: una sezione bloccata non nomina nemmeno le sue raccolte, e si blocca di nuovo quando ti allontani.
+            - **🔒 Sola lettura** protegge una raccolta finita da una svista.
+            - Le impostazioni contengono il tema, la lingua e un'esportazione di tutto in CSV o segnalibri.
+
+            Rinomina questa raccolta, o elimina questa nota — ormai tutto questo è tuo.
+        """.trimIndent(),
+    )
+}
+
+private object TrStrings : Strings {
+    override val on = "Açık"
+    override val off = "Kapalı"
+    override val experimental = "deneysel"
+    override val settings = "Ayarlar"
+    override val close = "Kapat"
+    override val cancel = "İptal"
+    override val save = "Kaydet"
+    override val about = "Hakkında"
+    override fun aboutVersion(version: String) = "Sürüm $version"
+    override fun aboutCopyright(year: String) = "© $year Stramus"
+    override val aboutHomepage = "stramus.space"
+
+    override val expandSidebar = "Kenar çubuğunu genişlet"
+    override val collapseSidebar = "Kenar çubuğunu daralt"
+    override val newSection = "+ Yeni bölüm"
+    override val sectionNamePrompt = "Bölüm adı"
+    override val sectionNameDefault = "Yeni bölüm"
+    override val collectionNamePrompt = "Koleksiyon adı"
+    override val collectionNameDefault = "Yeni koleksiyon"
+    override val renameHint = "Daraltmak için tıkla, yeniden adlandırmak için çift tıkla, sıralamak için sürükle"
+    override val renameCollectionHint = "Yeniden adlandırmak için çift tıkla"
+    override val untitled = "Adsız"
+
+    override val newSectionHint = "Kenar çubuğuna bir bölüm ekle"
+    override val addCollectionHint = "Bu bölüme bir koleksiyon ekle"
+    override val deleteSectionHint = "Bu bölümü ve içindeki koleksiyonları sil"
+    override val deleteCollectionHint = "Bu koleksiyonu ve kartlarını sil"
+    override val addCardSectionHint = "Bu koleksiyona bir grup ekle"
+    override val deleteCardSectionHint = "Bu grubu sil — kartları koleksiyonda gruplandırılmadan kalır"
+    override val addCardHint = "Bir bağlantı ekle — veya menüden bir not ya da dosya ekle"
+    override val deleteCardHint = "Bu kartı sil"
+    override fun openAllHint(count: Int) = "$count kartın tümünü yeni sekmelerde aç"
+
+    override fun confirmDeleteSection(title: String, cards: Int) =
+        "“$title” ve koleksiyonlarında $cards kayıtlı öğe var. Bölüm silinsin mi?"
+    override fun confirmDeleteCollection(title: String, cards: Int) =
+        "“$title” içinde $cards kayıtlı öğe var. Koleksiyon silinsin mi?"
+    override fun confirmDeleteCardSection(title: String, cards: Int) =
+        "“$title” içinde $cards kart var. Grup silinsin mi? Kartlar gruplandırılmadan kalır."
+    override fun deletedSection(title: String) = "“$title” bölümü silindi"
+    override fun deletedCollection(title: String) = "“$title” koleksiyonu silindi"
+    override fun deletedCardSection(title: String) = "“$title” grubu silindi"
+    override fun deletedCard(title: String) = "“$title” silindi"
+    override fun movedCard(title: String) = "“$title” taşındı"
+    override val sortedCards = "Kartlar sıralandı"
+    override val undo = "Geri al"
+
+    override val searchPlaceholder = "Ara, bir adres yaz, ya da soru sor…"
+
+    override val hitsTopSites = "Sık açılanlar"
+    override val hitsTabs = "Açık sekmeler"
+    override val hitsCards = "Kaydedilenler"
+    override val hitsHistory = "Geçmiş"
+    override val hitsSites = "Siteler"
+    override val hitsCollections = "Koleksiyonlar"
+
+    override val hitSwitchToTab = "Geç"
+    override val hitOpenCollection = "Aç"
+    override val hitAskAi = "Sor"
+
+    // Arama motoru tarayıcının kendi ayarına bağlıdır — hangisi olursa olsun — bu yüzden burada belirtilmez.
+    override fun hitWebSearch(query: String) = "“$query” için web'de ara"
+    override fun hitOpenUrl(query: String) = "$query aç"
+    override fun hitAskAiRow(assistant: String, query: String) = "$assistant'a sor: “$query”"
+
+    override val forgetSite = "Bu sayfayı bir daha önerme"
+    override val searchHints = "↑↓ seç · Enter aç · Alt+Enter web'de ara · ⌘/Ctrl+Enter tüm sonuçlar · Esc kapat"
+
+    override val aiChip = "YZ"
+    override val aiHeading = "Asistan"
+    override val aiEmpty = "Açık olan koleksiyon hakkında ya da başka herhangi bir şey hakkında soru sor."
+    override val aiPlaceholder = "Başka bir soru sor…"
+    override val aiSend = "Sor"
+    override val aiThinking = "Düşünüyor…"
+    override val aiCopy = "Kopyala"
+    override val aiSaveNote = "Not olarak kaydet"
+    override val aiUnavailable = "Bu tarayıcıda kullanılabilir yerleşik bir model yok."
+    override val aiFailed = "Model yanıt veremedi."
+    override fun aiDownloading(percent: Int) = "Model indiriliyor — %$percent. Bu yalnızca bir kez olur."
+    override val aiSystemPrompt = "Sen, bir yer imi ve sekme yöneticisi olan stramus içindeki asistansın. " +
+        "Sorunun sorulduğu dilde, kısa ve net cevap ver. Markdown kullanabilirsin."
+
+    override val aiTriageSetting = "Sekmeleri yerleşik modelle sırala"
+    override val aiTriageSettingHint = "Bir sekme penceresine bir düğme ekler: model sekmeleri okur ve " +
+        "her biri için, herhangi bir şey kaydedilmeden önce senin kontrol edebileceğin bir koleksiyon önerir. " +
+        "Her şey bu cihazda kalır. Büyük bir pencerede bir iki dakika sürer ve sınıflandıramadıklarını dışarıda bırakır."
+    override val triageTabs = "Koleksiyonlara ayır"
+    override val triageHeading = "Sekmeleri koleksiyonlara ayır"
+    override val triageSummaryHeading = "Bu oturum neyle ilgiliydi"
+    override val triageSummaryTitle = "Oturum özeti"
+    override val triageNew = "yeni"
+    override fun triageNewHint(section: String) = "Bu koleksiyon henüz yok — “$section” içinde oluşturulacak."
+    override val triageNewSectionHint = "Bu grup bu koleksiyonda henüz yok — oluşturulacak."
+    override val triageGroupHint = "Bu yeni koleksiyon kenar çubuğunun hangi bölümünde oluşturulacak"
+    override val triageSectionHint = "Bu sekme koleksiyonun hangi grubuna girecek"
+    override val triageNoSection = "Grup yok"
+    override fun triageProgress(done: Int, total: Int) = "Siteler sıralanıyor — $total üzerinden $done…"
+    override val triageUnsorted = "Sıralanmadı"
+    override val triageUnsortedHint = "Model bunlar hakkında bir şey söylemedi. Bir koleksiyon seç, ya da açık bırak."
+    override val triageSkip = "Kaydetme"
+    override val triageMoveHint = "Bu sekme hangi koleksiyona girecek"
+    override val triageDuplicate = "zaten kayıtlı"
+    override val triageDuplicateHint = "Bu sayfa zaten bir koleksiyonda var. Tekrar kaydetmek için işaretle."
+    override fun triageRelated(site: String, count: Int) = "$site sitesinden zaten kayıtlı ($count):"
+    override fun triageApply(count: Int, closesTabs: Boolean) =
+        if (closesTabs) "Kaydet ($count) ve kapat" else "Kaydet ($count)"
+    override val aiTriageSystemPrompt = "Bir kullanıcının tarayıcısında açık olan sekmeleri onun koleksiyonlarına " +
+        "ayırıyorsun. Sana sekmeler ve mevcut koleksiyonlar veriliyor. Her sekme için, ait olduğu tek " +
+        "koleksiyonla cevap ver — sekme uyduğu her yerde mevcut bir adı yeniden kullan, ve hiçbirine " +
+        "uymuyorsa sadece kısa yeni bir ad (bir ya da iki kelime) uydur. Bir koleksiyon içinde, mevcut " +
+        "olanları da yeniden kullanarak bir grup belirtebilirsin. Aynı sitenin sekmeleri farklı " +
+        "koleksiyonlara ait olabilir. Sadece istenen JSON ile cevap ver."
+
+    override val aiSection = "YZ"
+    override val aiAssistant = "Asistan"
+    override val aiAssistantHint = "Arama kutusundan sorulan bir soruyu kimin yanıtladığı."
+    override val aiProviderLocal = "Cihaz üzerinde"
+    override fun aiWebChatHint(assistant: String) =
+        "Soru, bu sekmede $assistant'ı açar ve soru zaten sorulmuş olur. Bu, $assistant'ın sunucularına " +
+            "gönderilir — burada yanıt veren ve her şeyi bu cihazda tutan cihaz üzerindeki modelin aksine."
+
+    override val aiModel = "Model"
+    override val aiModelReadyHint = "Tarayıcının yerleşik modeli. Bu cihazda çalışır — anahtar gerekmez, hiçbir şey dışarı çıkmaz."
+    override val aiModelDownloadableHint = "Tarayıcı bunu ilk soruda indirecek — birkaç yüz megabayt, yalnızca bir kez."
+    override val aiModelDownloadingHint = "Tarayıcı şu anda indiriyor."
+    override val aiModelNone = "Kullanılamıyor"
+    override val aiModelNoneHint =
+        "Bu tarayıcı sayfaya yerleşik bir model sunmuyor, bu yüzden arama da ona soru sormayı önermiyor. " +
+            "Chrome'da bu, uzantı için kullanılabilir; sıradan bir web sayfasının bunun için bayraklara ihtiyacı vardır."
+    override fun aiModelUnsupported(name: String) = "$name — kullanılamıyor"
+    override val aiModelUnsupportedHint =
+        "Tarayıcıda model var ama burada çalıştıramıyor: Chrome profilini içeren diskte ~22 GB boş alan " +
+            "ve 4 GB'den fazla belleğe sahip bir GPU gerekiyor."
+
+    override fun resultsFor(query: String) = "“$query” için sonuçlar"
+    override val noMatchingLinks = "Eşleşen bağlantı yok."
+    override val createCollectionToStart = "Bağlantı kaydetmeye başlamak için bir koleksiyon oluştur."
+    override val sortLinks = "Bu grubun kartlarını sırala"
+    override val sortMenuTitle = "Sırala"
+    override val addCardSection = "Grup"
+    override val pasteUrl = "Bir URL yapıştır"
+    override val addLinkItem = "Bağlantı"
+    override val addNoteItem = "Not"
+    override val addFileItem = "Dosya"
+    override val noLinksYet = "Henüz bağlantı yok — bir tane ekle, ya da buraya sürükle."
+    override val ungrouped = "Grupsuz"
+    override val dragLinksHere = "Bağlantıları veya dosyaları buraya sürükle."
+    override val editDescription = "Açıklamayı düzenle"
+
+    override fun filesTooLarge(names: List<String>, maxMb: Int) =
+        "Kaydedilmedi — $maxMb MB'ı aşıyor: ${names.joinToString(", ")}"
+
+    override val protectSection = "PIN ile koru"
+    override val sectionProtection = "Bölüm koruması"
+    override val changePin = "PIN'i değiştir"
+    override val removeProtection = "Korumayı kaldır"
+    override val lockNow = "Şimdi kilitle"
+    override val lockedSection = "PIN ile korunuyor"
+    override val unlockedSection = "Kilidi açık — yeniden kilitlemek için tıkla"
+    override val enterPinToView = "Bu bölümün koleksiyonlarını görmek için PIN'i gir."
+    override val pinPlaceholder = "PIN"
+    override val unlock = "Kilidi aç"
+    override val wrongPin = "Yanlış PIN."
+    override val setPinHeading = "Bölümü koru"
+    override val changePinHeading = "PIN'i değiştir"
+    override val newPinLabel = "Yeni PIN"
+    override val repeatPinLabel = "PIN'i tekrar gir"
+    override val pinMismatch = "İki PIN birbirini tutmuyor."
+    override fun pinTooShort(min: Int) = "PIN en az $min haneli olmalı."
+    override val pinNote = "PIN tüm bölümü gizler: girilmeden koleksiyonlarının adları bile görünmez, " +
+        "kartları arama ve dışa aktarmanın dışında kalır. Unutulan bir PIN sıfırlanamaz."
+
+    override val makeReadOnlyHint = "Salt okunur yap: burada artık hiçbir şey eklenemez, değiştirilemez veya silinemez."
+    override val allowEditing = "Düzenlemeye izin ver"
+    override val allowEditingHint = "Düzenlemeye yeniden izin ver."
+    override val readOnlyBadge = "salt okunur"
+    override val readOnlyHint = "Salt okunur: burada hiçbir şey eklenemez, değiştirilemez veya silinemez."
+
+    override val security = "Güvenlik"
+    override val autoLock = "Otomatik kilit"
+    override val autoLockHint = "Bu kadar süre etkinlik olmadığında kilidi açık bölümleri yeniden kilitle."
+    override val autoLockNever = "Asla"
+    override fun autoLockMinutes(minutes: Int) = "$minutes dk"
+
+    override val openTabs = "Açık sekmeler"
+    override val showTabs = "Açık sekmeleri göster"
+    override val hideTabs = "Açık sekmeleri gizle"
+    override val noOpenTabs = "Kaydedilecek açık sekme yok."
+    override val searchTabs = "Sekmelerde ara…"
+    override val noMatchingTabs = "Eşleşen sekme yok."
+    override val thisWindow = "Bu pencere"
+    override fun windowLabel(number: Int) = "Pencere $number"
+    override val closeTab = "Sekmeyi kapat"
+    override val sortTabs = "Bu pencerenin sekmelerini sırala"
+    override fun saveTabsHint(count: Int, closing: Boolean) =
+        "Bu pencerenin sekmelerini ($count) açık koleksiyona, grupsuz olarak kaydet — " +
+            if (closing) "ve kapat" else "ve açık bırak"
+
+    override fun confirmSaveTabs(count: Int, collection: String, closing: Boolean) =
+        if (closing) "Bu pencerenin sekmeleri ($count) “$collection” içine kaydedilip kapatılsın mı?"
+        else "Bu pencerenin sekmeleri ($count) “$collection” içine kaydedilsin mi?"
+
+    override val tabsSection = "Sekmeler"
+    override val closeSavedTabs = "Sekmeleri kaydettikten sonra"
+    override val closeSavedTabsHint =
+        "Bir pencerenin sekmeleri bir koleksiyona kaydedildikten sonra onlara ne olacağı."
+    override val closeSavedTabsClose = "Kapat"
+    override val closeSavedTabsKeep = "Açık bırak"
+
+    override val paneTabs = "Sekmeler"
+    override val paneHistory = "Geçmiş"
+    override val searchHistory = "Geçmişte ara…"
+    override val noHistory = "Geçmişte henüz bir şey yok."
+    override val noMatchingHistory = "Geçmişte eşleşen bir şey yok."
+    override val today = "Bugün"
+    override val yesterday = "Dün"
+    override val removeFromHistory = "Geçmişten kaldır"
+
+    override val emptyNote = "Boş not"
+    override val fileLabel = "dosya"
+    override val renameCard = "Düzenle"
+    override val cardNamePrompt = "Kart başlığı"
+    override val renameHeading = "Kartı düzenle"
+    override val renameShowUrl = "Adresi göster"
+    override val renameHideUrl = "Adresi gizle"
+    override val renameUrlPrompt = "Adres"
+
+    override val newNote = "Yeni not"
+    override val editNote = "Notu düzenle"
+    override val viewNote = "Not"
+    override val editNoteAction = "Düzenle"
+    override val sectionDescription = "Grup açıklaması"
+    override val titlePlaceholder = "Başlık"
+    override val noteDefaultTitle = "Not"
+    override val notePlaceholder = "Yazmaya başla…"
+    override val toolBold = "Kalın"
+    override val toolItalic = "İtalik"
+    override val toolHighlight = "Vurgula"
+    override val toolCode = "Kod"
+    override val toolLink = "Bağlantı"
+    override val toolHeading = "Başlık"
+    override val toolList = "Madde işaretli liste"
+    override val toolListLabel = "Liste"
+    override val highlightPlaceholder = "vurgu"
+    override val codePlaceholder = "kod"
+    override val linkUrlPrompt = "Bağlantı URL'si"
+    override val draftRestored = "Kaydedilmemiş taslak geri yüklendi"
+    override val discardDraft = "Sıfırla"
+
+    override val addFile = "Dosya ekle"
+    override val chooseFile = "Bir dosya seç…"
+    override val download = "İndir"
+    override val fileDefaultTitle = "Dosya"
+    override fun noPreviewFor(mime: String) = "$mime için satır içi önizleme yok — İndir'i kullan."
+
+    override val appearance = "Görünüm"
+    override val theme = "Tema"
+    override val themeHint = "Sistemi izle, ya da gündüz/gece modunu zorla."
+    override val themeAuto = "Otomatik"
+    override val themeLight = "Açık"
+    override val themeDark = "Koyu"
+    override val accentColor = "Vurgu rengi"
+    override val accentColorHint = "Düğmelerin, seçimin ve vurguların arkasındaki marka rengi."
+    override val accentBlue = "Mavi"
+    override val accentPurple = "Mor"
+    override val accentGreen = "Yeşil"
+    override val accentOrange = "Turuncu"
+    override val accentRose = "Gül"
+    override val language = "Dil"
+    override val languageHint = "Arayüzün dili."
+    override val cardUrls = "Kart adresleri"
+    override val cardUrlsHint = "Bir bağlantı kartının başlığın altında adresini gösterip göstermeyeceği."
+    override val cardUrlsShow = "Göster"
+    override val cardUrlsHide = "Gizle"
+    override val groupsView = "Bölüm görünümü"
+    override val groupsViewHint =
+        "Bir koleksiyonun bölümlerini alt alta göster, ya da bulundukları yerde açılan klasörler olarak göster."
+    override val groupsViewList = "Liste"
+    override val groupsViewFolders = "Klasörler"
+    override val folderBack = "Klasörlere dön"
+    override val swapSidebars = "Kenar çubuğu sırası"
+    override val swapSidebarsHint = "Bölümler kenar çubuğunun, sekmeler/geçmiş kenar çubuğuna göre hangi tarafta olduğu."
+    override val swapSidebarsLeft = "Bölümler solda"
+    override val swapSidebarsRight = "Bölümler sağda"
+    override val tabsCardView = "Sekme görünümü"
+    override val tabsCardViewHint =
+        "Açık sekmeleri liste olarak, ya da orta panelle aynı genişlikte bir kart ızgarası olarak göster."
+    override val tabsCardViewList = "Liste"
+    override val tabsCardViewCards = "Kartlar"
+
+    override val startupSection = "Başlangıç"
+    override val startView = "Açılışta"
+    override val startViewHint = "stramus açıldığında hangi koleksiyonun gösterileceği. Bir PIN'in arkasındaki " +
+        "koleksiyon asla bu olmaz — her yeniden yüklemede bölümü yeniden kilitlenir."
+    override val startViewLast = "Son açılan"
+    override val startViewFirst = "İlk koleksiyon"
+
+    override val dataSection = "Veri"
+
+    override val export = "Dışa aktar"
+    override val exportHint = "Tüm koleksiyonlardaki tüm kayıtlı bağlantıları indir. PIN'i henüz girilmemiş " +
+        "bir bölüm dışarıda bırakılır."
+    override val exportCsv = "CSV olarak dışa aktar"
+    override val exportBookmarks = "Yer imlerini dışa aktar"
+
+    override val import = "İçe aktar"
+    override val importHint = "Herhangi bir tarayıcıdan bir yer imi dosyası, ya da burada dışa aktarılmış bir " +
+        "CSV içe aktar. Klasörler bölümlere, koleksiyonlara ve gruplara dönüşür; ineceği yerde zaten " +
+        "kayıtlı olan bir bağlantı olduğu gibi bırakılır."
+    override val importFile = "Bir dosya seç"
+    override val importedTitle = "İçe aktarıldı"
+    override fun importDone(added: Int, skipped: Int) = when (skipped) {
+        0 -> "$added bağlantı içe aktarıldı."
+        else -> "$added bağlantı içe aktarıldı; $skipped tanesi zaten kayıtlıydı."
+    }
+    override val importNothing = "O dosyada içe aktarılacak bağlantı yok."
+
+    override val sortTitle = "Başlık A–Z"
+    override val sortUrl = "URL"
+    override val sortDomain = "Alan adı"
+    override val sortNewest = "Önce en yeni"
+    override val sortOldest = "Önce en eski"
+
+    override val account = "Hesap"
+    override val accountSignedOutHint = "Koleksiyonlarını kullandığın her tarayıcıda tutmak için oturum aç. Hesap olmadan da her şey çalışır — sadece bu cihazda kalır."
+    override val signInAccount = "Oturum aç"
+    override val signOut = "Oturumu kapat"
+    override val syncNow = "Şimdi senkronize et"
+    override fun syncedAt(time: String) = "$time saatinde senkronize edildi"
+    override fun conflictCopies(count: Int) =
+        if (count == 1) "Bir not iki cihazda aynı anda düzenlendi. Her iki sürüm de korundu."
+        else "$count not iki cihazda aynı anda düzenlendi. Her birinin iki sürümü de korundu."
+    override val joinAccountTitle = "Bu tarayıcıda zaten koleksiyonlar var"
+    override val joinAccountHint = "Onları hesaba ekleyebilir, ya da burada bırakıp hesapta zaten var olanları alabilirsin."
+    override val joinAccountKeep = "Hesaba ekle"
+    override val joinAccountDiscard = "Hesabın koleksiyonlarını kullan"
+    override val exportAccountData = "Verilerimi indir"
+    override val exportAccountDataHint = "Sunucunun bu hesap hakkında sakladığı her satır, JSON olarak."
+    override val exportAccountDataFailed = "Dışa aktarma indirilemedi."
+    override val deleteAccount = "Hesabı sil"
+    override val deleteAccountHint = "Sunucunun sakladığı her şeyi siler. Bu cihazda olanlar kalır."
+    override val deleteAccountConfirm = "Hesap ve sunucunun sakladığı her şey silinsin mi? Bu geri alınamaz."
+    override val syncUsage = "Tarama istatistiklerini senkronize et"
+    override val syncUsageHint = "Hangi sayfaları ne sıklıkla açtığın — aramanın sıralamada kullandığı şey. Kapalı, bunun bu cihazda kaldığı anlamına gelir."
+    override val optionOn = "Açık"
+    override val optionOff = "Kapalı"
+    override val signInWithGoogle = "Google ile devam et"
+    override val signInUnavailable = "Bu derlemede oturum açma ayarlanmamış. Uygulama her zaman olduğu gibi hesap olmadan da çalışır."
+    override val serverUnavailable = "Sunucu şu anda yanıt vermiyor. Bunun için sunucuya ihtiyaç var — geri geldiğinde tekrar dene."
+
+    override val seed = StoreSeed(
+        sectionTitle = "Ana",
+        collectionTitle = "Başlarken",
+        noteTitle = "stramus nasıl kullanılır",
+        // Her madde tek bir satırdır: burada `Markdown.kt` tarafından okunan markdown var, ve içinde
+        // bir satır sonu, listeyi devam ettirmek yerine bitirir.
+        noteBody = """
+            # stramus'a hoş geldin
+
+            Soldaki kenar çubuğu **bölümler** içerir, bir bölüm **koleksiyonlar** içerir, ve bir koleksiyon kartlar içerir — bağlantılar, dosyalar ve bunun gibi notlar.
+
+            ## Bir sayfayı kaydetme
+            - Sağ kenar çubuğundaki bir sekmeyi bir koleksiyona sürükle, ya da tüm bir pencereyi bir kerede kaydetmek için **⤓ Açık sekmeleri kaydet**'i kullan.
+            - Bir bölümün başlığının üzerine gel ve yapıştırılmış bir adresi, bir notu ya da bir dosyayı doğrudan o bölüme eklemek için **+**'ya bas.
+            - **+ Grup**, büyük bir koleksiyonu gruplara böler — bir kartı bir grubun üzerine bırakarak oraya taşı.
+
+            ## Bir sayfa bulma
+            - Üstteki arama kutusu her şeyi aynı anda arar: kaydettiklerini, açık olan sekmelerini, ve nerelerde bulunduğunu.
+            - Açmak için bir adres yaz, ya da tarayıcının yerleşik modeline sormak için bir soru yaz.
+            - Seçmek için ↑↓, açmak için Enter, kapatmak için Esc.
+
+            ## Düzeni korumak
+            - **PIN ile koru**: kilitli bir bölüm koleksiyonlarının adlarını bile göstermez, ve sen uzaklaştığında yeniden kilitlenir.
+            - **🔒 Salt okunur**, bitmiş bir koleksiyonu yanlışlıkla dokunmaktan korur.
+            - Ayarlar; temayı, dili ve her şeyin CSV'ye ya da yer imlerine dışa aktarılmasını içerir.
+
+            Bu koleksiyonu yeniden adlandır, ya da bu notu sil — artık bunların hepsi senin.
         """.trimIndent(),
     )
 }
