@@ -38,6 +38,16 @@ interface Strings {
     val cancel: String
     val save: String
 
+    /** Opens the About modal, from the left sidebar footer. */
+    val about: String
+
+    /** The version line in the About modal, e.g. "Version 1.2.1". */
+    fun aboutVersion(version: String): String
+
+    /** The copyright line in the About modal, e.g. "© 2024–2026 Stramus". */
+    fun aboutCopyright(year: String): String
+    val aboutHomepage: String
+
     // Left sidebar
     val expandSidebar: String
     val collapseSidebar: String
@@ -469,6 +479,10 @@ private object EnStrings : Strings {
     override val close = "Close"
     override val cancel = "Cancel"
     override val save = "Save"
+    override val about = "About"
+    override fun aboutVersion(version: String) = "Version $version"
+    override fun aboutCopyright(year: String) = "© $year Stramus"
+    override val aboutHomepage = "stramus.space"
 
     override val expandSidebar = "Expand sidebar"
     override val collapseSidebar = "Collapse sidebar"
@@ -839,6 +853,10 @@ private object RuStrings : Strings {
     override val close = "Закрыть"
     override val cancel = "Отмена"
     override val save = "Сохранить"
+    override val about = "О приложении"
+    override fun aboutVersion(version: String) = "Версия $version"
+    override fun aboutCopyright(year: String) = "© $year Stramus"
+    override val aboutHomepage = "stramus.space"
 
     override val expandSidebar = "Развернуть панель"
     override val collapseSidebar = "Свернуть панель"

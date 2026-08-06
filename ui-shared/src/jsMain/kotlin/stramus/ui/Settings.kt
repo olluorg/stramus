@@ -133,6 +133,7 @@ private enum class SettingsTab(val icon: String, val title: (Strings) -> String)
     SECURITY("lock", { it.security }),
     AI("sparkles", { it.aiSection }),
     DATA("save", { it.dataSection }),
+    ABOUT("info", { it.about }),
 }
 
 /** What the settings page says about the model: which one, and whether it can actually answer. */
@@ -495,6 +496,7 @@ val SettingsModal = FC<SettingsModalProps> { props ->
                     SettingsTab.SECURITY -> securityPane(props, s)
                     SettingsTab.AI -> aiPane(props, s)
                     SettingsTab.DATA -> dataPane(props, s)
+                    SettingsTab.ABOUT -> aboutPane(s)
                 }
             }
         }
