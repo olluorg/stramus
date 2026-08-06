@@ -10,7 +10,7 @@ import web.cssom.ClassName
 
 /** Kept in step with `version` in extension/src/jsMain/resources/manifest.json by hand — there is no
  *  build step that reads one into the other. */
-const val APP_VERSION = "1.2.1"
+const val APP_VERSION = "1.3.0"
 
 private fun currentYear(): Int = js("new Date().getFullYear()") as Int
 
