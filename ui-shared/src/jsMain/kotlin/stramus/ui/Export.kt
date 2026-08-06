@@ -44,9 +44,16 @@ internal suspend fun exportCsv(store: StramusStore, lockedSections: Set<Uuid>) {
     downloadFile("stramus.csv", "text/csv", rows.toString())
 }
 
+private fun StringBuilder.appendLink(indent: String, title: String, url: String) {
+    append(indent).append("<DT><A HREF=\"").append(htmlEscape(url)).append("\">")
+        .append(htmlEscape(title)).append("</A>\n")
+}
+
 /**
  * Export all links as a Netscape bookmarks file (importable into Chrome/Firefox), nesting
- * Section → Collection folders. Triggers a download.
+ * Section → Collection → CardSection folders — the ungrouped cards of a collection come first, an
+ * unnamed peer of the card sections, mirroring how the grid always draws them first on screen.
+ * Triggers a download.
  */
 internal suspend fun exportBookmarks(store: StramusStore, lockedSections: Set<Uuid>) {
     val sections = store.sections.all().filter { it.id !in lockedSections }.sortedBy { it.orderKey }
@@ -62,9 +69,20 @@ internal suspend fun exportBookmarks(store: StramusStore, lockedSections: Set<Uu
         html.append("    <DT><H3>").append(htmlEscape(section.title)).append("</H3>\n    <DL><p>\n")
         for (col in cols) {
             html.append("        <DT><H3>").append(htmlEscape(col.title)).append("</H3>\n        <DL><p>\n")
-            for (card in store.cards.byCollection(col.id)) {
-                html.append("            <DT><A HREF=\"").append(htmlEscape(card.url)).append("\">")
-                    .append(htmlEscape(card.title)).append("</A>\n")
+            val cards = store.cards.byCollection(col.id).sortedBy { it.orderKey }
+            val byGroup = cards.groupBy { it.cardSectionId }
+            for (card in byGroup[null].orEmpty()) {
+                html.appendLink("            ", card.title, card.url)
+            }
+            val cardSections = store.cardSections.byCollection(col.id).sortedBy { it.orderKey }
+            for (cs in cardSections) {
+                val grouped = byGroup[cs.id].orEmpty()
+                html.append("            <DT><H3>").append(htmlEscape(cs.title)).append("</H3>\n")
+                    .append("            <DL><p>\n")
+                for (card in grouped) {
+                    html.appendLink("                ", card.title, card.url)
+                }
+                html.append("            </DL><p>\n")
             }
             html.append("        </DL><p>\n")
         }
