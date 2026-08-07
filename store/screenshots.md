@@ -1,84 +1,67 @@
 # Taking the store screenshots
 
-Five 1280×800 PNGs, shot against [`screenshot-data.csv`](screenshot-data.csv) in a throwaway Chrome
-profile. The Web Store does not scale images: 1280×800 exactly, and no browser chrome in frame.
+Five 1280×800 PNGs, shot against [`screenshot-data.csv`](screenshot-data.csv). The Web Store does
+not scale images: 1280×800 exactly, and no browser chrome in frame.
 
-Everything here has to be done by hand — the automation available to Claude cannot open
-`chrome://` or `chrome-extension://` URLs, so the new tab page can be neither driven nor captured
-from outside the browser.
+This is scripted — see [`tools/screenshots`](../tools/screenshots), which drives the built
+extension with Playwright in a throwaway Chrome profile and produces exactly these five PNGs (plus
+some bonus onboarding/FAQ shots beyond the store listing). It also runs in CI
+([`.github/workflows/screenshots.yml`](../.github/workflows/screenshots.yml)) on every tag push,
+as a downloadable artifact for review.
 
-## 1. A profile with nothing in it
+## Usual path
 
-A separate profile keeps your own collections out of the shots, and keeps the demo import out of your
-collections. `--user-data-dir` makes one that is a directory rather than an entry in your profile list:
-
-```powershell
-& "C:\Program Files\Google\Chrome\Application\chrome.exe" `
-  --user-data-dir="$env:TEMP\stramus-shots" --no-first-run --no-default-browser-check
+```sh
+./gradlew :extension:jsBrowserDistribution     # the build the shots are taken against
+cd tools/screenshots
+npm install && npx playwright install chromium
+node capture.mjs                                # the 5 shots below, into tools/screenshots/output/
 ```
 
-Delete `%TEMP%\stramus-shots` afterwards and the profile is gone. Do not sign into Google in it, and do
-not sign into stramus: an account would put the demo data on the server and then on your other
-browsers, and the account button would put your email address in the shot.
+Then, after looking at the output:
 
-## 2. The extension
-
-`chrome://extensions` → **Developer mode** on → **Load unpacked** →
-
-```
-C:\projects\stramus\extension\build\dist\js\productionExecutable
+```sh
+cp tools/screenshots/output/0{1,2,3,4,5}-*.png store/screenshots/
 ```
 
-This is the build the release ZIP is made from — version 1.2.0, without the localhost host permission.
-Sign-in will not work in this profile (the OAuth client is registered for a different extension ID),
-which does not matter here: the shots are of a signed-out app.
+Copying in is a manual step on purpose — these are marketing assets, and this directory shouldn't
+change without someone looking at the diff first. See
+[`tools/screenshots/README.md`](../tools/screenshots/README.md) for what each shot does, how to add
+one, and the couple of things (native drag-and-drop, extension loading flags, the on-device AI
+model's availability) that made this fiddlier than a plain page screenshot.
 
-## 3. The data
-
-Open a new tab (the extension is now what a new tab is), then **⚙ Settings** → *Import* →
-**⤓ Choose a file** → `C:\projects\stramus\store\screenshot-data.csv`. It should report 66 links added,
-laid out as three sections in the sidebar — Work, Reading, Home.
-
-**Then give the profile some history**, or the search box in shot 3 will have none to find: visit a
-handful of the sites from the demo set — `kotlinlang.org`, `github.com`, `figma.com`,
-`developer.mozilla.org`, `news.ycombinator.com` — and open two or three of them from a card in
-stramus, which is what teaches it what to rank first.
-
-Leave about eight tabs open in the window, of the same flavour as the collections. They are what the
-tab pane shows in shots 1 and 2, and an empty pane makes the product look empty.
-
-Theme: **☀ Light** for shots 1–3 (it reads better as a thumbnail in the store's grid), and it is worth
-making shot 5 **☾ Dark** so the listing shows both.
-
-## 4. Capturing at exactly 1280×800
-
-Resizing the window by hand gives the wrong number — the frame and the tab strip are part of it.
-DevTools captures the viewport alone, at the size you set:
-
-1. `F12` → `Ctrl+Shift+M` (device toolbar).
-2. In the size boxes at the top: **1280 × 800**. Set the zoom next to them to **100%**.
-3. The **⋮** menu of the device toolbar → **Add device pixel ratio** → set **DPR = 1**. Without this a
-   HiDPI screen writes a 2560×1600 file, which the store rejects.
-4. `Ctrl+Shift+P` → type `screenshot` → **Capture screenshot**. The PNG lands in Downloads, 1280×800,
-   with no browser chrome in it.
-
-Keep DevTools docked to the side rather than undocked, and do not close the device toolbar between
-shots — the layout the app chooses depends on the viewport width, and reopening it can change it.
-
-Put the files in `store/screenshots/` as `01-collection.png` … `05-settings.png`.
-
-## 5. The five shots
+## The five shots
 
 | # | File | What is in frame |
 | --- | --- | --- |
 | 1 | `01-collection.png` | **Work → Frontend** open: the sections sidebar on the left, the card grid with its Docs / Tools / Design headings in the middle, the tab pane on the right. This one is the listing's thumbnail and does most of the persuading — it should look populated and nothing should be mid-interaction. |
-| 2 | `02-tabs.png` | The tab pane, mid-save: the window's tabs listed, one of them dragged over a collection (hold it there), or the window's ⤓ hovered so the "save these tabs" affordance is visible. |
-| 3 | `03-search.png` | The search box with `kotlin` typed into it, showing all three kinds of hit at once — cards from the Backend collection, an open tab, a page from history. If history rows do not appear, the profile has not visited enough of the demo sites yet. |
-| 4 | `04-assistant.png` | The assistant answering over the collection. What it is given is the links of the collection that is *open*, so ask about those — a question about Frontend while Everyday is open gets "none of your provided links cover that", which is the feature looking broken. Open **Work → Frontend** and ask something its cards answer, e.g. *"Which of these links would help me compress an image?"* (Squoosh). The window is badged "AI" whichever assistant is chosen — the on-device one is named as such only in Settings → AI. Needs Chrome 138+ with the model downloaded; if the window never appears, skip this shot, four screenshots is a complete listing. |
-| 5 | `05-settings.png` | Settings open on ☾ Dark: theme, language, the assistant, ⤒ Export CSV — the row of things the listing claims. |
+| 2 | `02-tabs.png` | The tab pane, mid-save: a tab dragged over a collection and held there. |
+| 3 | `03-search.png` | The search box with `kotlin` typed into it, showing all three kinds of hit at once — a card from the Backend collection, an open tab, and a history entry. |
+| 4 | `04-assistant.png` | The assistant answering over the open collection — *"Which of these links would help me compress an image?"* asked of **Work → Frontend**, which its cards answer (Squoosh). Needs Chrome 138+ with the on-device model already downloaded; the script skips this shot rather than fail if that isn't the case, same as the manual fallback below — four screenshots is a complete listing. |
+| 5 | `05-settings.png` | Settings → Appearance on ☾ Dark: theme and language. |
 
-## 6. Afterwards
+## Manual fallback
 
-Tell Claude the files are in `store/screenshots/`; they are the last asset the submission is waiting
-on. Then delete `%TEMP%\stramus-shots`, and remove the unpacked extension from that profile — or just
-delete the profile, which does both.
+If the script can't run somewhere (no Chrome, no Node, a Chrome feature the script doesn't yet
+drive), the old-fashioned way still works — a throwaway profile, the unpacked build, and DevTools'
+own capture:
+
+1. **A profile with nothing in it.** A separate profile keeps your own collections out of the
+   shots, and keeps the demo import out of your collections:
+   ```powershell
+   & "C:\Program Files\Google\Chrome\Application\chrome.exe" `
+     --user-data-dir="$env:TEMP\stramus-shots" --no-first-run --no-default-browser-check
+   ```
+   Delete `%TEMP%\stramus-shots` afterwards and the profile is gone. Do not sign into Google or
+   into stramus in it.
+2. **The extension.** `chrome://extensions` → **Developer mode** on → **Load unpacked** →
+   `extension/build/dist/js/productionExecutable`.
+3. **The data.** Open a new tab, then **⚙ Settings** → *Import* → **⤓ Choose a file** →
+   `store/screenshot-data.csv`. Visit a handful of the demo sites (`kotlinlang.org`, `github.com`,
+   `figma.com`, `developer.mozilla.org`, `news.ycombinator.com`) so shot 3 has history to find, and
+   leave about eight tabs open so shots 1–2's tab pane isn't empty.
+4. **Capturing at exactly 1280×800.** `F12` → `Ctrl+Shift+M` → size **1280 × 800**, zoom **100%** →
+   device toolbar's **⋮** → **Add device pixel ratio** → **DPR = 1** → `Ctrl+Shift+P` →
+   **Capture screenshot**.
+5. Put the files in `store/screenshots/` as `01-collection.png` … `05-settings.png`, per the table
+   above.

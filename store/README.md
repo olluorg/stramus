@@ -22,7 +22,8 @@ and greyed out for a language that ships in the ZIP.
 - [ ] A tag pushed: `git tag v1.0.0 && git push origin v1.0.0`. The `release` workflow builds the
       extension and attaches `stramus-extension-1.0.0.zip` to a GitHub Release; that ZIP is what gets
       uploaded. (It also refuses to build if the tag and the manifest disagree about the version.)
-- [ ] Screenshots taken (see below) — the one asset that cannot be generated from the repository.
+- [ ] Screenshots generated (see below) — `cd tools/screenshots && node capture.mjs`, then copy the
+      output into `store/screenshots/` after a look.
 - [ ] Everything keyed on the extension's ID repointed at the *published* ID — see below. Publishing
       assigns the ID of the store item, which is not the ID an unpacked build gets.
 
@@ -69,7 +70,7 @@ against a local server means adding the line back in your own working copy — a
 | Asset | Size | Where it comes from |
 | --- | --- | --- |
 | Store icon | 128×128 PNG | [`store-icon-128.png`](store-icon-128.png) ✔ — made from `logo.png`, not the same file as the extension's own `logo-128.png` (see below) |
-| Screenshots (1–5, at least 1) | 1280×800 PNG | **to be taken** — see below |
+| Screenshots (1–5, at least 1) | 1280×800 PNG | generated — `tools/screenshots`, see below |
 | Small promo tile (optional) | 440×280 PNG | to be made, if the listing is to be eligible for featuring |
 | Marquee (optional) | 1400×560 PNG | only needed for the store's front page |
 
@@ -81,11 +82,12 @@ roughly 96×96 with room around it and draws the result on a card next to other 
 centre lands in the middle of the canvas — centring the glow by its bounding box leaves it visibly
 lopsided, because the glow is not symmetrical.
 
-[`screenshots.md`](screenshots.md) is the procedure — a throwaway profile, the unpacked build, and
-DevTools' own capture, which is the only way to get exactly 1280×800 with no browser chrome in frame.
-[`screenshot-data.csv`](screenshot-data.csv) is the contents to shoot against: 66 links in three
-sections and seven collections, most of them grouped under headings, so the grid looks like something
-somebody uses rather than a blank slate.
+[`screenshots.md`](screenshots.md) is the procedure — `tools/screenshots` drives the built extension
+with Playwright in a throwaway profile and produces exactly 1280×800 PNGs with no browser chrome in
+frame; a manual DevTools-capture fallback is documented there too, for when the script can't run
+somewhere. [`screenshot-data.csv`](screenshot-data.csv) is the contents to shoot against: 66 links in
+three sections and seven collections, most of them grouped under headings, so the grid looks like
+something somebody uses rather than a blank slate.
 
 Screenshots worth having, in this order — the first one is the listing's thumbnail and does most of the
 persuading:

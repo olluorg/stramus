@@ -1,0 +1,16 @@
+{
+  "name": "stramus-screenshots",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Drives the built extension with Playwright to capture store/onboarding/FAQ screenshots and clips automatically.",
+  "engines": {
+    "node": ">=18.3.0"
+  },
+  "scripts": {
+    "capture": "node capture.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

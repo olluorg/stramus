@@ -1,0 +1,72 @@
+name: Capture screenshots
+
+# Builds the extension and drives it with Playwright (tools/screenshots) to regenerate the store
+# listing screenshots — and, on demand, the bonus onboarding/FAQ shots. Runs headed under xvfb:
+# Chromium's headless mode has historically been unreliable with a loaded extension, xvfb is the
+# well-trodden path for CI. Output is uploaded as a workflow artifact for review, not committed —
+# store/screenshots/*.png feed the live listing and shouldn't change without a human looking at
+# the diff first. See tools/screenshots/README.md for the local equivalent of this job.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      shots:
+        description: 'Which shots to capture'
+        type: choice
+        options: [store, all]
+        default: store
+
+permissions:
+  contents: read
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build production extension bundle
+        env:
+          STRAMUS_SERVER_URL: ${{ vars.STRAMUS_SERVER_URL }}
+          STRAMUS_GOOGLE_CLIENT_ID: ${{ vars.STRAMUS_GOOGLE_CLIENT_ID }}
+        run: ./gradlew :extension:jsBrowserDistribution --no-daemon
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install screenshot tool dependencies
+        working-directory: tools/screenshots
+        run: npm ci
+
+      - name: Install Chromium + xvfb
+        working-directory: tools/screenshots
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+
+      - name: Capture screenshots
+        working-directory: tools/screenshots
+        env:
+          SHOTS_FLAG: ${{ github.event.inputs.shots == 'all' && '--all' || '--store' }}
+        run: xvfb-run --auto-servernum node capture.mjs $SHOTS_FLAG
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: tools/screenshots/output/*.png
+          if-no-files-found: warn
