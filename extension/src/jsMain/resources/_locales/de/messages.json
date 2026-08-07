@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "stramus — Tab-Sammlungen",
+    "description": "The extension's name, as shown in Chrome and in the Web Store listing."
+  },
+  "extDescription": {
+    "message": "Speichere offene Tabs in Sammlungen auf deiner eigenen neuen Tab-Seite. Suche, sortiere und öffne sie mit einem Tastendruck neu.",
+    "description": "The Web Store's short description. Chrome allows at most 132 characters."
+  },
+  "actionTitle": {
+    "message": "stramus — neuen Tab öffnen",
+    "description": "The tooltip on the toolbar button."
+  }
+}

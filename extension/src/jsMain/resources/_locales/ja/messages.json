@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "stramus — タブコレクション",
+    "description": "The extension's name, as shown in Chrome and in the Web Store listing."
+  },
+  "extDescription": {
+    "message": "開いているタブを、あなただけの新しいタブページ上のコレクションに保存。検索・並べ替え・再オープンもワンキーで。",
+    "description": "The Web Store's short description. Chrome allows at most 132 characters."
+  },
+  "actionTitle": {
+    "message": "stramus — 新しいタブを開く",
+    "description": "The tooltip on the toolbar button."
+  }
+}

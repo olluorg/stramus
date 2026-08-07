@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "stramus — coleções de abas",
+    "description": "The extension's name, as shown in Chrome and in the Web Store listing."
+  },
+  "extDescription": {
+    "message": "Salve suas abas abertas em coleções numa página de nova aba só sua. Pesquise, organize e reabra tudo com uma tecla.",
+    "description": "The Web Store's short description. Chrome allows at most 132 characters."
+  },
+  "actionTitle": {
+    "message": "stramus — abrir uma nova aba",
+    "description": "The tooltip on the toolbar button."
+  }
+}

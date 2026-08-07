@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "stramus — 标签页收藏",
+    "description": "The extension's name, as shown in Chrome and in the Web Store listing."
+  },
+  "extDescription": {
+    "message": "把打开的标签页保存到专属于你的新标签页中的收藏集。一键搜索、排序并重新打开。",
+    "description": "The Web Store's short description. Chrome allows at most 132 characters."
+  },
+  "actionTitle": {
+    "message": "stramus — 打开新标签页",
+    "description": "The tooltip on the toolbar button."
+  }
+}

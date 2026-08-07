@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "stramus — colecciones de pestañas",
+    "description": "The extension's name, as shown in Chrome and in the Web Store listing."
+  },
+  "extDescription": {
+    "message": "Guarda tus pestañas abiertas en colecciones en tu propia página de nueva pestaña. Busca, ordénalas y ábrelas con una tecla.",
+    "description": "The Web Store's short description. Chrome allows at most 132 characters."
+  },
+  "actionTitle": {
+    "message": "stramus — abrir una nueva pestaña",
+    "description": "The tooltip on the toolbar button."
+  }
+}

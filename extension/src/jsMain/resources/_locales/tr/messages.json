@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "stramus — sekme koleksiyonları",
+    "description": "The extension's name, as shown in Chrome and in the Web Store listing."
+  },
+  "extDescription": {
+    "message": "Açık sekmelerinizi, tamamen size ait yeni sekme sayfasındaki koleksiyonlara kaydedin. Tek tuşla arayın, sıralayın, yeniden açın.",
+    "description": "The Web Store's short description. Chrome allows at most 132 characters."
+  },
+  "actionTitle": {
+    "message": "stramus — yeni sekme aç",
+    "description": "The tooltip on the toolbar button."
+  }
+}

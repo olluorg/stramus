@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "stramus — 탭 컬렉션",
+    "description": "The extension's name, as shown in Chrome and in the Web Store listing."
+  },
+  "extDescription": {
+    "message": "열려 있는 탭을 나만의 새 탭 페이지에서 컬렉션으로 저장하세요. 검색, 정렬, 재오픈까지 키 한 번으로.",
+    "description": "The Web Store's short description. Chrome allows at most 132 characters."
+  },
+  "actionTitle": {
+    "message": "stramus — 새 탭 열기",
+    "description": "The tooltip on the toolbar button."
+  }
+}

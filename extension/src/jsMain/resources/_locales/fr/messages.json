@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "stramus — collections d'onglets",
+    "description": "The extension's name, as shown in Chrome and in the Web Store listing."
+  },
+  "extDescription": {
+    "message": "Enregistrez vos onglets dans des collections, sur une page de nouvel onglet bien à vous. Recherchez, triez, rouvrez en une touche.",
+    "description": "The Web Store's short description. Chrome allows at most 132 characters."
+  },
+  "actionTitle": {
+    "message": "stramus — ouvrir un nouvel onglet",
+    "description": "The tooltip on the toolbar button."
+  }
+}

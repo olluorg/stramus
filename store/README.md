@@ -1,13 +1,18 @@
 # Chrome Web Store submission
 
 Everything the Web Store form asks for, written down once so that a submission is copy-paste rather
-than composition. The listing itself lives in [`listing-en.md`](listing-en.md) and
-[`listing-ru.md`](listing-ru.md); this file is the checklist and the answers to the review questions.
+than composition. The listing itself lives in `listing-{lang}.md`, one per language the extension
+supports — [`listing-en.md`](listing-en.md), [`listing-ru.md`](listing-ru.md),
+[`listing-de.md`](listing-de.md), [`listing-fr.md`](listing-fr.md), [`listing-es.md`](listing-es.md),
+[`listing-pt-BR.md`](listing-pt-BR.md), [`listing-ja.md`](listing-ja.md), [`listing-ko.md`](listing-ko.md),
+[`listing-zh-CN.md`](listing-zh-CN.md), [`listing-it.md`](listing-it.md) and
+[`listing-tr.md`](listing-tr.md); this file is the checklist and the answers to the review questions.
 
 The name, the short description and the toolbar tooltip are **not** here: they come from the extension
-itself (`extension/src/jsMain/resources/_locales/{en,ru}/messages.json`), and the Web Store reads them
-out of the uploaded ZIP. Editing them there changes both Chrome's UI and the listing at once, which is
-why the store's own "name" and "short description" fields will be pre-filled and greyed out.
+itself (`extension/src/jsMain/resources/_locales/{en,ru,de,fr,es,pt_BR,ja,ko,zh_CN,it,tr}/messages.json`),
+and the Web Store reads them out of the uploaded ZIP. Editing them there changes both Chrome's UI and the
+listing at once, which is why the store's own "name" and "short description" fields will be pre-filled
+and greyed out for a language that ships in the ZIP.
 
 ## Before uploading
 
@@ -53,8 +58,8 @@ against a local server means adding the line back in your own working copy — a
 | Field | Value |
 | --- | --- |
 | Category | Productivity → Workflow & Planning |
-| Language | English (default), Russian |
-| Detailed description | [`listing-en.md`](listing-en.md), [`listing-ru.md`](listing-ru.md) |
+| Language | English (default), Russian, German, French, Spanish, Portuguese (Brazil), Japanese, Korean, Chinese (Simplified), Italian, Turkish |
+| Detailed description | one `listing-{lang}.md` per language above, listed at the top of this file |
 | Homepage URL | `https://stramus.space/` |
 | Support URL | `https://github.com/olluorg/stramus/issues` |
 | Privacy policy URL | `https://stramus.space/privacy.html` |

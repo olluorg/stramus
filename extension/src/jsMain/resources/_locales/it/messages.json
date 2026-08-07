@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "stramus — raccolte di schede",
+    "description": "The extension's name, as shown in Chrome and in the Web Store listing."
+  },
+  "extDescription": {
+    "message": "Salva le schede aperte in raccolte su una pagina nuova scheda tutta tua. Cerca, ordina e riaprile con un solo tasto.",
+    "description": "The Web Store's short description. Chrome allows at most 132 characters."
+  },
+  "actionTitle": {
+    "message": "stramus — apri una nuova scheda",
+    "description": "The tooltip on the toolbar button."
+  }
+}

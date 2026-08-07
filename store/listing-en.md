@@ -43,8 +43,9 @@ Keep some of it to yourself.
 A section can be locked with a PIN, so that what is behind it is not on screen when you share it.
 
 And the rest of it.
-Light and dark themes. English and Russian. Import from your bookmarks or a CSV file; export back to
-either. Tab sorting. A favicon cache, so your links keep their icons offline.
+Light and dark themes. Eleven interface languages, from English to Turkish. Import from your bookmarks
+or a CSV file; export back to either. Tab sorting. A favicon cache, so your links keep their icons
+offline.
 
 Private by construction.
 No analytics, no telemetry, no tracking, no advertising — with or without an account. Without one, none
