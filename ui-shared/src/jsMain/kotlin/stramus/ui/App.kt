@@ -2277,406 +2277,409 @@ val App = FC<AppProps> { props ->
             aside {
                 className = ClassName("sidebar")
                 div {
-                    className = ClassName("brand")
-                    img {
-                        className = ClassName("brand-logo")
-                        src = "logo-128.png"
-                        alt = ""
-                        draggable = false
-                    }
-                    span {
-                        className = ClassName("brand-name")
-                        +"stramus"
-                    }
-                    button {
-                        className = ClassName("icon collapse-btn")
-                        hint(t.collapseSidebar)
-                        onClick = { leftCollapsed = true; prefSet("leftCollapsed", "1") }
-                        // Points back towards the edge this sidebar collapses into. See the expand
-                        // button above for why the direction flips with [swapSidebars].
-                        icon(if (swapSidebars) "chevron-right" else "chevron-left")
-                    }
-                }
-                button {
-                    className = ClassName("btn new-section")
-                    hint(t.newSectionHint)
-                    onClick = {
-                        val name = browserPrompt(t.sectionNamePrompt, t.sectionNameDefault)
-                        val s = store
-                        if (s != null && !name.isNullOrBlank()) {
-                            scope.launch {
-                                val created = s.sections.create(name.trim())
-                                sections = s.sections.all()
-                                // The section comes with a collection of its own name (see
-                                // `SectionRepository.create`); it is what the user is now looking at.
-                                val cols = s.collections.all()
-                                collections = cols
-                                cols.firstOrNull { it.sectionId == created.id }?.let { selectedId = it.id }
-                            }
+                    className = ClassName("sidebar-scroll")
+                    div {
+                        className = ClassName("brand")
+                        img {
+                            className = ClassName("brand-logo")
+                            src = "logo-128.png"
+                            alt = ""
+                            draggable = false
+                        }
+                        span {
+                            className = ClassName("brand-name")
+                            +"stramus"
+                        }
+                        button {
+                            className = ClassName("icon collapse-btn")
+                            hint(t.collapseSidebar)
+                            onClick = { leftCollapsed = true; prefSet("leftCollapsed", "1") }
+                            // Points back towards the edge this sidebar collapses into. See the expand
+                            // button above for why the direction flips with [swapSidebars].
+                            icon(if (swapSidebars) "chevron-right" else "chevron-left")
                         }
                     }
-                    +t.newSection
-                }
-                sections.forEach { section ->
-                    // A locked section is a closed door: no collections under it, nothing to drop into
-                    // it, nothing to rename or delete. Clicking its header asks for the PIN.
-                    val isLocked = section.id in lockedSectionIds
-                    // A section dragged onto another one is a reorder, and a lock has no say in it:
-                    // where a section sits says nothing about what is behind its PIN.
-                    val takesSection = draggingSectionId != null && draggingSectionId != section.id
-                    // What the title does on Enter/Space (mirrors the click) and on F2 (mirrors the
-                    // double-click, the only way in otherwise) — named so both the pointer and the
-                    // keyboard paths call the same thing instead of drifting apart.
-                    val activateSectionTitle = {
-                        if (isLocked) {
-                            pendingUnlockId = section.id
-                            unlockError = null
-                        } else {
-                            onTitleClick {
-                                val s = store
-                                if (s != null) {
-                                    scope.launch {
-                                        s.sections.setCollapsed(section.id, !section.collapsed)
-                                        sections = s.sections.all()
-                                    }
+                    button {
+                        className = ClassName("btn new-section")
+                        hint(t.newSectionHint)
+                        onClick = {
+                            val name = browserPrompt(t.sectionNamePrompt, t.sectionNameDefault)
+                            val s = store
+                            if (s != null && !name.isNullOrBlank()) {
+                                scope.launch {
+                                    val created = s.sections.create(name.trim())
+                                    sections = s.sections.all()
+                                    // The section comes with a collection of its own name (see
+                                    // `SectionRepository.create`); it is what the user is now looking at.
+                                    val cols = s.collections.all()
+                                    collections = cols
+                                    cols.firstOrNull { it.sectionId == created.id }?.let { selectedId = it.id }
                                 }
                             }
                         }
+                        +t.newSection
                     }
-                    div {
-                        key = key(section.id)
-                        className = ClassName(
-                            buildString {
-                                append("section")
-                                if (isLocked) append(" locked")
-                                if (section.id == draggingSectionId) append(" dragging")
-                                if (section.id == dropSectionId) append(" drop-section")
-                            },
-                        )
-                        // Dropping a collection anywhere on the section (not on a specific item) moves
-                        // it to the end of this section; dropping a *section* reorders the sidebar.
-                        onDragOver = { e ->
-                            if (takesSection || (draggingCollectionId != null && !isLocked)) e.preventDefault()
-                        }
-                        onDragEnter = {
-                            if (takesSection || (draggingCollectionId != null && !isLocked)) dropSectionId = section.id
-                        }
-                        onDrop = { e ->
-                            if (takesSection) {
-                                e.preventDefault()
-                                moveSection(section.id)
-                            } else if (draggingCollectionId != null && !isLocked) {
-                                e.preventDefault()
-                                moveCollection(section.id, collections.count { it.sectionId == section.id })
+                    sections.forEach { section ->
+                        // A locked section is a closed door: no collections under it, nothing to drop into
+                        // it, nothing to rename or delete. Clicking its header asks for the PIN.
+                        val isLocked = section.id in lockedSectionIds
+                        // A section dragged onto another one is a reorder, and a lock has no say in it:
+                        // where a section sits says nothing about what is behind its PIN.
+                        val takesSection = draggingSectionId != null && draggingSectionId != section.id
+                        // What the title does on Enter/Space (mirrors the click) and on F2 (mirrors the
+                        // double-click, the only way in otherwise) — named so both the pointer and the
+                        // keyboard paths call the same thing instead of drifting apart.
+                        val activateSectionTitle = {
+                            if (isLocked) {
+                                pendingUnlockId = section.id
+                                unlockError = null
+                            } else {
+                                onTitleClick {
+                                    val s = store
+                                    if (s != null) {
+                                        scope.launch {
+                                            s.sections.setCollapsed(section.id, !section.collapsed)
+                                            sections = s.sections.all()
+                                        }
+                                    }
+                                }
                             }
                         }
                         div {
-                            className = ClassName("section-head")
-                            // The header is the handle the section is dragged by — except while it is
-                            // being renamed, when the pointer belongs to the text field in its title.
-                            draggable = renamingId != section.id
-                            onDragStart = { e ->
-                                e.dataTransfer.setData("text/plain", section.id.toString())
-                                draggingSectionId = section.id
+                            key = key(section.id)
+                            className = ClassName(
+                                buildString {
+                                    append("section")
+                                    if (isLocked) append(" locked")
+                                    if (section.id == draggingSectionId) append(" dragging")
+                                    if (section.id == dropSectionId) append(" drop-section")
+                                },
+                            )
+                            // Dropping a collection anywhere on the section (not on a specific item) moves
+                            // it to the end of this section; dropping a *section* reorders the sidebar.
+                            onDragOver = { e ->
+                                if (takesSection || (draggingCollectionId != null && !isLocked)) e.preventDefault()
                             }
-                            onDragEnd = {
-                                draggingSectionId = null
-                                dropSectionId = null
+                            onDragEnter = {
+                                if (takesSection || (draggingCollectionId != null && !isLocked)) dropSectionId = section.id
                             }
-                            // Clicking the title collapses/expands the section (hides its
-                            // collections); double-clicking renames it right where the text is. While
-                            // the section is locked the title does one thing only: ask for the PIN.
-                            span {
-                                className = ClassName("section-title")
-                                hint(if (isLocked) t.lockedSection else t.renameHint)
-                                tabIndex = 0
-                                onClick = { activateSectionTitle() }
-                                onDoubleClick = { if (!isLocked) onTitleDoubleClick(section.id) }
-                                onKeyDown = { e ->
-                                    when (e.key) {
-                                        "Enter", " " -> { e.preventDefault(); activateSectionTitle() }
-                                        "F2" -> if (!isLocked) { e.preventDefault(); onTitleDoubleClick(section.id) }
-                                    }
+                            onDrop = { e ->
+                                if (takesSection) {
+                                    e.preventDefault()
+                                    moveSection(section.id)
+                                } else if (draggingCollectionId != null && !isLocked) {
+                                    e.preventDefault()
+                                    moveCollection(section.id, collections.count { it.sectionId == section.id })
                                 }
+                            }
+                            div {
+                                className = ClassName("section-head")
+                                // The header is the handle the section is dragged by — except while it is
+                                // being renamed, when the pointer belongs to the text field in its title.
+                                draggable = renamingId != section.id
+                                onDragStart = { e ->
+                                    e.dataTransfer.setData("text/plain", section.id.toString())
+                                    draggingSectionId = section.id
+                                }
+                                onDragEnd = {
+                                    draggingSectionId = null
+                                    dropSectionId = null
+                                }
+                                // Clicking the title collapses/expands the section (hides its
+                                // collections); double-clicking renames it right where the text is. While
+                                // the section is locked the title does one thing only: ask for the PIN.
                                 span {
-                                    // The chevron turns as the section folds, so the two move together.
-                                    // A locked section is not folded but shut, and its padlock stands still.
-                                    className = ClassName(
-                                        if (section.collapsed && !isLocked) "chevron closed" else "chevron",
-                                    )
-                                    icon(if (isLocked) "lock" else "chevron-down")
-                                }
-                                if (renamingId == section.id && !isLocked) {
-                                    InlineEdit {
-                                        initial = section.title
-                                        onCommit = { name -> renameSection(section, name) }
-                                        onCancel = { renamingId = null }
-                                    }
-                                } else if (section.title.isBlank()) {
-                                    // A section left without a name is still there to be found and clicked:
-                                    // it says so, rather than showing an empty header that reads as nothing.
-                                    span { className = ClassName("untitled"); +t.untitled }
-                                } else {
-                                    +section.title
-                                }
-                            }
-                            if (!isLocked) {
-                                // The protection itself: an open section is offered a PIN, a protected
-                                // one (necessarily unlocked to be seen) the menu of what to do with it.
-                                button {
-                                    className = ClassName("icon lock")
-                                    hint(if (section.locked) t.unlockedSection else t.protectSection)
-                                    onClick = { e ->
-                                        e.stopPropagation()
-                                        if (section.locked) lockMenuId = section.id
-                                        else pinDialog = PinDialog(section.id, change = false)
-                                    }
-                                    icon(if (section.locked) "unlock" else "lock")
-                                }
-                                button {
-                                    className = ClassName("icon add")
-                                    hint(t.addCollectionHint)
-                                    onClick = { e ->
-                                        e.stopPropagation()
-                                        val name = browserPrompt(t.collectionNamePrompt, t.collectionNameDefault)
-                                        val s = store
-                                        if (s != null && !name.isNullOrBlank()) {
-                                            scope.launch {
-                                                val created = s.collections.create(name.trim(), section.id)
-                                                collections = s.collections.all()
-                                                selectedId = created.id
-                                            }
+                                    className = ClassName("section-title")
+                                    hint(if (isLocked) t.lockedSection else t.renameHint)
+                                    tabIndex = 0
+                                    onClick = { activateSectionTitle() }
+                                    onDoubleClick = { if (!isLocked) onTitleDoubleClick(section.id) }
+                                    onKeyDown = { e ->
+                                        when (e.key) {
+                                            "Enter", " " -> { e.preventDefault(); activateSectionTitle() }
+                                            "F2" -> if (!isLocked) { e.preventDefault(); onTitleDoubleClick(section.id) }
                                         }
                                     }
-                                    icon("plus")
+                                    span {
+                                        // The chevron turns as the section folds, so the two move together.
+                                        // A locked section is not folded but shut, and its padlock stands still.
+                                        className = ClassName(
+                                            if (section.collapsed && !isLocked) "chevron closed" else "chevron",
+                                        )
+                                        icon(if (isLocked) "lock" else "chevron-down")
+                                    }
+                                    if (renamingId == section.id && !isLocked) {
+                                        InlineEdit {
+                                            initial = section.title
+                                            onCommit = { name -> renameSection(section, name) }
+                                            onCancel = { renamingId = null }
+                                        }
+                                    } else if (section.title.isBlank()) {
+                                        // A section left without a name is still there to be found and clicked:
+                                        // it says so, rather than showing an empty header that reads as nothing.
+                                        span { className = ClassName("untitled"); +t.untitled }
+                                    } else {
+                                        +section.title
+                                    }
                                 }
-                                if (section.deletable) {
+                                if (!isLocked) {
+                                    // The protection itself: an open section is offered a PIN, a protected
+                                    // one (necessarily unlocked to be seen) the menu of what to do with it.
                                     button {
-                                        className = ClassName("icon del")
-                                        hint(t.deleteSectionHint)
+                                        className = ClassName("icon lock")
+                                        hint(if (section.locked) t.unlockedSection else t.protectSection)
                                         onClick = { e ->
                                             e.stopPropagation()
-                                            deleteSection(section)
+                                            if (section.locked) lockMenuId = section.id
+                                            else pinDialog = PinDialog(section.id, change = false)
                                         }
-                                        icon("x")
+                                        icon(if (section.locked) "unlock" else "lock")
+                                    }
+                                    button {
+                                        className = ClassName("icon add")
+                                        hint(t.addCollectionHint)
+                                        onClick = { e ->
+                                            e.stopPropagation()
+                                            val name = browserPrompt(t.collectionNamePrompt, t.collectionNameDefault)
+                                            val s = store
+                                            if (s != null && !name.isNullOrBlank()) {
+                                                scope.launch {
+                                                    val created = s.collections.create(name.trim(), section.id)
+                                                    collections = s.collections.all()
+                                                    selectedId = created.id
+                                                }
+                                            }
+                                        }
+                                        icon("plus")
+                                    }
+                                    if (section.deletable) {
+                                        button {
+                                            className = ClassName("icon del")
+                                            hint(t.deleteSectionHint)
+                                            onClick = { e ->
+                                                e.stopPropagation()
+                                                deleteSection(section)
+                                            }
+                                            icon("x")
+                                        }
                                     }
                                 }
                             }
-                        }
-                        Collapsible {
-                            open = !section.collapsed && !isLocked
-                            ul {
-                                className = ClassName("collections")
-                                collections.filter { it.sectionId == section.id }.forEach { c ->
-                                    // A read-only collection takes nothing in — a tab dropped on it
-                                    // would be an edit like any other — but it can still be dragged
-                                    // and reordered: where it sits is not its content.
-                                    val takesContent = !c.readOnly
-                                    li {
-                                        key = key(c.id)
-                                        asDynamic()["id"] = "col-${c.id}"
-                                        className = ClassName(
-                                            buildString {
-                                                append("col")
-                                                if (c.id == selectedId) append(" selected")
-                                                if (c.id == dropCollectionId) append(" drop-target")
-                                            },
-                                        )
-                                        // A collection being renamed is not a collection to drag: the
-                                        // pointer belongs to the text field standing in its title.
-                                        draggable = renamingId != c.id
-                                        tabIndex = 0
-                                        onClick = { selectedId = c.id; pendingUnlockId = null; unlockError = null }
-                                        // Enter/Space select it, same as a click. F2 renames it in
-                                        // place — the keyboard path to what a double-click does below,
-                                        // on `.col-title`, since that is otherwise the only way in.
-                                        onKeyDown = { e ->
-                                            when (e.key) {
-                                                "Enter", " " -> {
-                                                    e.preventDefault()
-                                                    selectedId = c.id; pendingUnlockId = null; unlockError = null
-                                                }
-                                                "F2" -> if (takesContent) { e.preventDefault(); onTitleDoubleClick(c.id) }
-                                                // Delete removes it outright — the button does the
-                                                // same, and the undo toast (or Ctrl/Cmd+Z) is what
-                                                // makes that safe to reach for from the keyboard too.
-                                                "Delete" -> if (takesContent) { e.preventDefault(); deleteCollection(c) }
-                                                // Tab/Shift+Tab hop straight to the next/previous
-                                                // collection, flattened across every open section, so
-                                                // Tab does not stop at this row's own rename/delete
-                                                // controls along the way (F2 and Delete reach those
-                                                // instead). The order mirrors how the sidebar is drawn
-                                                // above: open, unlocked sections, top to bottom, each
-                                                // one's own collections in their stored order — a
-                                                // collapsed or locked section's rows are unmounted (see
-                                                // `Collapsible`), so they are excluded here too.
-                                                "Tab" -> {
-                                                    val visible = sections
-                                                        .filter { !it.collapsed && it.id !in lockedSectionIds }
-                                                        .flatMap { s -> collections.filter { it.sectionId == s.id } }
-                                                    val idx = visible.indexOfFirst { it.id == c.id }
-                                                    val targetIdx = if (e.shiftKey) idx - 1 else idx + 1
-                                                    if (idx >= 0 && targetIdx in visible.indices) {
+                            Collapsible {
+                                open = !section.collapsed && !isLocked
+                                ul {
+                                    className = ClassName("collections")
+                                    collections.filter { it.sectionId == section.id }.forEach { c ->
+                                        // A read-only collection takes nothing in — a tab dropped on it
+                                        // would be an edit like any other — but it can still be dragged
+                                        // and reordered: where it sits is not its content.
+                                        val takesContent = !c.readOnly
+                                        li {
+                                            key = key(c.id)
+                                            asDynamic()["id"] = "col-${c.id}"
+                                            className = ClassName(
+                                                buildString {
+                                                    append("col")
+                                                    if (c.id == selectedId) append(" selected")
+                                                    if (c.id == dropCollectionId) append(" drop-target")
+                                                },
+                                            )
+                                            // A collection being renamed is not a collection to drag: the
+                                            // pointer belongs to the text field standing in its title.
+                                            draggable = renamingId != c.id
+                                            tabIndex = 0
+                                            onClick = { selectedId = c.id; pendingUnlockId = null; unlockError = null }
+                                            // Enter/Space select it, same as a click. F2 renames it in
+                                            // place — the keyboard path to what a double-click does below,
+                                            // on `.col-title`, since that is otherwise the only way in.
+                                            onKeyDown = { e ->
+                                                when (e.key) {
+                                                    "Enter", " " -> {
                                                         e.preventDefault()
-                                                        focusElementById("col-${visible[targetIdx].id}")
+                                                        selectedId = c.id; pendingUnlockId = null; unlockError = null
+                                                    }
+                                                    "F2" -> if (takesContent) { e.preventDefault(); onTitleDoubleClick(c.id) }
+                                                    // Delete removes it outright — the button does the
+                                                    // same, and the undo toast (or Ctrl/Cmd+Z) is what
+                                                    // makes that safe to reach for from the keyboard too.
+                                                    "Delete" -> if (takesContent) { e.preventDefault(); deleteCollection(c) }
+                                                    // Tab/Shift+Tab hop straight to the next/previous
+                                                    // collection, flattened across every open section, so
+                                                    // Tab does not stop at this row's own rename/delete
+                                                    // controls along the way (F2 and Delete reach those
+                                                    // instead). The order mirrors how the sidebar is drawn
+                                                    // above: open, unlocked sections, top to bottom, each
+                                                    // one's own collections in their stored order — a
+                                                    // collapsed or locked section's rows are unmounted (see
+                                                    // `Collapsible`), so they are excluded here too.
+                                                    "Tab" -> {
+                                                        val visible = sections
+                                                            .filter { !it.collapsed && it.id !in lockedSectionIds }
+                                                            .flatMap { s -> collections.filter { it.sectionId == s.id } }
+                                                        val idx = visible.indexOfFirst { it.id == c.id }
+                                                        val targetIdx = if (e.shiftKey) idx - 1 else idx + 1
+                                                        if (idx >= 0 && targetIdx in visible.indices) {
+                                                            e.preventDefault()
+                                                            focusElementById("col-${visible[targetIdx].id}")
+                                                        }
                                                     }
                                                 }
                                             }
-                                        }
-                                        onDragStart = { e ->
-                                            e.dataTransfer.setData("text/plain", c.id.toString())
-                                            draggingCollectionId = c.id
-                                        }
-                                        onDragEnd = {
-                                            draggingCollectionId = null
-                                            dropCollectionId = null
-                                            dropSectionId = null
-                                        }
-                                        // Drop target for: a dragged tab or history entry (saved here),
-                                        // a dragged card (moved to this collection), or a dragged
-                                        // collection (reordered to this item's position).
-                                        // preventDefault marks a valid target — withheld where the
-                                        // drop would edit a read-only collection.
-                                        // A dragged section is none of these things: it falls through to
-                                        // the section behind this row, which is what it is dropped on.
-                                        // A dragged card section belongs to the grid it came from and
-                                        // has no business here at all, so this row does not light up.
-                                        val takesDrag = draggingSectionId == null && draggingCardSectionId == null &&
-                                            (draggingCollectionId != null || takesContent)
-                                        // Files from the desktop land here too — saved into this
-                                        // collection, ungrouped, without it having to be opened first.
-                                        //
-                                        // A dragged card additionally schedules this collection to open
-                                        // on its own — see [scheduleHoverOpen] — so it can be dropped into
-                                        // a group of the collection's own grid, not just left ungrouped.
-                                        //
-                                        // Which row is hovered is tracked on dragover, not dragenter, as
-                                        // the card groups do: dragover keeps firing wherever the pointer
-                                        // is, so the highlight is restored by the very next event no
-                                        // matter what the enter/leave pair did. Tracking it on dragenter
-                                        // alone put it out over most of the row — the title fills nearly
-                                        // all of it, and crossing from the row's own padding onto the
-                                        // title fires dragenter (at the title, setting this row) and then
-                                        // dragleave (at the row, clearing it again), with no further
-                                        // dragenter to come while the pointer stays on the title.
-                                        onDragEnter = { e ->
-                                            if (takesDrag || (takesContent && draggingFiles(e.dataTransfer))) {
-                                                e.preventDefault()
+                                            onDragStart = { e ->
+                                                e.dataTransfer.setData("text/plain", c.id.toString())
+                                                draggingCollectionId = c.id
                                             }
-                                        }
-                                        onDragOver = { e ->
-                                            val files = takesContent && draggingFiles(e.dataTransfer)
-                                            if (takesDrag || files) {
-                                                e.preventDefault()
-                                                if (files) e.dataTransfer.dropEffect = DropEffect.copy
-                                                // Newly hovered: light it up, and start the clock on
-                                                // opening it. Both only when the row changes — a hover
-                                                // re-scheduled on every dragover would never come due.
-                                                if (dropCollectionId != c.id) {
-                                                    dropCollectionId = c.id
-                                                    if (draggingCardId != null && c.id != selectedId) {
-                                                        scheduleHoverOpen(c.id)
-                                                    }
-                                                }
-                                            }
-                                            // The drag left the content area; drop the group it was
-                                            // last over, or two targets would light up at once.
-                                            if (dropGroup != null) dropGroup = null
-                                            leaveTabsSidebar()
-                                        }
-                                        // Only a move out of the row is a leave: dragleave fires just as
-                                        // readily when the pointer crosses onto the row's own title or
-                                        // one of its buttons, and the drop still lands here. What is
-                                        // being entered is `relatedTarget` — null when it is the window
-                                        // itself being left, which is a leave like any other.
-                                        onDragLeave = { e ->
-                                            val to = e.asDynamic().relatedTarget
-                                            val inside = to != null &&
-                                                e.currentTarget.asDynamic().contains(to) == true
-                                            if (!inside && dropCollectionId == c.id) {
+                                            onDragEnd = {
+                                                draggingCollectionId = null
                                                 dropCollectionId = null
+                                                dropSectionId = null
+                                            }
+                                            // Drop target for: a dragged tab or history entry (saved here),
+                                            // a dragged card (moved to this collection), or a dragged
+                                            // collection (reordered to this item's position).
+                                            // preventDefault marks a valid target — withheld where the
+                                            // drop would edit a read-only collection.
+                                            // A dragged section is none of these things: it falls through to
+                                            // the section behind this row, which is what it is dropped on.
+                                            // A dragged card section belongs to the grid it came from and
+                                            // has no business here at all, so this row does not light up.
+                                            val takesDrag = draggingSectionId == null && draggingCardSectionId == null &&
+                                                (draggingCollectionId != null || takesContent)
+                                            // Files from the desktop land here too — saved into this
+                                            // collection, ungrouped, without it having to be opened first.
+                                            //
+                                            // A dragged card additionally schedules this collection to open
+                                            // on its own — see [scheduleHoverOpen] — so it can be dropped into
+                                            // a group of the collection's own grid, not just left ungrouped.
+                                            //
+                                            // Which row is hovered is tracked on dragover, not dragenter, as
+                                            // the card groups do: dragover keeps firing wherever the pointer
+                                            // is, so the highlight is restored by the very next event no
+                                            // matter what the enter/leave pair did. Tracking it on dragenter
+                                            // alone put it out over most of the row — the title fills nearly
+                                            // all of it, and crossing from the row's own padding onto the
+                                            // title fires dragenter (at the title, setting this row) and then
+                                            // dragleave (at the row, clearing it again), with no further
+                                            // dragenter to come while the pointer stays on the title.
+                                            onDragEnter = { e ->
+                                                if (takesDrag || (takesContent && draggingFiles(e.dataTransfer))) {
+                                                    e.preventDefault()
+                                                }
+                                            }
+                                            onDragOver = { e ->
+                                                val files = takesContent && draggingFiles(e.dataTransfer)
+                                                if (takesDrag || files) {
+                                                    e.preventDefault()
+                                                    if (files) e.dataTransfer.dropEffect = DropEffect.copy
+                                                    // Newly hovered: light it up, and start the clock on
+                                                    // opening it. Both only when the row changes — a hover
+                                                    // re-scheduled on every dragover would never come due.
+                                                    if (dropCollectionId != c.id) {
+                                                        dropCollectionId = c.id
+                                                        if (draggingCardId != null && c.id != selectedId) {
+                                                            scheduleHoverOpen(c.id)
+                                                        }
+                                                    }
+                                                }
+                                                // The drag left the content area; drop the group it was
+                                                // last over, or two targets would light up at once.
+                                                if (dropGroup != null) dropGroup = null
+                                                leaveTabsSidebar()
+                                            }
+                                            // Only a move out of the row is a leave: dragleave fires just as
+                                            // readily when the pointer crosses onto the row's own title or
+                                            // one of its buttons, and the drop still lands here. What is
+                                            // being entered is `relatedTarget` — null when it is the window
+                                            // itself being left, which is a leave like any other.
+                                            onDragLeave = { e ->
+                                                val to = e.asDynamic().relatedTarget
+                                                val inside = to != null &&
+                                                    e.currentTarget.asDynamic().contains(to) == true
+                                                if (!inside && dropCollectionId == c.id) {
+                                                    dropCollectionId = null
+                                                    cancelHoverOpen()
+                                                }
+                                            }
+                                            onDrop = { e ->
+                                                e.preventDefault()
+                                                e.stopPropagation() // don't also fire the section's drop
                                                 cancelHoverOpen()
-                                            }
-                                        }
-                                        onDrop = { e ->
-                                            e.preventDefault()
-                                            e.stopPropagation() // don't also fire the section's drop
-                                            cancelHoverOpen()
-                                            val tab = draggingTab
-                                            val visit = draggingHistory
-                                            val draggedCard = draggingCardId
-                                            val draggedCol = draggingCollectionId
-                                            val draggedSection = draggingSectionId
-                                            val s = store
-                                            when {
-                                                // Files first: they are the one drag the app's own
-                                                // state says nothing about, and a drop carrying them
-                                                // is carrying nothing else.
-                                                draggingFiles(e.dataTransfer) ->
-                                                    if (takesContent) saveFiles(droppedFiles(e.dataTransfer), c.id)
-                                                // The drop stops here, so a section dropped on a row of
-                                                // this section is moved from here — it never reaches the
-                                                // section's own handler behind it.
-                                                draggedSection != null -> moveSection(c.sectionId)
-                                                draggedCol != null -> {
-                                                    // The dragged collection is spliced into an order
-                                                    // it is no longer part of, so its own slot must
-                                                    // not count towards the target's index.
-                                                    val idx = collections
-                                                        .filter { it.sectionId == c.sectionId && it.id != draggedCol }
-                                                        .indexOfFirst { it.id == c.id }
-                                                    moveCollection(c.sectionId, if (idx < 0) 0 else idx)
+                                                val tab = draggingTab
+                                                val visit = draggingHistory
+                                                val draggedCard = draggingCardId
+                                                val draggedCol = draggingCollectionId
+                                                val draggedSection = draggingSectionId
+                                                val s = store
+                                                when {
+                                                    // Files first: they are the one drag the app's own
+                                                    // state says nothing about, and a drop carrying them
+                                                    // is carrying nothing else.
+                                                    draggingFiles(e.dataTransfer) ->
+                                                        if (takesContent) saveFiles(droppedFiles(e.dataTransfer), c.id)
+                                                    // The drop stops here, so a section dropped on a row of
+                                                    // this section is moved from here — it never reaches the
+                                                    // section's own handler behind it.
+                                                    draggedSection != null -> moveSection(c.sectionId)
+                                                    draggedCol != null -> {
+                                                        // The dragged collection is spliced into an order
+                                                        // it is no longer part of, so its own slot must
+                                                        // not count towards the target's index.
+                                                        val idx = collections
+                                                            .filter { it.sectionId == c.sectionId && it.id != draggedCol }
+                                                            .indexOfFirst { it.id == c.id }
+                                                        moveCollection(c.sectionId, if (idx < 0) 0 else idx)
+                                                    }
+                                                    !takesContent -> Unit // read-only: nothing lands here
+                                                    tab != null -> saveTab(tab, c.id)
+                                                    visit != null -> saveHistoryEntry(visit, c.id)
+                                                    // A card dropped on a collection leaves its section
+                                                    // behind — that section belongs to the collection it
+                                                    // came from — and lands ungrouped, at the end.
+                                                    draggedCard != null && s != null ->
+                                                        moveCard(draggedCard, c.id, null, Int.MAX_VALUE)
                                                 }
-                                                !takesContent -> Unit // read-only: nothing lands here
-                                                tab != null -> saveTab(tab, c.id)
-                                                visit != null -> saveHistoryEntry(visit, c.id)
-                                                // A card dropped on a collection leaves its section
-                                                // behind — that section belongs to the collection it
-                                                // came from — and lands ungrouped, at the end.
-                                                draggedCard != null && s != null ->
-                                                    moveCard(draggedCard, c.id, null, Int.MAX_VALUE)
+                                                draggingCardId = null
+                                                draggingTab = null
+                                                draggingHistory = null
+                                                dropCollectionId = null
                                             }
-                                            draggingCardId = null
-                                            draggingTab = null
-                                            draggingHistory = null
-                                            dropCollectionId = null
-                                        }
-                                        span {
-                                            className = ClassName("col-title")
-                                            // A read-only collection is not renamed either: the name
-                                            // is as much part of it as the cards are.
-                                            hint(if (takesContent) t.renameCollectionHint else t.readOnlyHint)
-                                            onDoubleClick = { if (takesContent) onTitleDoubleClick(c.id) }
-                                            if (renamingId == c.id && takesContent) {
-                                                InlineEdit {
-                                                    initial = c.title
-                                                    onCommit = { name -> renameCollection(c, name) }
-                                                    onCancel = { renamingId = null }
-                                                }
-                                            } else if (c.title.isBlank()) {
-                                                span { className = ClassName("untitled"); +t.untitled }
-                                            } else {
-                                                +c.title
-                                            }
-                                        }
-                                        if (c.readOnly) {
                                             span {
-                                                className = ClassName("col-lock")
-                                                hint(t.readOnlyHint)
-                                                icon("lock")
-                                            }
-                                        }
-                                        // Deleting a read-only collection is the one edit that cannot
-                                        // be undone, so the button goes with the rest of them.
-                                        if (takesContent) {
-                                            button {
-                                                className = ClassName("icon del")
-                                                hint(t.deleteCollectionHint)
-                                                onClick = { e ->
-                                                    e.stopPropagation()
-                                                    deleteCollection(c)
+                                                className = ClassName("col-title")
+                                                // A read-only collection is not renamed either: the name
+                                                // is as much part of it as the cards are.
+                                                hint(if (takesContent) t.renameCollectionHint else t.readOnlyHint)
+                                                onDoubleClick = { if (takesContent) onTitleDoubleClick(c.id) }
+                                                if (renamingId == c.id && takesContent) {
+                                                    InlineEdit {
+                                                        initial = c.title
+                                                        onCommit = { name -> renameCollection(c, name) }
+                                                        onCancel = { renamingId = null }
+                                                    }
+                                                } else if (c.title.isBlank()) {
+                                                    span { className = ClassName("untitled"); +t.untitled }
+                                                } else {
+                                                    +c.title
                                                 }
-                                                icon("x")
+                                            }
+                                            if (c.readOnly) {
+                                                span {
+                                                    className = ClassName("col-lock")
+                                                    hint(t.readOnlyHint)
+                                                    icon("lock")
+                                                }
+                                            }
+                                            // Deleting a read-only collection is the one edit that cannot
+                                            // be undone, so the button goes with the rest of them.
+                                            if (takesContent) {
+                                                button {
+                                                    className = ClassName("icon del")
+                                                    hint(t.deleteCollectionHint)
+                                                    onClick = { e ->
+                                                        e.stopPropagation()
+                                                        deleteCollection(c)
+                                                    }
+                                                    icon("x")
+                                                }
                                             }
                                         }
                                     }

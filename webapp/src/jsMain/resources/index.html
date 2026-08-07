@@ -143,7 +143,22 @@
             flex-direction: column;
             padding: 16px 12px;
             gap: 10px;
+            overflow: hidden;
+        }
+        /* The scrollable middle of the sidebar — brand, "new section" button, and the section/collection
+           tree — separate from `.sidebar-footer` so the footer stays pinned to the bottom instead of
+           scrolling away under a long list. overflow-x is clipped explicitly (not left unset next to
+           overflow-y: auto) because an unset axis next to a scrolling one computes to auto too, and an
+           unbroken long name would otherwise open a horizontal scrollbar across the whole sidebar. */
+        .sidebar-scroll {
+            flex: 1;
+            min-width: 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
             overflow-y: auto;
+            overflow-x: hidden;
         }
         .brand { font-size: 18px; font-weight: 700; padding: 4px 8px; letter-spacing: 0.2px; }
 
@@ -169,9 +184,9 @@
         .btn:hover { border-color: var(--accent); color: var(--accent); }
         .new-col { text-align: left; }
 
-        .sidebar > .section { display: flex; flex-direction: column; gap: 2px; }
-        .section-head { display: flex; align-items: center; gap: 4px; padding: 6px 8px 2px; }
-        .section-title { flex: 1; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .sidebar-scroll > .section { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .section-head { display: flex; align-items: center; gap: 4px; padding: 6px 8px 2px; min-width: 0; }
+        .section-title { flex: 1; min-width: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .section-head .icon { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px; }
         /* The tools of a section — add a collection, delete it — stay out of the way until it is hovered,
            or until one is reached by keyboard (:focus-within covers both). */
@@ -181,10 +196,11 @@
         .section-head .icon.del:hover { color: var(--danger); }
         /* Collections are the children of their section: indented under its header and hung off a
            branch line, so the sidebar reads as a two-level tree instead of two kinds of similar row. */
-        .collections { list-style: none; margin: 2px 0 4px 15px; padding: 0 0 0 9px; border-left: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
+        .collections { list-style: none; margin: 2px 0 4px 15px; padding: 0 0 0 9px; border-left: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
         .col {
             display: flex; align-items: center; justify-content: space-between;
             padding: 8px 10px; border-radius: 8px; cursor: pointer;
+            min-width: 0;
         }
         .col:hover { background: var(--bg); }
         .col.selected { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
@@ -753,8 +769,10 @@
         .wysiwyg mark { background: #ffe58a; color: #1c2024; padding: 0 2px; border-radius: 2px; }
         .wysiwyg code { background: var(--panel); border: 1px solid var(--border); padding: 1px 5px; border-radius: 4px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 
-        /* Left-sidebar footer: settings entry pinned to the bottom */
-        .sidebar-footer { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border); }
+        /* Left-sidebar footer: settings entry pinned to the bottom. It sits outside `.sidebar-scroll`,
+           whose flex: 1 already claims all the leftover height, so the footer never needs its own
+           margin-top: auto and never scrolls away with a long section/collection list. */
+        .sidebar-footer { padding-top: 10px; border-top: 1px solid var(--border); }
         .settings-btn { width: 100%; text-align: left; display: flex; align-items: center; gap: 6px; }
         .settings-btn .gear { font-size: 15px; line-height: 1; }
         .settings-rail { margin-top: auto; }
