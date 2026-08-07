@@ -643,6 +643,11 @@ val App = FC<AppProps> { props ->
     var serverOnline by useState(true)
     var accountOpen by useState(false)
 
+    // The walkthrough on the very first open of this browser — see [ONBOARDING_SEEN_PREF] — and never
+    // again after that, on whichever step it was dismissed on. Read once, not derived on every render:
+    // closing it writes the flag straight away, and this is the one moment that flag is asked about.
+    var onboardingOpen by useState(false)
+
     // Set when a session was signed in somewhere the database was not open yet — the landing page — and
     // this browser turns out to have work of its own. Nobody but the user can say what happens to it, so
     // the account dialog opens on that question and nothing moves until it is answered.
@@ -890,6 +895,13 @@ val App = FC<AppProps> { props ->
             // nothing on screen is waiting for it.
             if (backfillThumbs(s)) thumbsVersion += 1
         }
+    }
+
+    // First open of this browser, extension or web app alike — see [ONBOARDING_SEEN_PREF]. Independent
+    // of the store loading above: the walkthrough has nothing to read out of the database, and there is
+    // no reason to make it wait on something it does not need.
+    useEffectOnce {
+        if (prefGet(ONBOARDING_SEEN_PREF) != "1") onboardingOpen = true
     }
 
     useEffect(theme) {
@@ -3421,6 +3433,23 @@ val App = FC<AppProps> { props ->
                     onChangePin = { lockMenuId = null; pinDialog = PinDialog(id, change = true) }
                     onRemove = { removePin(id) }
                     onClose = { lockMenuId = null }
+                }
+            }
+        }
+        if (onboardingOpen) {
+            OnboardingModal {
+                strings = t
+                // The one capability only the extension has — reading the browser's own open tabs —
+                // is also the one true fact of which host this is; see [AppProps.tabCapture].
+                isExtension = tabCapture != null
+                onSignIn = {
+                    onboardingOpen = false
+                    prefSet(ONBOARDING_SEEN_PREF, "1")
+                    accountOpen = true
+                }
+                onClose = {
+                    onboardingOpen = false
+                    prefSet(ONBOARDING_SEEN_PREF, "1")
                 }
             }
         }

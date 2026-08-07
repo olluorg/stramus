@@ -506,6 +506,22 @@ interface Strings {
     /** Why a button that talks to the server is greyed out: the last check found nobody there. */
     val serverUnavailable: String
 
+    // Onboarding — the walkthrough shown once, on the very first open. See `Onboarding.kt`.
+    val onboardingSignInTitle: String
+    val onboardingSignInBody: String
+    val onboardingSkip: String
+    val onboardingInstallTitle: String
+    val onboardingInstallBody: String
+    val onboardingInstallCta: String
+    val onboardingContinueInBrowser: String
+    val onboardingOrganizeTitle: String
+    val onboardingOrganizeBody: String
+    val onboardingSearchTitle: String
+    val onboardingSearchBody: String
+    val onboardingBack: String
+    val onboardingNext: String
+    val onboardingGetStarted: String
+
     val seed: StoreSeed
 }
 
@@ -860,6 +876,21 @@ private object EnStrings : Strings {
     override val signInWithGoogle = "Continue with Google"
     override val signInUnavailable = "Signing in is not set up in this build. The app works without an account, as it always has."
     override val serverUnavailable = "The server is not answering right now. This needs it — try again once it's back."
+
+    override val onboardingSignInTitle = "Sign in to sync everywhere"
+    override val onboardingSignInBody = "Your collections stay on this device until you sign in — then they follow you to every browser you use, automatically."
+    override val onboardingSkip = "Skip for now"
+    override val onboardingInstallTitle = "Install the extension"
+    override val onboardingInstallBody = "stramus works right here in this tab, but the extension adds its own new-tab page, one-click tab saving, and a search box over your open tabs and history — the full experience."
+    override val onboardingInstallCta = "Install from Chrome Web Store"
+    override val onboardingContinueInBrowser = "Continue in the browser"
+    override val onboardingOrganizeTitle = "Collections, grouped into sections"
+    override val onboardingOrganizeBody = "The sidebar holds your sections; each one opens onto its collections. Drag a tab, a link or a file into any collection to save it there — nothing leaves your device unless you ask it to."
+    override val onboardingSearchTitle = "One search for everything"
+    override val onboardingSearchBody = "The search box up top finds saved cards, open tabs and browsing history all at once — start typing, and stramus looks everywhere so you don't have to."
+    override val onboardingBack = "Back"
+    override val onboardingNext = "Next"
+    override val onboardingGetStarted = "Get started"
 
     override val seed = StoreSeed(
         sectionTitle = "Main",
@@ -1245,6 +1276,21 @@ private object RuStrings : Strings {
     override val signInUnavailable = "В этой сборке вход не настроен. Приложение работает и без аккаунта — ровно как раньше."
     override val serverUnavailable = "Сервер сейчас не отвечает. Для этого он нужен — попробуйте, когда он снова будет доступен."
 
+    override val onboardingSignInTitle = "Синхронизируйте коллекции везде"
+    override val onboardingSignInBody = "Пока вы не вошли, коллекции остаются только на этом устройстве. Войдите — и они автоматически появятся в любом браузере, которым вы пользуетесь."
+    override val onboardingSkip = "Пропустить"
+    override val onboardingInstallTitle = "Установите расширение"
+    override val onboardingInstallBody = "stramus работает прямо в этой вкладке, но расширение добавляет собственную страницу новой вкладки, сохранение вкладок в один клик и поиск по открытым вкладкам и истории — весь опыт целиком."
+    override val onboardingInstallCta = "Установить из Chrome Web Store"
+    override val onboardingContinueInBrowser = "Продолжить в браузере"
+    override val onboardingOrganizeTitle = "Коллекции, сгруппированные в разделы"
+    override val onboardingOrganizeBody = "Боковая панель содержит ваши разделы; каждый открывается в свои коллекции. Перетащите вкладку, ссылку или файл в любую коллекцию, чтобы сохранить их — ничего не покидает ваше устройство, если вы сами этого не попросите."
+    override val onboardingSearchTitle = "Один поиск для всего"
+    override val onboardingSearchBody = "Строка поиска сверху находит сохранённые карточки, открытые вкладки и историю браузера одновременно — начните печатать, и stramus проверит всё за вас."
+    override val onboardingBack = "Назад"
+    override val onboardingNext = "Далее"
+    override val onboardingGetStarted = "Начать"
+
     override val seed = StoreSeed(
         sectionTitle = "Главный",
         collectionTitle = "Начало работы",
@@ -1627,6 +1673,21 @@ private object FrStrings : Strings {
     override val signInWithGoogle = "Continuer avec Google"
     override val signInUnavailable = "La connexion n'est pas configurée dans cette version. L'application fonctionne sans compte, comme toujours."
     override val serverUnavailable = "Le serveur ne répond pas pour le moment. Ceci en a besoin — réessayez une fois qu'il sera de retour."
+
+    override val onboardingSignInTitle = "Connectez-vous pour synchroniser partout"
+    override val onboardingSignInBody = "Vos collections restent sur cet appareil tant que vous n'êtes pas connecté — connectez-vous, et elles vous suivent automatiquement sur chaque navigateur que vous utilisez."
+    override val onboardingSkip = "Plus tard"
+    override val onboardingInstallTitle = "Installez l'extension"
+    override val onboardingInstallBody = "stramus fonctionne directement dans cet onglet, mais l'extension ajoute une page de nouvel onglet dédiée, l'enregistrement des onglets en un clic et une recherche sur vos onglets ouverts et votre historique — l'expérience complète."
+    override val onboardingInstallCta = "Installer depuis le Chrome Web Store"
+    override val onboardingContinueInBrowser = "Continuer dans le navigateur"
+    override val onboardingOrganizeTitle = "Des collections, regroupées en sections"
+    override val onboardingOrganizeBody = "La barre latérale contient vos sections ; chacune s'ouvre sur ses collections. Glissez un onglet, un lien ou un fichier dans une collection pour l'y enregistrer — rien ne quitte votre appareil sans que vous le demandiez."
+    override val onboardingSearchTitle = "Une seule recherche pour tout"
+    override val onboardingSearchBody = "La barre de recherche en haut trouve à la fois les cartes enregistrées, les onglets ouverts et l'historique de navigation — commencez à taper, stramus cherche partout à votre place."
+    override val onboardingBack = "Précédent"
+    override val onboardingNext = "Suivant"
+    override val onboardingGetStarted = "Commencer"
 
     override val seed = StoreSeed(
         sectionTitle = "Principal",
@@ -2011,6 +2072,21 @@ private object EsStrings : Strings {
     override val signInUnavailable = "El inicio de sesión no está configurado en esta versión. La aplicación funciona sin cuenta, como siempre."
     override val serverUnavailable = "El servidor no responde en este momento. Esto lo necesita — inténtalo de nuevo cuando vuelva."
 
+    override val onboardingSignInTitle = "Inicia sesión para sincronizar en todas partes"
+    override val onboardingSignInBody = "Tus colecciones permanecen en este dispositivo hasta que inicies sesión — después te siguen automáticamente a cada navegador que uses."
+    override val onboardingSkip = "Más tarde"
+    override val onboardingInstallTitle = "Instala la extensión"
+    override val onboardingInstallBody = "stramus funciona aquí mismo, en esta pestaña, pero la extensión añade su propia página de pestaña nueva, guardar pestañas con un clic y una búsqueda sobre tus pestañas abiertas y tu historial — la experiencia completa."
+    override val onboardingInstallCta = "Instalar desde Chrome Web Store"
+    override val onboardingContinueInBrowser = "Continuar en el navegador"
+    override val onboardingOrganizeTitle = "Colecciones, agrupadas en secciones"
+    override val onboardingOrganizeBody = "La barra lateral contiene tus secciones; cada una se abre a sus colecciones. Arrastra una pestaña, un enlace o un archivo a cualquier colección para guardarlo ahí — nada sale de tu dispositivo a menos que tú lo pidas."
+    override val onboardingSearchTitle = "Una sola búsqueda para todo"
+    override val onboardingSearchBody = "El cuadro de búsqueda de arriba encuentra tarjetas guardadas, pestañas abiertas e historial de navegación a la vez — empieza a escribir y stramus busca en todas partes por ti."
+    override val onboardingBack = "Atrás"
+    override val onboardingNext = "Siguiente"
+    override val onboardingGetStarted = "Empezar"
+
     override val seed = StoreSeed(
         sectionTitle = "Principal",
         collectionTitle = "Primeros pasos",
@@ -2394,6 +2470,21 @@ private object DeStrings : Strings {
     override val signInUnavailable = "Die Anmeldung ist in dieser Version nicht eingerichtet. Die App funktioniert auch ohne Konto, wie schon immer."
     override val serverUnavailable = "Der Server antwortet gerade nicht. Das wird dafür gebraucht — versuch es erneut, sobald er wieder da ist."
 
+    override val onboardingSignInTitle = "Anmelden, um überall zu synchronisieren"
+    override val onboardingSignInBody = "Deine Sammlungen bleiben auf diesem Gerät, bis du dich anmeldest — danach folgen sie dir automatisch in jeden Browser, den du benutzt."
+    override val onboardingSkip = "Später"
+    override val onboardingInstallTitle = "Erweiterung installieren"
+    override val onboardingInstallBody = "stramus funktioniert direkt in diesem Tab, aber die Erweiterung bringt eine eigene Neuer-Tab-Seite, Tabs mit einem Klick speichern und eine Suche über deine offenen Tabs und deinen Verlauf — das volle Erlebnis."
+    override val onboardingInstallCta = "Aus dem Chrome Web Store installieren"
+    override val onboardingContinueInBrowser = "Im Browser fortfahren"
+    override val onboardingOrganizeTitle = "Sammlungen, gruppiert in Bereiche"
+    override val onboardingOrganizeBody = "Die Seitenleiste enthält deine Bereiche; jeder öffnet sich zu seinen Sammlungen. Ziehe einen Tab, einen Link oder eine Datei in eine Sammlung, um sie dort zu speichern — nichts verlässt dein Gerät, ohne dass du danach fragst."
+    override val onboardingSearchTitle = "Eine Suche für alles"
+    override val onboardingSearchBody = "Die Suchleiste oben findet gespeicherte Karten, offene Tabs und den Browserverlauf gleichzeitig — fang an zu tippen, und stramus sucht überall für dich."
+    override val onboardingBack = "Zurück"
+    override val onboardingNext = "Weiter"
+    override val onboardingGetStarted = "Loslegen"
+
     override val seed = StoreSeed(
         sectionTitle = "Haupt",
         collectionTitle = "Erste Schritte",
@@ -2776,6 +2867,21 @@ private object PtBrStrings : Strings {
     override val signInUnavailable = "O login não está configurado nesta versão. O app funciona sem conta, como sempre."
     override val serverUnavailable = "O servidor não está respondendo no momento. Isso precisa dele — tente de novo quando ele voltar."
 
+    override val onboardingSignInTitle = "Entre para sincronizar em todos os lugares"
+    override val onboardingSignInBody = "Suas coleções ficam apenas neste dispositivo até você entrar — depois, elas te acompanham automaticamente em cada navegador que você usar."
+    override val onboardingSkip = "Depois"
+    override val onboardingInstallTitle = "Instale a extensão"
+    override val onboardingInstallBody = "O stramus funciona direto nesta aba, mas a extensão traz sua própria página de nova aba, salvar abas com um clique e uma busca sobre suas abas abertas e seu histórico — a experiência completa."
+    override val onboardingInstallCta = "Instalar na Chrome Web Store"
+    override val onboardingContinueInBrowser = "Continuar no navegador"
+    override val onboardingOrganizeTitle = "Coleções, agrupadas em seções"
+    override val onboardingOrganizeBody = "A barra lateral guarda suas seções; cada uma se abre nas suas coleções. Arraste uma aba, um link ou um arquivo para qualquer coleção para salvá-lo ali — nada sai do seu dispositivo a menos que você peça."
+    override val onboardingSearchTitle = "Uma busca só para tudo"
+    override val onboardingSearchBody = "A caixa de busca no topo encontra cartões salvos, abas abertas e histórico de navegação ao mesmo tempo — comece a digitar, e o stramus procura em tudo por você."
+    override val onboardingBack = "Voltar"
+    override val onboardingNext = "Próximo"
+    override val onboardingGetStarted = "Começar"
+
     override val seed = StoreSeed(
         sectionTitle = "Principal",
         collectionTitle = "Primeiros passos",
@@ -3152,6 +3258,21 @@ private object ZhCnStrings : Strings {
     override val signInWithGoogle = "使用 Google 继续"
     override val signInUnavailable = "此版本未配置登录功能。应用无需账户即可照常使用。"
     override val serverUnavailable = "服务器目前没有响应。此操作需要它——请等它恢复后再试。"
+
+    override val onboardingSignInTitle = "登录以在各处同步"
+    override val onboardingSignInBody = "在你登录之前，收藏夹只保存在这台设备上——登录后，它们会自动同步到你使用的每个浏览器。"
+    override val onboardingSkip = "以后再说"
+    override val onboardingInstallTitle = "安装扩展程序"
+    override val onboardingInstallBody = "stramus 在当前标签页里就能使用，但扩展程序还提供专属的新标签页、一键保存标签页，以及对已打开标签页和历史记录的搜索——完整体验。"
+    override val onboardingInstallCta = "从 Chrome 网上应用店安装"
+    override val onboardingContinueInBrowser = "在浏览器中继续"
+    override val onboardingOrganizeTitle = "收藏夹按分组归入板块"
+    override val onboardingOrganizeBody = "侧边栏保存着你的板块，每个板块下都有它自己的收藏夹。把标签页、链接或文件拖入任意收藏夹即可保存——除非你主动操作，否则不会离开你的设备。"
+    override val onboardingSearchTitle = "一个搜索框搞定一切"
+    override val onboardingSearchBody = "顶部的搜索框会同时查找已保存的卡片、打开的标签页和浏览历史——开始输入，stramus 会替你找遍所有地方。"
+    override val onboardingBack = "上一步"
+    override val onboardingNext = "下一步"
+    override val onboardingGetStarted = "开始使用"
 
     override val seed = StoreSeed(
         sectionTitle = "主分区",
@@ -3534,6 +3655,21 @@ private object JaStrings : Strings {
     override val signInUnavailable = "このビルドではサインインが設定されていません。これまで通り、アプリはアカウントなしで動作します。"
     override val serverUnavailable = "現在サーバーが応答していません。これにはサーバーが必要です——復旧後にもう一度お試しください。"
 
+    override val onboardingSignInTitle = "サインインしてどこでも同期"
+    override val onboardingSignInBody = "サインインするまで、コレクションはこの端末だけに残ります。サインインすれば、使用するすべてのブラウザに自動的に反映されます。"
+    override val onboardingSkip = "あとで"
+    override val onboardingInstallTitle = "拡張機能をインストール"
+    override val onboardingInstallBody = "stramus はこのタブでそのまま使えますが、拡張機能を入れると専用の新規タブページ、ワンクリックでのタブ保存、開いているタブと履歴を対象にした検索が使えます——フル機能の体験です。"
+    override val onboardingInstallCta = "Chromeウェブストアからインストール"
+    override val onboardingContinueInBrowser = "ブラウザで続ける"
+    override val onboardingOrganizeTitle = "コレクションをセクションにまとめる"
+    override val onboardingOrganizeBody = "サイドバーにはセクションが並び、それぞれがコレクションを開きます。タブやリンク、ファイルを任意のコレクションにドラッグすると保存されます——自分から操作しない限り、何もこの端末の外へは出ません。"
+    override val onboardingSearchTitle = "ひとつの検索ですべてを"
+    override val onboardingSearchBody = "上部の検索ボックスは、保存したカード・開いているタブ・閲覧履歴を同時に検索します。入力を始めるだけで、stramus がすべてを探してくれます。"
+    override val onboardingBack = "戻る"
+    override val onboardingNext = "次へ"
+    override val onboardingGetStarted = "はじめる"
+
     override val seed = StoreSeed(
         sectionTitle = "メイン",
         collectionTitle = "はじめに",
@@ -3915,6 +4051,21 @@ private object KoStrings : Strings {
     override val signInWithGoogle = "Google로 계속하기"
     override val signInUnavailable = "이 빌드에서는 로그인이 설정되어 있지 않습니다. 앱은 언제나처럼 계정 없이도 작동합니다."
     override val serverUnavailable = "현재 서버가 응답하지 않습니다. 이 작업에는 서버가 필요합니다——서버가 복구되면 다시 시도하세요."
+
+    override val onboardingSignInTitle = "로그인하고 어디서나 동기화하세요"
+    override val onboardingSignInBody = "로그인하기 전까지 컬렉션은 이 기기에만 남아 있습니다. 로그인하면 사용하는 모든 브라우저에 자동으로 따라옵니다."
+    override val onboardingSkip = "나중에 하기"
+    override val onboardingInstallTitle = "확장 프로그램 설치"
+    override val onboardingInstallBody = "stramus는 이 탭에서 바로 작동하지만, 확장 프로그램을 설치하면 전용 새 탭 페이지, 원클릭 탭 저장, 열린 탭과 방문 기록에 대한 검색까지—온전한 경험을 이용할 수 있습니다."
+    override val onboardingInstallCta = "Chrome 웹 스토어에서 설치"
+    override val onboardingContinueInBrowser = "브라우저에서 계속하기"
+    override val onboardingOrganizeTitle = "섹션으로 묶인 컬렉션"
+    override val onboardingOrganizeBody = "사이드바에는 섹션이 있고, 각 섹션을 열면 그 안의 컬렉션이 나타납니다. 탭이나 링크, 파일을 원하는 컬렉션에 끌어다 놓으면 저장됩니다—직접 요청하지 않는 한 아무것도 이 기기를 벗어나지 않습니다."
+    override val onboardingSearchTitle = "모든 것을 위한 검색 하나"
+    override val onboardingSearchBody = "상단의 검색창은 저장된 카드, 열린 탭, 방문 기록을 한 번에 찾아줍니다—입력을 시작하기만 하면 stramus가 대신 모든 곳을 찾아봅니다."
+    override val onboardingBack = "이전"
+    override val onboardingNext = "다음"
+    override val onboardingGetStarted = "시작하기"
 
     override val seed = StoreSeed(
         sectionTitle = "메인",
@@ -4299,6 +4450,21 @@ private object ItStrings : Strings {
     override val signInUnavailable = "L'accesso non è configurato in questa build. L'app funziona senza account, come sempre."
     override val serverUnavailable = "Il server non risponde in questo momento. Questa funzione ne ha bisogno — riprova quando sarà di nuovo raggiungibile."
 
+    override val onboardingSignInTitle = "Accedi per sincronizzare ovunque"
+    override val onboardingSignInBody = "Le tue raccolte restano su questo dispositivo finché non accedi — dopo, ti seguiranno automaticamente su ogni browser che usi."
+    override val onboardingSkip = "Più tardi"
+    override val onboardingInstallTitle = "Installa l'estensione"
+    override val onboardingInstallBody = "stramus funziona già in questa scheda, ma l'estensione aggiunge una pagina di nuova scheda dedicata, il salvataggio delle schede con un clic e una ricerca su schede aperte e cronologia — l'esperienza completa."
+    override val onboardingInstallCta = "Installa dal Chrome Web Store"
+    override val onboardingContinueInBrowser = "Continua nel browser"
+    override val onboardingOrganizeTitle = "Raccolte, raggruppate in sezioni"
+    override val onboardingOrganizeBody = "La barra laterale contiene le tue sezioni; ciascuna si apre sulle sue raccolte. Trascina una scheda, un link o un file in una raccolta per salvarlo lì — niente lascia il tuo dispositivo a meno che tu non lo chieda."
+    override val onboardingSearchTitle = "Una sola ricerca per tutto"
+    override val onboardingSearchBody = "La barra di ricerca in alto trova insieme le schede salvate, le schede aperte e la cronologia di navigazione — inizia a digitare, e stramus cerca ovunque al posto tuo."
+    override val onboardingBack = "Indietro"
+    override val onboardingNext = "Avanti"
+    override val onboardingGetStarted = "Inizia"
+
     override val seed = StoreSeed(
         sectionTitle = "Principale",
         collectionTitle = "Per iniziare",
@@ -4680,6 +4846,21 @@ private object TrStrings : Strings {
     override val signInWithGoogle = "Google ile devam et"
     override val signInUnavailable = "Bu derlemede oturum açma ayarlanmamış. Uygulama her zaman olduğu gibi hesap olmadan da çalışır."
     override val serverUnavailable = "Sunucu şu anda yanıt vermiyor. Bunun için sunucuya ihtiyaç var — geri geldiğinde tekrar dene."
+
+    override val onboardingSignInTitle = "Her yerde eşitlemek için oturum aç"
+    override val onboardingSignInBody = "Oturum açana kadar koleksiyonların yalnızca bu cihazda kalır — oturum açtığında, kullandığın her tarayıcıya otomatik olarak taşınır."
+    override val onboardingSkip = "Şimdi değil"
+    override val onboardingInstallTitle = "Uzantıyı yükle"
+    override val onboardingInstallBody = "stramus bu sekmede zaten çalışır, ancak uzantı kendi yeni sekme sayfasını, tek tıkla sekme kaydetmeyi ve açık sekmelerinle geçmişin üzerinde arama yapmayı ekler — eksiksiz deneyim."
+    override val onboardingInstallCta = "Chrome Web Store'dan yükle"
+    override val onboardingContinueInBrowser = "Tarayıcıda devam et"
+    override val onboardingOrganizeTitle = "Bölümlere gruplanmış koleksiyonlar"
+    override val onboardingOrganizeBody = "Kenar çubuğu bölümlerini tutar; her biri kendi koleksiyonlarını açar. Bir sekmeyi, bağlantıyı ya da dosyayı herhangi bir koleksiyona sürükleyerek kaydet — sen istemedikçe hiçbir şey cihazından ayrılmaz."
+    override val onboardingSearchTitle = "Her şey için tek bir arama"
+    override val onboardingSearchBody = "Üstteki arama kutusu kayıtlı kartları, açık sekmeleri ve tarayıcı geçmişini aynı anda bulur — yazmaya başla, stramus her yeri senin için arasın."
+    override val onboardingBack = "Geri"
+    override val onboardingNext = "İleri"
+    override val onboardingGetStarted = "Başla"
 
     override val seed = StoreSeed(
         sectionTitle = "Ana",
