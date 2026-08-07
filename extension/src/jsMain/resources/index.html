@@ -864,16 +864,106 @@
         .account-modal .row { display: flex; gap: 8px; padding: 12px 18px; }
 
         /* ---- Onboarding (the first-run walkthrough) ------------------------------------------- */
-        .onboarding-modal { width: min(440px, 92vw); }
+        .onboarding-modal { width: min(480px, 92vw); overflow: visible; }
         .onboarding-modal .modal-head { border-bottom: none; padding-bottom: 4px; }
         .onboarding-brand { font-weight: 700; color: var(--muted, #8b949e); font-size: 13px; letter-spacing: .02em; }
-        .onboarding-body { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 6px 26px 20px; }
-        .onboarding-icon { width: 52px; height: 52px; border-radius: 14px; background: var(--bg); display: flex; align-items: center; justify-content: center; color: var(--accent); font-size: 24px; margin-bottom: 2px; }
-        .onboarding-body h3 { margin: 0; font-size: 17px; }
-        .onboarding-body p { margin: 0; color: var(--muted, #8b949e); font-size: 13.5px; line-height: 1.55; max-width: 340px; }
-        .onboarding-cta { margin-top: 8px; text-decoration: none; }
+        .onboarding-body { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; padding: 4px 28px 22px; animation: onboarding-in .3s ease; }
+        @keyframes onboarding-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* The round badge on the CTA page — a pulsing ring draws the eye to it without anything
+           moving that could be mistaken for a real, clickable part of the page. */
+        .onboarding-icon {
+            position: relative; width: 60px; height: 60px; border-radius: 50%;
+            background: var(--accent-soft); color: var(--accent);
+            display: flex; align-items: center; justify-content: center; font-size: 26px;
+        }
+        .onboarding-icon .icon-glyph { width: 1.15em; height: 1.15em; }
+        .onboarding-icon::after {
+            content: ""; position: absolute; inset: -6px; border-radius: 50%;
+            border: 1.5px solid var(--accent); opacity: .5;
+            animation: onboarding-pulse 2s ease-out infinite;
+        }
+        @keyframes onboarding-pulse {
+            0% { transform: scale(.92); opacity: .5; }
+            100% { transform: scale(1.35); opacity: 0; }
+        }
+
+        .onboarding-body h3 { margin: 0; font-size: 18px; }
+        .onboarding-body p { margin: 0; color: var(--muted, #8b949e); font-size: 13.5px; line-height: 1.55; max-width: 360px; }
+        .onboarding-cta { margin-top: 4px; text-decoration: none; }
         .onboarding-skip { border: none; background: none; color: var(--muted, #8b949e); font-size: 13px; cursor: pointer; padding: 4px; }
         .onboarding-skip:hover { color: var(--text); text-decoration: underline; }
+
+        /* The little mock-ups that stand in for the icon on the two feature pages: not screenshots
+           (which would be a second file to keep in step with the app on every redesign) but the app's
+           own shapes and colours, abstracted to bars and chips — the same trick `Landing.kt`'s preview
+           uses, at a size that fits inside a modal instead of a hero section. */
+        .onboarding-illus {
+            width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 10px;
+            padding: 16px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg);
+        }
+        .ob-skel { display: block; height: 7px; border-radius: 4px; background: var(--border); }
+
+        .ob-tab-chip { position: relative; display: flex; align-items: center; gap: 7px; flex: 0 0 auto; border: 1px solid var(--border); background: var(--panel); border-radius: 9px; padding: 8px 10px; }
+        .ob-tab-dot { width: 14px; height: 14px; border-radius: 4px; background: var(--accent-soft); flex: 0 0 auto; }
+        .ob-tab-lines { width: 46px; display: flex; flex-direction: column; gap: 5px; }
+        .ob-tab-lines .ob-skel.sub { width: 60%; opacity: .6; }
+
+        /* The drag demo: the tab nudges toward the sidebar, the arrow blinks a beat behind it, the
+           collection it lands on brightens in step — three things moving on one clock so the loop
+           reads as one gesture ("this tab → this collection") instead of three ambient animations. */
+        .ob-drag-tab { animation: ob-drag-nudge 2.2s ease-in-out infinite; }
+        .ob-drag-cursor {
+            position: absolute; left: -6px; bottom: -6px; width: 14px; height: 14px; border-radius: 50%;
+            background: var(--accent); box-shadow: 0 0 0 3px var(--bg);
+            animation: ob-drag-nudge 2.2s ease-in-out infinite;
+        }
+        @keyframes ob-drag-nudge {
+            0%, 30% { transform: translateX(0); }
+            55%, 75% { transform: translateX(-12px); }
+            100% { transform: translateX(0); }
+        }
+        .onboarding-arrow.ob-drag-arrow .icon-glyph { animation: ob-drag-arrow-pulse 2.2s ease-in-out infinite; }
+        @keyframes ob-drag-arrow-pulse {
+            0%, 30% { opacity: .45; transform: translateX(0); }
+            55%, 75% { opacity: 1; transform: translateX(-3px); }
+            100% { opacity: .45; transform: translateX(0); }
+        }
+        .ob-sidebar-col.ob-drop-target { animation: ob-drop-target-glow 2.2s ease-in-out infinite; }
+        @keyframes ob-drop-target-glow {
+            0%, 30% { background: var(--bg); }
+            55%, 75% { background: var(--accent-soft); }
+            100% { background: var(--bg); }
+        }
+        .ob-sidebar-col.ob-drop-target .ob-skel { animation: ob-drop-target-skel 2.2s ease-in-out infinite; }
+        @keyframes ob-drop-target-skel {
+            0%, 30% { background: var(--border); opacity: 1; }
+            55%, 75% { background: var(--accent); opacity: .85; }
+            100% { background: var(--border); opacity: 1; }
+        }
+
+        .onboarding-arrow { flex: 0 0 auto; color: var(--muted, #8b949e); }
+        .onboarding-arrow .icon-glyph { width: 16px; height: 16px; }
+
+        .ob-sidebar { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; text-align: left; }
+        .ob-sidebar-sec { padding: 4px 6px 1px; }
+        .ob-sidebar-sec .ob-skel { width: 22px; opacity: .55; }
+        .ob-sidebar-col { display: flex; padding: 5px 7px; border-radius: 7px; }
+        .ob-sidebar-col .ob-skel { width: 68%; }
+        .ob-sidebar-col.on { background: var(--accent-soft); }
+        .ob-sidebar-col.on .ob-skel { background: var(--accent); opacity: .85; }
+
+        .ob-search-wrap { display: flex; flex-direction: column; gap: 9px; width: 100%; text-align: left; }
+        .ob-search-bar { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--panel); border-radius: 9px; padding: 8px 10px; color: var(--muted, #8b949e); }
+        .ob-search-bar .icon-glyph { width: 15px; height: 15px; flex: 0 0 auto; }
+        .ob-search-bar .ob-skel { width: 74px; }
+        .ob-search-row { display: flex; align-items: center; gap: 8px; padding: 4px 3px; }
+        .ob-search-row .icon-glyph { width: 14px; height: 14px; flex: 0 0 auto; color: var(--muted, #8b949e); }
+        .ob-search-row.dim { opacity: .55; }
+        .ob-skel-group { display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; }
+        .ob-skel-group .ob-skel.title { width: 46%; }
+        .ob-skel-group .ob-skel.sub { width: 26%; opacity: .55; }
+
         .onboarding-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--border); }
         .onboarding-dots { display: flex; gap: 6px; }
         .onboarding-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); transition: width .15s, background .15s; }

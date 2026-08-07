@@ -92,6 +92,7 @@ private val ICONS: Map<String, String> = mapOf(
         """<rect x="8" y="8" width="12" height="12" rx="1.5"/>""" +
             """<path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>""",
     ),
+    "clock" to svg("""<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/>"""),
     "info" to svg(
         """<circle cx="12" cy="12" r="9"/><path d="M12 11v6"/>""" +
             """<circle cx="12" cy="7.5" r="1" fill="currentColor" stroke="none"/>""",
