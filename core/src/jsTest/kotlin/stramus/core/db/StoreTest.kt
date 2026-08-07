@@ -2,9 +2,8 @@
 
 package stramus.core.db
 
-import io.github.kormium.createSqliteDatabase
-import io.github.kormium.database.SuspendDatabase
-import kotlin.io.path.createTempDirectory
+import io.github.kidx.deleteDatabase
+import io.github.kidx.openDatabase
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -20,12 +19,14 @@ import stramus.core.model.Card
  * The "writes one row" part is not decoration — it is the reason for the whole change. Under the old
  * scheme a move renumbered every card of the collection, and once two devices sync, a hundred rewritten
  * rows are a hundred rows to disagree about.
+ *
+ * Runs under Node against `fake-indexeddb`, the same way kidx tests itself: there is no JVM target here
+ * any more, kidx being browser-only.
  */
 class StoreTest {
 
     @Test
-    fun `a card dragged up the grid lands where it was dropped`() = runTest {
-        val store = openStore()
+    fun `a card dragged up the grid lands where it was dropped`() = storeTest { store ->
         val collection = store.collections.all().single().id
         store.cards.byCollection(collection).forEach { store.cards.delete(it.id) } // drop the seeded note
 
@@ -43,8 +44,7 @@ class StoreTest {
     }
 
     @Test
-    fun `a move rewrites the card that moved and leaves the rest alone`() = runTest {
-        val store = openStore()
+    fun `a move rewrites the card that moved and leaves the rest alone`() = storeTest { store ->
         val collection = store.collections.all().single().id
         store.cards.byCollection(collection).forEach { store.cards.delete(it.id) }
         listOf("a", "b", "c", "d").forEach { store.cards.add(collection, it, "https://example.org/$it", null) }
@@ -58,8 +58,7 @@ class StoreTest {
     }
 
     @Test
-    fun `a card dragged into a group joins it, and leaving the group ungroups it`() = runTest {
-        val store = openStore()
+    fun `a card dragged into a group joins it, and leaving the group ungroups it`() = storeTest { store ->
         val collection = store.collections.all().single().id
         store.cards.byCollection(collection).forEach { store.cards.delete(it.id) }
 
@@ -81,8 +80,7 @@ class StoreTest {
     }
 
     @Test
-    fun `sorting a group re-lays it out and leaves the cards it did not name at the end`() = runTest {
-        val store = openStore()
+    fun `sorting a group re-lays it out and leaves the cards it did not name at the end`() = storeTest { store ->
         val collection = store.collections.all().single().id
         store.cards.byCollection(collection).forEach { store.cards.delete(it.id) }
         listOf("a", "b", "c").forEach { store.cards.add(collection, it, "https://example.org/$it", null) }
@@ -99,8 +97,7 @@ class StoreTest {
     }
 
     @Test
-    fun `a collection is ordered within its section, and moving it between sections keeps both in order`() = runTest {
-        val store = openStore()
+    fun `a collection is ordered within its section, and moving it between sections keeps both in order`() = storeTest { store ->
         val main = store.sections.all().single().id
         val work = store.sections.create("Work") // comes with a collection of its own name
 
@@ -120,8 +117,7 @@ class StoreTest {
     }
 
     @Test
-    fun `sections reorder in the sidebar`() = runTest {
-        val store = openStore()
+    fun `sections reorder in the sidebar`() = storeTest { store ->
         store.sections.create("Work")
         store.sections.create("Play")
         assertEquals(listOf("Main", "Work", "Play"), store.sections.all().map { it.title })
@@ -132,8 +128,7 @@ class StoreTest {
     }
 
     @Test
-    fun `deleting a card section ungroups its cards instead of taking them with it`() = runTest {
-        val store = openStore()
+    fun `deleting a card section ungroups its cards instead of taking them with it`() = storeTest { store ->
         val collection = store.collections.all().single().id
         val group = store.cardSections.create(collection, "Later", null)
         val card = store.cards.add(collection, "kept", "https://example.org/kept", null, cardSectionId = group.id)
@@ -146,8 +141,37 @@ class StoreTest {
     }
 
     @Test
-    fun `a PIN can be set, checked and taken off again`() = runTest {
-        val store = openStore()
+    fun `deleting a collection leaves another collection's cards and groups alone`() = storeTest { store ->
+        // A regression test for a real kidx bug (fixed upstream): a compound-index query pinning only
+        // the leading field (`collectionId eq x`, no trailing range on `orderKey`) encoded its lower
+        // bound as a bare value instead of an array. IndexedDB then compared that bare value against the
+        // index's array-shaped stored keys by cross-type ordering (a string always sorts below an
+        // array), which made the lower bound match everything and let a lexicographically-earlier
+        // collection's rows leak into this collection's results — visible here as another collection's
+        // card and group turning up (or this collection's own group vanishing, depending on which way the
+        // random ids happened to sort) after an unrelated collection was deleted.
+        val main = store.sections.all().single().id
+        val keep = store.collections.create("keep", main)
+        val gone = store.collections.create("gone", main)
+
+        val keepGroup = store.cardSections.create(keep.id, "Later", null)
+        store.cards.add(keep.id, "in group", "https://example.org/a", null, cardSectionId = keepGroup.id)
+        store.cards.add(keep.id, "ungrouped", "https://example.org/b", null)
+
+        store.cardSections.create(gone.id, "OtherGroup", null)
+        store.cards.add(gone.id, "c", "https://example.org/c", null)
+
+        store.collections.delete(gone.id)
+
+        assertEquals(listOf("Later"), store.cardSections.byCollection(keep.id).map { it.title })
+
+        val cards = store.cards.byCollection(keep.id)
+        assertEquals(setOf("in group", "ungrouped"), cards.map { it.title }.toSet())
+        assertEquals(keepGroup.id, cards.first { it.title == "in group" }.cardSectionId)
+    }
+
+    @Test
+    fun `a PIN can be set, checked and taken off again`() = storeTest { store ->
         val section = store.sections.all().single().id
 
         store.sections.setPin(section, "1234")
@@ -162,8 +186,7 @@ class StoreTest {
     }
 
     @Test
-    fun `an undone deletion puts the collection back where it was, not at the end`() = runTest {
-        val store = openStore()
+    fun `an undone deletion puts the collection back where it was, not at the end`() = storeTest { store ->
         val main = store.sections.all().single().id
         store.collections.create("second", main)
         store.collections.create("third", main)
@@ -177,8 +200,7 @@ class StoreTest {
     }
 
     @Test
-    fun `an undone card deletion puts it back where it was, not at the end`() = runTest {
-        val store = openStore()
+    fun `an undone card deletion puts it back where it was, not at the end`() = storeTest { store ->
         val collection = store.collections.all().single().id
         store.cards.byCollection(collection).forEach { store.cards.delete(it.id) } // drop the seeded note
         listOf("a", "b", "c").forEach { store.cards.add(collection, it, "https://example.org/$it", null) }
@@ -194,8 +216,18 @@ class StoreTest {
 
 private fun List<Card>.titles(): List<String> = map { it.title }
 
-private suspend fun openStore(): StramusStore {
-    val db: SuspendDatabase<StramusDb> =
-        createSqliteDatabase(createTempDirectory("stramus-test").resolve("stramus.db").toString())
-    return openStramusStore(db, StoreSeed("Main", "Getting started", "How to use", "Drag a link here."))
+/**
+ * A fresh database per test, deleted first so a previous run's data (or a previous test's, since
+ * `fake-indexeddb` is process-global) never leaks in — the pattern kidx's own suite uses.
+ */
+private fun storeTest(block: suspend (StramusStore) -> Unit) = runTest {
+    installIndexedDb()
+    deleteDatabase(stramusSchema.databaseName)
+    val db = openDatabase(stramusSchema)
+    val store = openStramusStore(db, StoreSeed("Main", "Getting started", "How to use", "Drag a link here."))
+    try {
+        block(store)
+    } finally {
+        db.close()
+    }
 }

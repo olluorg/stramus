@@ -1,21 +1,17 @@
-@file:OptIn(ExperimentalUuidApi::class, DelicateKormiumApi::class)
+@file:OptIn(ExperimentalUuidApi::class)
 
 package stramus.core.sync
 
-import io.github.kormium.DelicateKormiumApi
-import io.github.kormium.SuspendScope
-import io.github.kormium.and
-import io.github.kormium.database.SuspendDatabase
-import io.github.kormium.eq
-import io.github.kormium.isNotNull
-import io.github.kormium.isNull
-import io.github.kormium.suspendTransaction
+import io.github.kidx.Database
+import io.github.kidx.ReadScope
+import io.github.kidx.WriteScope
 import kotlin.time.Clock
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import stramus.core.db.ActionUsage
 import stramus.core.db.CardBlobRow
 import stramus.core.db.CardBlobs
 import stramus.core.db.CardRow
@@ -23,11 +19,11 @@ import stramus.core.db.CardSections
 import stramus.core.db.Cards
 import stramus.core.db.Collections
 import stramus.core.db.Sections
-import stramus.core.db.StramusDb
 import stramus.core.db.SyncMeta
 import stramus.core.db.SyncMetaRow
 import stramus.core.db.SyncState
 import stramus.core.db.SyncStateRow
+import stramus.core.db.Usage
 import stramus.core.order.OrderKey
 import stramus.protocol.COUNTER_TABLES
 import stramus.protocol.RowKey
@@ -82,7 +78,7 @@ data class SyncResult(
  * database whose cursor says it has seen rows it has not.
  */
 class SyncEngine(
-    private val db: SuspendDatabase<StramusDb>,
+    private val db: Database,
     private val api: SyncApi,
     /** Null in a test that has no interest in files; the app always has one. */
     private val blobs: BlobApi? = null,
@@ -104,30 +100,30 @@ class SyncEngine(
      * local data away, and the one time the user has nothing to lose by it. The app asks; this obeys.
      */
     suspend fun signIn(userId: Uuid, deviceId: Uuid, discardLocal: Boolean = false) {
-        db.suspendTransaction {
+        db.write(Cards, CardBlobs, CardSections, Collections, Sections, SyncState, SyncMeta) {
             if (discardLocal) {
-                Cards.deleteWhere { }
-                CardBlobs.deleteWhere { }
-                CardSections.deleteWhere { }
-                Collections.deleteWhere { }
-                Sections.deleteWhere { }
+                Cards.all().forEach { Cards.delete(it.id) }
+                CardBlobs.all().forEach { CardBlobs.delete(it.cardId) }
+                CardSections.all().forEach { CardSections.delete(it.id) }
+                Collections.all().forEach { Collections.delete(it.id) }
+                Sections.all().forEach { Sections.delete(it.id) }
             }
             putState(KEY_USER, userId.toString())
             putState(KEY_DEVICE, deviceId.toString())
             putState(KEY_REV, "0")
-            SyncMeta.deleteWhere { }
+            SyncMeta.all().forEach { SyncMeta.delete(listOf(it.tbl, it.rowId)) }
         }
     }
 
     /** Forget the account. The data stays: it was the user's before there was an account, and still is. */
     suspend fun signOut() {
-        db.suspendTransaction {
-            SyncState.deleteWhere { }
-            SyncMeta.deleteWhere { }
+        db.write(SyncState, SyncMeta) {
+            SyncState.all().forEach { SyncState.delete(it.k) }
+            SyncMeta.all().forEach { SyncMeta.delete(listOf(it.tbl, it.rowId)) }
         }
     }
 
-    suspend fun signedIn(): Boolean = db.suspendTransaction { getState(KEY_USER) != null }
+    suspend fun signedIn(): Boolean = db.read(SyncState) { getState(KEY_USER) != null }
 
     /**
      * Ask the server for everything again on the next run.
@@ -137,7 +133,7 @@ class SyncEngine(
      * will bring them back — and since the base versions are kept, this costs a download and pushes nothing.
      */
     suspend fun refetchEverything() {
-        db.suspendTransaction { putState(KEY_REV, "0") }
+        db.write(SyncState) { putState(KEY_REV, "0") }
     }
 
     /**
@@ -148,7 +144,7 @@ class SyncEngine(
      * until the server has nothing left, so one call means "in step".
      */
     suspend fun syncNow(): SyncResult? {
-        val deviceId = db.suspendTransaction { getState(KEY_DEVICE) }?.let { Uuid.parse(it) } ?: return null
+        val deviceId = db.read(SyncState) { getState(KEY_DEVICE) }?.let { Uuid.parse(it) } ?: return null
 
         var pushed = 0
         var applied = 0
@@ -159,11 +155,14 @@ class SyncEngine(
             // Read outside the write transaction: this reads every row of every synced table, and holding
             // a write lock across a network call would be a way to freeze the app on a slow connection.
             val withUsage = syncUsage()
-            val local = db.suspendTransaction { readAllForSync(withUsage) }
-            val bases = db.suspendTransaction {
+            val localRows = db.read(Sections, Collections, CardSections, Cards, Usage, ActionUsage) {
+                readRowsForSync(withUsage)
+            }
+            val local = localRows.withHashes()
+            val bases = db.read(SyncMeta) {
                 SyncMeta.all().associate { RowKey(it.tbl, it.rowId) to it }
             }
-            val since = db.suspendTransaction { getState(KEY_REV) }?.toLongOrNull() ?: 0L
+            val since = db.read(SyncState) { getState(KEY_REV) }?.toLongOrNull() ?: 0L
 
             // "Changed here" is exactly "no longer what the server confirmed". A row with no base at all
             // is new; a row whose hash matches its base has not been touched since it last went up.
@@ -173,8 +172,11 @@ class SyncEngine(
 
             val localByKey = local.associateBy { RowKey(it.row.tbl, it.row.id) }
             val conflictCopies = mutableListOf<CardRow>()
+            // Computed here, outside any scope, for the same reason `local`'s hashes are: [hashOf] awaits
+            // real SHA-256 and must not run inside `db.write`.
+            val incomingHashes = response.rows.associate { RowKey(it.tbl, it.id) to hashOf(it) }
 
-            db.suspendTransaction {
+            db.write(Sections, Collections, CardSections, Cards, Usage, ActionUsage, SyncMeta, SyncState) {
                 // What the server took, it took as we sent it: that version is now the base.
                 response.accepted.forEach { key ->
                     val row = localByKey[key] ?: return@forEach
@@ -201,10 +203,10 @@ class SyncEngine(
                     // on", and applying them would quietly undo that.
                     if (!withUsage && row.tbl in COUNTER_TABLES) return@forEach
                     applyRemote(row)
-                    putBase(RowKey(row.tbl, row.id), hashOf(row), row.rev)
+                    putBase(RowKey(row.tbl, row.id), incomingHashes.getValue(RowKey(row.tbl, row.id)), row.rev)
                 }
 
-                conflictCopies.forEach { Cards.insert(it) }
+                conflictCopies.forEach { Cards.add(it) }
 
                 putState(KEY_REV, response.rev.toString())
             }
@@ -235,18 +237,17 @@ class SyncEngine(
     private suspend fun reconcileBlobs() {
         val blobs = blobs ?: return
 
-        val cards = db.suspendTransaction {
-            Cards.find { where { Cards.blobSha.isNotNull() and Cards.deletedAt.isNull() } }
-        }
+        // `blobSha`/`deletedAt` have no index of their own — the same unindexed scan SQLite ran here too.
+        val cards = db.read(Cards) { Cards.all().filter { it.blobSha != null && it.deletedAt == null } }
         if (cards.isEmpty()) return
 
         val held = mutableMapOf<String, String>() // sha -> the `data:` URI this device holds for it
         val wanted = mutableListOf<CardRow>() // cards whose bytes are somewhere else
 
-        db.suspendTransaction {
+        db.read(CardBlobs) {
             cards.forEach { card ->
                 val sha = card.blobSha ?: return@forEach
-                val local = CardBlobs.findOne { where { CardBlobs.cardId eq card.id } }
+                val local = CardBlobs.get(card.id)
                 if (local != null) {
                     if (sha !in held) held[sha] = local.data
                 } else {
@@ -267,9 +268,8 @@ class SyncEngine(
         wanted.forEach { card ->
             val sha = card.blobSha ?: return@forEach
             val bytes = runCatching { blobs.download(sha) }.getOrNull() ?: return@forEach
-            db.suspendTransaction {
-                CardBlobs.deleteWhere { where { CardBlobs.cardId eq card.id } }
-                CardBlobs.insert(
+            db.write(CardBlobs) {
+                CardBlobs.put(
                     CardBlobRow().apply {
                         cardId = card.id
                         data = DataUri.of(bytes, card.mime)
@@ -282,7 +282,7 @@ class SyncEngine(
 
 private fun isNote(row: SyncRow): Boolean = text(row, "kind") == "note"
 
-private fun text(row: SyncRow?, key: String): String? = (row?.payload as? JsonObject)?.get(key)?.jsonPrimitive?.contentOrNull
+private fun text(row: SyncRow?, key: String): String? = row?.payload?.get(key)?.jsonPrimitive?.contentOrNull
 
 /**
  * The losing version of a note, as a card of its own: same collection, same group, marked in its title so
@@ -313,22 +313,12 @@ private fun copyOf(loser: SyncRow): CardRow {
     }
 }
 
-private suspend fun SuspendScope<StramusDb>.putBase(key: RowKey, hash: String, rev: Long) {
-    SyncMeta.deleteWhere { where { (SyncMeta.tbl eq key.tbl) and (SyncMeta.rowId eq key.id) } }
-    SyncMeta.insert(
-        SyncMetaRow().apply {
-            tbl = key.tbl
-            rowId = key.id
-            this.hash = hash
-            this.rev = rev
-        },
-    )
+private suspend fun WriteScope.putBase(key: RowKey, hash: String, rev: Long) {
+    SyncMeta.put(SyncMetaRow().apply { tbl = key.tbl; rowId = key.id; this.hash = hash; this.rev = rev })
 }
 
-private suspend fun SuspendScope<StramusDb>.getState(key: String): String? =
-    SyncState.findOne { where { SyncState.k eq key } }?.v
+private suspend fun ReadScope.getState(key: String): String? = SyncState.get(key)?.v
 
-private suspend fun SuspendScope<StramusDb>.putState(key: String, value: String) {
-    SyncState.deleteWhere { where { SyncState.k eq key } }
-    SyncState.insert(SyncStateRow().apply { k = key; v = value })
+private suspend fun WriteScope.putState(key: String, value: String) {
+    SyncState.put(SyncStateRow().apply { k = key; v = value })
 }

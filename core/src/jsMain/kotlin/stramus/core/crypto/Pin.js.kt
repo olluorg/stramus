@@ -24,8 +24,11 @@ private external class TextEncoder {
 
 private fun webCrypto(): WebCrypto = js("crypto").unsafeCast<WebCrypto>()
 
+// `length` inside `buildString {}` must be qualified: bare it resolves to the nearer `StringBuilder`
+// receiver (always 0 when the range is built), not this `Uint8Array`'s, and the loop silently never
+// runs — every hash and every salt this produced was "".
 private fun Uint8Array.toHex(): String = buildString {
-    for (i in 0 until length) {
+    for (i in 0 until this@toHex.length) {
         append((this@toHex[i].toInt() and 0xff).toString(16).padStart(2, '0'))
     }
 }

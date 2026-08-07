@@ -15,8 +15,9 @@ kotlin {
                 outputFileName = "stramus.js"
             }
         }
-        // wa-sqlite (pulled in transitively via kormium-sqlite-js) is ESM-only, so the final bundle
-        // must emit ES modules. This also pins the es2015 compilation target.
+        // Kotlin/JS's own default output works too, but the bundle has emitted ES modules since the
+        // wa-sqlite days and there is no reason to churn it now that kidx replaced that engine. This
+        // also pins the es2015 compilation target.
         useEsModules()
     }
 

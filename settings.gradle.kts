@@ -17,8 +17,20 @@ rootProject.name = "stramus"
 // io.github.kormium:* are substituted automatically for the included build's projects.
 // CI (and any clone without the sibling checkout) has no ../korm and resolves the published
 // io.github.kormium:*:0.11.0 artifacts from Maven Central instead — so include it only when present.
+// Still used by the server, which stays on Kormium/SQLite (kidx is browser-only, see below).
 if (file("../korm").isDirectory) {
     includeBuild("../korm")
+}
+
+// kidx and kromus are developed in sibling checkouts the same way. Both publish under the
+// io.github.kormium group too, so the same coordinate substitution applies. kidx replaces
+// kormium-sqlite-js for the browser-side store (native IndexedDB instead of SQLite-on-WASM);
+// kromus (kromus-core/kromus-sync) supplies the full-text search kidx deliberately leaves out.
+if (file("../kidx").isDirectory) {
+    includeBuild("../kidx")
+}
+if (file("../kromus").isDirectory) {
+    includeBuild("../kromus")
 }
 
 // The server and the wire format it speaks are always here. The browser side — everything below — is

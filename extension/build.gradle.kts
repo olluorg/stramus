@@ -19,7 +19,8 @@ kotlin {
                 devtool = "source-map"
             }
         }
-        // wa-sqlite (via kormium-sqlite-js) is ESM-only; the final bundle emits ES modules.
+        // Kotlin/JS's own default output works too, but the bundle has emitted ES modules since the
+        // wa-sqlite days and there is no reason to churn it now that kidx replaced that engine.
         useEsModules()
     }
 
