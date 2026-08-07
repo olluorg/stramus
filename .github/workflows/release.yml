@@ -85,3 +85,38 @@ jobs:
           files: ${{ env.ZIP }}
           generate_release_notes: true
           fail_on_unmatched_files: true
+
+      # Uploads the ZIP as a new item version in the Web Store. The upload API alone leaves
+      # it sitting as a draft pending review/publish — it does not call the separate
+      # publish endpoint — which is exactly the "draft" behavior wanted here.
+      - name: Publish to Chrome Web Store (draft)
+        if: github.ref_type == 'tag'
+        env:
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+        run: |
+          TOKEN_RESPONSE=$(curl -s -X POST https://oauth2.googleapis.com/token \
+            -d client_id="$CHROME_CLIENT_ID" \
+            -d client_secret="$CHROME_CLIENT_SECRET" \
+            -d refresh_token="$CHROME_REFRESH_TOKEN" \
+            -d grant_type=refresh_token)
+          ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token // empty')
+          if [ -z "$ACCESS_TOKEN" ]; then
+            echo "Failed to obtain a Chrome Web Store access token:" >&2
+            echo "$TOKEN_RESPONSE" >&2
+            exit 1
+          fi
+
+          UPLOAD_RESPONSE=$(curl -s -X PUT \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "x-goog-api-version: 2" \
+            -T "$ZIP" \
+            "https://www.googleapis.com/upload/chromewebstore/v1.1/items/$CHROME_EXTENSION_ID")
+          echo "$UPLOAD_RESPONSE"
+          UPLOAD_STATE=$(echo "$UPLOAD_RESPONSE" | jq -r '.uploadState // empty')
+          if [ "$UPLOAD_STATE" != "SUCCESS" ]; then
+            echo "Chrome Web Store upload failed (state: $UPLOAD_STATE)" >&2
+            exit 1
+          fi
