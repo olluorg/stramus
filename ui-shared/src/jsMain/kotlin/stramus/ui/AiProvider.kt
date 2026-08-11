@@ -66,3 +66,12 @@ internal const val AI_PROVIDER_PREF = "aiProvider"
  * has never been asked has not said yes.
  */
 internal const val AI_TRIAGE_PREF = "aiTriage"
+
+/**
+ * Where the triage's *cloud* switch is kept — a second, narrower opt-in on top of [AI_TRIAGE_PREF],
+ * not a replacement for it: the triage feature itself must still be on, and this only decides which
+ * model answers it. Absent means off, same reasoning as the feature it sits inside — a window of open
+ * tabs going to a paid third party a user never asked about would be the opposite of what this app is
+ * for. Shown only to a signed-in account (see `App.kt`), because it is meaningless without one.
+ */
+internal const val AI_TRIAGE_CLOUD_PREF = "aiTriageCloud"

@@ -198,3 +198,50 @@ object UserSeq : Table<ServerDb, UserSeqRow>("user_seq", ::UserSeqRow) {
 
     init { userId; rev }
 }
+
+class AiUsageRow : Entity() {
+    var userId by AiUsage.userId
+    var yearMonth by AiUsage.yearMonth
+    var count by AiUsage.count
+}
+
+/**
+ * How many of the cloud model's answers an account has asked for this calendar month — see
+ * [AiProxyService]. [yearMonth] is the key alongside [userId] rather than a separate table per month:
+ * there is no history to keep once a month is over, and a row nobody has touched this month simply does
+ * not exist yet, [AiProxyService] treating "no row" the same as "zero so far".
+ */
+object AiUsage : Table<ServerDb, AiUsageRow>("ai_usage", ::AiUsageRow) {
+    val userId by Column.UUID().primaryKey()
+    val yearMonth by Column.Text().primaryKey() // "2026-08" — sorts and compares as a string correctly
+    val count by Column.Int()
+
+    init { userId; yearMonth; count }
+}
+
+class AiCacheRow : Entity() {
+    var userId by AiCache.userId
+    var promptHash by AiCache.promptHash
+    var response by AiCache.response
+    var createdAt by AiCache.createdAt
+}
+
+/**
+ * What the cloud model said last time it was asked *this exact question* — content-addressed, so
+ * nothing here ever goes stale on purpose: [promptHash] is a hash of the system prompt, the question
+ * and the schema together (see [AiProxyService.promptHash]), and those already carry the tab and the
+ * whole of the collection catalog the client described it against. Change one card, rename a section,
+ * and the next question about the same tab hashes to somewhere else — a fresh question, not a stale hit
+ * — without this table ever being told anything changed.
+ *
+ * Per user: two accounts asking the same words about their own tabs are not asking the same question,
+ * and neither should draw on the other's answer or the other's spend.
+ */
+object AiCache : Table<ServerDb, AiCacheRow>("ai_cache", ::AiCacheRow) {
+    val userId by Column.UUID().primaryKey()
+    val promptHash by Column.Text().primaryKey()
+    val response by Column.Text()
+    val createdAt by Column.Instant()
+
+    init { userId; promptHash; response; createdAt }
+}

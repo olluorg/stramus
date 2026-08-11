@@ -144,4 +144,31 @@ val serverMigrations: List<Migration<ServerDb>> = listOf(
         );
         """,
     ),
+    Migration(
+        "005-ai-usage",
+        """
+        -- One row per account per calendar month it has actually used — not one per account ever, so an
+        -- account that never asks the cloud model never has a row at all. See AiProxyService.
+        CREATE TABLE "ai_usage" (
+            "userId" text NOT NULL,
+            "yearMonth" text NOT NULL,
+            "count" integer NOT NULL DEFAULT 0,
+            PRIMARY KEY ("userId", "yearMonth")
+        );
+        """,
+    ),
+    Migration(
+        "006-ai-cache",
+        """
+        -- Content-addressed: the same account asking the same question (tab and catalog both folded
+        -- into the hash) draws on this instead of paying OpenRouter again. See AiProxyService.
+        CREATE TABLE "ai_cache" (
+            "userId" text NOT NULL,
+            "promptHash" text NOT NULL,
+            "response" text NOT NULL,
+            "createdAt" text NOT NULL,
+            PRIMARY KEY ("userId", "promptHash")
+        );
+        """,
+    ),
 )

@@ -11,7 +11,10 @@
     "history",
     "search",
     "favicon",
-    "identity"
+    "identity",
+    "storage",
+    "contextMenus",
+    "notifications"
   ],
   "host_permissions": [
     "https://api.stramus.space/*"
@@ -30,6 +33,9 @@
   "chrome_url_overrides": {
     "newtab": "index.html"
   },
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_title": "__MSG_actionTitle__",
     "default_icon": {
@@ -37,6 +43,15 @@
       "32": "logo-32.png",
       "48": "logo-48.png",
       "128": "logo-128.png"
+    }
+  },
+  "commands": {
+    "save-current-tab": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "__MSG_commandSaveTab__"
     }
   },
   "content_security_policy": {

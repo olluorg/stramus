@@ -104,6 +104,15 @@ external interface SettingsModalProps : Props {
     var aiTriage: Boolean
     var onAiTriageChange: (Boolean) -> Unit
 
+    /**
+     * Whether the tab triage asks the cloud model (currently GPT-5.6 Luna) instead of the one on this
+     * machine. A second, narrower opt-in on top of [aiTriage] — that switch must also be on, and this
+     * one is hidden entirely for an account that is not signed in ([signedIn]), since it is meaningless
+     * without one: the request is answered on the server, on that account's own hundred-a-month.
+     */
+    var aiTriageCloud: Boolean
+    var onAiTriageCloudChange: (Boolean) -> Unit
+
     /** Who answers a question from the search box: "local" | "chatgpt" | "gemini" | "claude". */
     var aiProvider: String
     var onAiProviderChange: (String) -> Unit
@@ -366,6 +375,18 @@ private fun ChildrenBuilder.tabsPane(props: SettingsModalProps, s: Strings) {
                 // Said plainly, and next to the name rather than buried in the hint: what this turns
                 // on is not finished, and the user is agreeing to that and not merely to a feature.
                 titleExtra = { span { className = ClassName("settings-badge"); +s.experimental } },
+            )
+        }
+
+        // Hidden rather than merely disabled where there is no account: a switch nobody signed in could
+        // ever turn on is not a setting, it is a question the page has no business asking yet. And it
+        // only means anything once the feature above is itself on — the model this asks is a choice
+        // about triage, not a second way to turn triage on.
+        if (props.aiTriage && props.signedIn) {
+            toggleRow(
+                s.aiTriageCloudSetting, s.aiTriageCloudSettingHint, props.aiTriageCloud,
+                listOf(true to s.on, false to s.off),
+                props.onAiTriageCloudChange,
             )
         }
     }

@@ -6,6 +6,10 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -37,7 +41,7 @@ class TabTriageTest {
 
     /** `planForBatch` against the fixtures above — the arguments the run would pass it. */
     private fun plan(answer: String, batch: TabBatch, into: List<TriageCollection> = collections) =
-        planForBatch(answer, batch, into, groups)
+        planForBatch(answer, batch.tabs, into, groups)
 
     private fun answer(vararg items: String) = """{"tabs":[${items.joinToString(",")}]}"""
 
@@ -84,10 +88,66 @@ class TabTriageTest {
     }
 
     @Test
+    fun `selectByBudget takes as many tabs as fit, in the order given`() {
+        val tabs = (1..50).map { tab(it, "https://site$it.com/", title = "Tab number $it") }
+        // Each line is roughly 25-27 characters; a budget of 300 comfortably fits some but not all 50.
+        val selected = selectByBudget(tabs, budget = 300)
+        assertTrue(selected.size in 1..49)
+        assertEquals(tabs.take(selected.size), selected)
+    }
+
+    @Test
+    fun `selectByBudget always takes at least one tab, even over budget — a run must make progress`() {
+        val tabs = listOf(tab(1, "https://example.com/", title = "A title far longer than any reasonable budget allows for"))
+        val selected = selectByBudget(tabs, budget = 1)
+        assertEquals(tabs, selected)
+    }
+
+    @Test
+    fun `selectByBudget returns everything when it all fits`() {
+        val tabs = (1..5).map { tab(it, "https://site$it.com/") }
+        assertEquals(tabs, selectByBudget(tabs, budget = 10_000))
+    }
+
+    @Test
+    fun `trustedBatchPromptFitting spends the budget on the catalog first, tabs on whatever is left`() {
+        val tabs = (1..50).map { tab(it, "https://site$it.com/", title = "Tab number $it") }
+        // A budget too small for the catalog and every tab both — some tabs must be left for a follow-up.
+        val (prompt, considered) = trustedBatchPromptFitting(tabs, collections, groups, totalCharBudget = 800, collectionsBudget = 400)
+        assertTrue(considered.isNotEmpty())
+        assertTrue(considered.size < tabs.size)
+        // Every considered tab's own line actually made it into the prompt sent.
+        considered.forEach { assertTrue(it.title in prompt) }
+        // What was left out did not — this is the whole point: it did not merely go unanswered, it was
+        // never asked about in this call at all.
+        tabs.drop(considered.size).forEach { assertTrue(it.title !in prompt) }
+    }
+
+    @Test
+    fun `trustedBatchPromptFitting considers every tab when the budget is generous`() {
+        val tabs = (1..5).map { tab(it, "https://site$it.com/") }
+        val (_, considered) = trustedBatchPromptFitting(tabs, collections, groups, totalCharBudget = 20_000, collectionsBudget = 10_000)
+        assertEquals(tabs, considered)
+    }
+
+    @Test
+    fun `the trusted prompt names each tab's own site, having no one host to say once for all of them`() {
+        val prompt = trustedBatchPrompt(
+            TabBatch("", listOf(tab(1, "https://hh.ru/1"), tab(2, "https://youtube.com/1"))),
+            collections,
+            groups,
+        )
+        assertTrue("1. [hh.ru] t1" in prompt)
+        assertTrue("2. [youtube.com] t2" in prompt)
+        // No shared "these are all on X" header — there is no X.
+        assertTrue("These tabs are open:" in prompt)
+    }
+
+    @Test
     fun `one site's tabs may go to different collections — the point of asking per tab`() {
         val plan = planForBatch(
             answer(item(1, "Работа"), item(2, "Развлечение")),
-            batch(tab(1, "https://hh.ru/vacancy"), tab(2, "https://hh.ru/blog")),
+            batch(tab(1, "https://hh.ru/vacancy"), tab(2, "https://hh.ru/blog")).tabs,
             collections,
             groups,
         )
@@ -99,7 +159,7 @@ class TabTriageTest {
     fun `an existing collection and section are matched however the model spelled them`() {
         val plan = planForBatch(
             answer(item(1, "работа", "вакансии")),
-            batch(tab(1, "https://hh.ru/1")),
+            batch(tab(1, "https://hh.ru/1")).tabs,
             collections,
             groups,
         )
@@ -137,7 +197,7 @@ class TabTriageTest {
     fun `a tab that is not in the batch is dropped rather than guessed at`() {
         val plan = planForBatch(
             answer(item(9, "Работа"), item(0, "Работа"), item(1, "Работа")),
-            batch(tab(1, "https://hh.ru/1")),
+            batch(tab(1, "https://hh.ru/1")).tabs,
             collections,
             groups,
         )
@@ -148,7 +208,7 @@ class TabTriageTest {
     fun `the same tab twice is the model repeating itself, and the first answer stands`() {
         val plan = planForBatch(
             answer(item(1, "Работа"), item(1, "Развлечение")),
-            batch(tab(1, "https://hh.ru/1")),
+            batch(tab(1, "https://hh.ru/1")).tabs,
             collections,
             groups,
         )
@@ -260,6 +320,81 @@ class TabTriageTest {
         assertEquals(listOf(one), agreed(listOf(one), listOf(placed(1, "Работа", "Вакансии"))))
     }
 
+    // --- Sections both answers named, but spelled differently — settled by a question of their own
+    // rather than by `agreed`'s string equality. See `sectionDisagreements`, `resolveSections`.
+
+    @Test
+    fun `two answers naming a section differently is a disagreement, not a match or a drop`() {
+        val disagreements = sectionDisagreements(listOf(placed(1, "Работа", "Вакансии")), listOf(placed(1, "Работа", "Резюме")))
+        val disagreement = disagreements.single()
+        assertEquals(1, disagreement.one.tabId)
+        assertEquals("Вакансии", disagreement.one.sectionTitle)
+        assertEquals("Резюме", disagreement.otherSectionTitle)
+    }
+
+    @Test
+    fun `no disagreement where the spelling matches, or only one side named a section`() {
+        assertTrue(sectionDisagreements(listOf(placed(1, "Работа", "Вакансии")), listOf(placed(1, "Работа", "вакансии"))).isEmpty())
+        assertTrue(sectionDisagreements(listOf(placed(1, "Работа", "Вакансии")), listOf(placed(1, "Работа"))).isEmpty())
+        assertTrue(sectionDisagreements(listOf(placed(1, "Работа")), listOf(placed(1, "Работа"))).isEmpty())
+        // Disagreeing on the collection itself is `agreed`'s business, not a section disagreement.
+        assertTrue(sectionDisagreements(listOf(placed(1, "Работа", "Вакансии")), listOf(placed(1, "Развлечение", "Резюме"))).isEmpty())
+    }
+
+    @Test
+    fun `the adjudication prompt names the collection and both spellings`() {
+        val disagreement = sectionDisagreements(listOf(placed(1, "Работа", "Вакансии")), listOf(placed(1, "Работа", "Резюме"))).single()
+        val prompt = sectionAdjudicationPrompt(listOf(disagreement))
+        assertTrue("""in "Работа": "Вакансии" vs "Резюме"""" in prompt)
+    }
+
+    @Test
+    fun `adjudicatedSame keeps only the tabs the model called the same place`() {
+        val disagreements = sectionDisagreements(listOf(placed(1, "Работа", "Вакансии")), listOf(placed(1, "Работа", "Резюме")))
+        val answer = """{"pairs":[{"tab":1,"same":true}]}"""
+        assertEquals(setOf(1), adjudicatedSame(answer, disagreements))
+        assertTrue(adjudicatedSame("""{"pairs":[{"tab":1,"same":false}]}""", disagreements).isEmpty())
+    }
+
+    @Test
+    fun `adjudicatedSame ignores a tab it was not asked about, and a bad answer`() {
+        val disagreements = sectionDisagreements(listOf(placed(1, "Работа", "Вакансии")), listOf(placed(1, "Работа", "Резюме")))
+        // A tab number not among the disagreements — nothing to trust it about.
+        assertTrue(adjudicatedSame("""{"pairs":[{"tab":9,"same":true}]}""", disagreements).isEmpty())
+        // "same" as a string rather than a boolean — the same wrong-type guard as everywhere else here.
+        assertTrue(adjudicatedSame("""{"pairs":[{"tab":1,"same":"true"}]}""", disagreements).isEmpty())
+        assertTrue(adjudicatedSame("not json", disagreements).isEmpty())
+    }
+
+    @Test
+    fun `resolveSections restores an adjudicated section, preferring whichever spelling was already existing`() {
+        val existingId = Uuid.random()
+        val one = TriageAssignment(1, "Работа", workId, "CV", null, "Дела") // invented spelling, matches nothing yet
+        val other = TriageAssignment(1, "Работа", workId, "Резюме", existingId, "Дела") // matched an existing section
+        val disagreement = SectionDisagreement(one, "Резюме", existingId)
+        val agreedResult = agreed(listOf(one), listOf(other))
+        // Before resolution, the disagreement dropped the section entirely.
+        assertNull(agreedResult.single().sectionTitle)
+
+        val resolved = resolveSections(agreedResult, listOf(disagreement), setOf(1))
+        // The id-bearing spelling (the one that already matched a real section) wins over the invented one.
+        assertEquals("Резюме", resolved.single().sectionTitle)
+        assertEquals(existingId, resolved.single().sectionId)
+    }
+
+    @Test
+    fun `resolveSections leaves untouched what nothing was adjudicated for`() {
+        val agreedResult = agreed(listOf(placed(1, "Работа", "Вакансии")), listOf(placed(1, "Работа", "Резюме")))
+        assertEquals(agreedResult, resolveSections(agreedResult, emptyList(), emptySet()))
+    }
+
+    @Test
+    fun `the batch prompt asks for a section only where it genuinely fits, never merely the closest one`() {
+        val prompt = batchPrompt(batch(tab(1, "https://hh.ru/1")), collections, groups)
+        assertTrue("A section must match what the tab is actually about, not merely be the closest one on offer" in prompt)
+        assertTrue("leave the section out — that is the right answer far more often than forcing a weak one" in prompt)
+    }
+
     @Test
     fun `a name is a name`() {
         assertEquals("Kotlin", cleanName("Kotlin"))
@@ -269,6 +404,15 @@ class TabTriageTest {
         assertNull(cleanName("These tabs all appear to be about the Kotlin programming language, so I would"))
         assertNull(cleanName(""))
         assertNull(cleanName(null))
+    }
+
+    @Test
+    fun `a summary is a phrase, quoted or fenced or not, but not a paragraph`() {
+        assertEquals("bedtime videos and podcasts", cleanSummary("bedtime videos and podcasts"))
+        assertEquals("bedtime videos and podcasts", cleanSummary("\"bedtime videos and podcasts\""))
+        assertNull(cleanSummary("x".repeat(200)))
+        assertNull(cleanSummary(""))
+        assertNull(cleanSummary(null))
     }
 
     @Test
@@ -308,7 +452,7 @@ class TabTriageTest {
         // Only a couple are quoted — the line is context, not an inventory.
         assertTrue("Третья" !in prompt)
         // ...and the model is told which of the two to trust.
-        assertTrue("Judge a collection by what is in it, not by its name" in prompt)
+        assertTrue("Judge a collection or a section by what is in it, not by its name" in prompt)
     }
 
     @Test
@@ -319,23 +463,161 @@ class TabTriageTest {
     }
 
     @Test
+    fun `a section is described by what is in it too, not left as a bare name`() {
+        // The bug this fixes: "Для сна" said nothing about itself, and a model shown only the four
+        // words of the name matched it to whatever was vaguely entertainment-shaped.
+        val withSection = listOf(
+            TriageCollection(
+                Uuid.random(), "Развлечение", "Личное",
+                sections = listOf(TriageSection(Uuid.random(), "Для сна", examples = listOf("ASMR дождь", "Подкаст на ночь"))),
+            ),
+        )
+        val prompt = batchPrompt(batch(tab(1, "https://hh.ru/1")), withSection, groups)
+        assertTrue("Для сна (ASMR дождь; Подкаст на ночь)" in prompt)
+    }
+
+    @Test
+    fun `a bare section with nothing saved in it yet is still just its name`() {
+        val bare = listOf(TriageCollection(Uuid.random(), "Развлечение", "Личное", sections = listOf(TriageSection(Uuid.random(), "Для сна"))))
+        val prompt = batchPrompt(batch(tab(1, "https://hh.ru/1")), bare, groups)
+        assertTrue("sections: Для сна)" in prompt)
+    }
+
+    @Test
+    fun `a summary stands in for the raw titles, for a collection and for a section alike`() {
+        val summarised = listOf(
+            TriageCollection(
+                Uuid.random(), "Развлечение", "Личное",
+                examples = listOf("Кино", "Игры"),
+                summary = "фильмы и видеоигры",
+                sections = listOf(
+                    TriageSection(Uuid.random(), "Для сна", examples = listOf("ASMR дождь"), summary = "видео и подкасты для засыпания"),
+                ),
+            ),
+        )
+        val prompt = batchPrompt(batch(tab(1, "https://hh.ru/1")), summarised, groups)
+        assertTrue("already here: фильмы и видеоигры" in prompt)
+        assertTrue("Для сна (видео и подкасты для засыпания)" in prompt)
+        // The summary replaces the titles — they are not also quoted alongside it.
+        assertTrue("Кино" !in prompt)
+        assertTrue("ASMR дождь" !in prompt)
+    }
+
+    @Test
     fun `the collection list is described within a budget, however many the user has`() {
         val many = (1..200).map {
             TriageCollection(Uuid.random(), "Collection number $it", "Group $it", examples = listOf("Card $it"))
         }
         val prompt = batchPrompt(batch(tab(1, "https://hh.ru/1")), many, groups)
-        assertTrue(prompt.length < 2200)
+        assertTrue(prompt.length < 2500)
         // Whatever is cut, the tabs and the ask itself always survive.
         assertTrue("1. t1" in prompt)
         assertTrue("For every tab" in prompt)
     }
 
     @Test
-    fun `the summary names where a site's tabs ended up, and stops at its budget`() {
-        val groups = (1..200).map { TabGroup("site$it.com", listOf(tab(it, "https://site$it.com/", "Title $it"))) }
-        val prompt = summaryPrompt(groups, mapOf("site1.com" to setOf("Работа", "Развлечение")))
-        assertTrue("site1.com [Работа, Развлечение]" in prompt)
-        assertTrue(prompt.length < 2000)
-        assertTrue("what was this session about" in prompt)
+    fun `a trusted batch's budget is roomy enough that the same 200 collections are not all cut`() {
+        // The local model's own budget test above cuts this list down to a handful — [batchPrompt]'s
+        // 1500 characters was sized for a small on-device context. A cloud model's context is nothing
+        // like that small, and a collection [trustedBatchPrompt] never shows it is one it cannot place a
+        // tab in regardless of how well that tab actually fits — the failure a real run had before this
+        // budget was split in two.
+        val many = (1..200).map {
+            TriageCollection(Uuid.random(), "Collection number $it", "Group $it", examples = listOf("Card $it"))
+        }
+        val prompt = trustedBatchPrompt(batch(tab(1, "https://hh.ru/1")), many, groups)
+        assertTrue("Collection number 1\"" in prompt)
+        assertTrue("Collection number 200\"" in prompt)
+    }
+
+    @Test
+    fun `a collection's sections do not eat the whole catalog budget`() {
+        // Sections are described one after another inside their collection, so whatever one costs is
+        // multiplied by however many there are. Uncapped, four sections of quoted examples cost some
+        // 3 000 characters a collection and the trusted budget held sixteen of two hundred — the very
+        // starvation that budget was raised to prevent. The exact number here is not sacred; that it
+        // stays in the same order of magnitude as the section-less case is.
+        fun collection(i: Int, sections: Int) = TriageCollection(
+            id = Uuid.random(),
+            title = "Коллекция номер $i",
+            inSection = "Хобби",
+            sections = (1..sections).map { s ->
+                TriageSection(Uuid.random(), "Секция $s", examples = (1..20).map { "Заголовок карточки номер $it, довольно длинный" })
+            },
+            examples = (1..20).map { "Заголовок карточки номер $it, довольно длинный" },
+        )
+
+        val many = (1..200).map { collection(it, sections = 4) }
+        val prompt = trustedBatchPrompt(TabBatch("", emptyList()), many, listOf("Хобби"))
+        val shown = (1..200).count { "\"Коллекция номер $it\"" in prompt }
+        assertTrue(shown >= 25, "only $shown collections survived the trusted budget")
+    }
+
+    @Test
+    fun `a collection the user named past the name limit is still reachable`() {
+        // 47 characters — a perfectly ordinary name for someone who likes describing things, and past
+        // NAME_LIMIT. Answering with it used to drop the whole placement: the length rule exists to
+        // catch a model writing a sentence, and it was being applied to a name the user chose.
+        val longTitle = "Статьи про Kotlin Multiplatform и корутины"
+        val longId = Uuid.random()
+        val into = collections + TriageCollection(longId, longTitle, "Дела")
+
+        val plan = plan(answer(item(1, longTitle)), batch(tab(1, "https://kotlinlang.org/1")), into)
+
+        assertEquals(1, plan.size)
+        assertEquals(longTitle, plan.single().collectionTitle)
+        // Matched to the real collection, not proposed as a new one of the same name.
+        assertEquals(longId, plan.single().collectionId)
+    }
+
+    @Test
+    fun `a section the user named past the name limit is still reachable`() {
+        val longSection = "Длинное название секции про корутины и потоки"
+        val sectionId = Uuid.random()
+        val collectionId = Uuid.random()
+        val into = listOf(
+            TriageCollection(collectionId, "Kotlin", "Дела", listOf(TriageSection(sectionId, longSection))),
+        )
+
+        val plan = plan(answer(item(1, "Kotlin", longSection)), batch(tab(1, "https://kotlinlang.org/1")), into)
+
+        assertEquals(longSection, plan.single().sectionTitle)
+        assertEquals(sectionId, plan.single().sectionId)
+    }
+
+    @Test
+    fun `an invented name past the limit is still refused — that is what the limit is for`() {
+        // Nothing matches this, so it would have to be created. A model that answers with a sentence
+        // must not get a collection named after the sentence.
+        val rambling = "Это очень длинное предложение, которое модель написала вместо короткого имени"
+        val plan = plan(answer(item(1, rambling)), batch(tab(1, "https://hh.ru/1")))
+        assertTrue(plan.isEmpty())
+    }
+
+    @Test
+    fun `the answer schema is valid for strict structured output — every property is required`() {
+        // OpenAI's strict mode rejects a schema outright unless every key in `properties` is also in
+        // `required`; optionality is expressed by a nullable type instead. `AiProxyService` sends this
+        // with strict: true, so the two have to agree — see `batchSchema`'s own doc.
+        val schema = Json.parseToJsonElement(batchSchema()).jsonObject
+        val item = schema["properties"]!!.jsonObject["tabs"]!!.jsonObject["items"]!!.jsonObject
+        val properties = item["properties"]!!.jsonObject.keys
+        val required = item["required"]!!.jsonArray.map { it.jsonPrimitive.content }.toSet()
+        assertEquals(properties, required)
+        // And the two that may be absent say so as a type, not by omission.
+        listOf("section", "group").forEach { key ->
+            val type = item["properties"]!!.jsonObject[key]!!.jsonObject["type"]!!.jsonArray.map { it.jsonPrimitive.content }
+            assertEquals(listOf("string", "null"), type)
+        }
+    }
+
+    @Test
+    fun `a null section is read as no section, the way an absent one always was`() {
+        val plan = plan(
+            """{"tabs":[{"tab":1,"collection":"Работа","section":null,"group":null}]}""",
+            batch(tab(1, "https://hh.ru/1")),
+        )
+        assertEquals("Работа", plan.single().collectionTitle)
+        assertNull(plan.single().sectionTitle)
     }
 }

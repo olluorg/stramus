@@ -181,10 +181,12 @@ interface Strings {
     // between the model's plan and the store
     val aiTriageSetting: String
     val aiTriageSettingHint: String
+
+    /** Second, narrower switch: send triage questions to the cloud model instead — see `AI_TRIAGE_CLOUD_PREF`. */
+    val aiTriageCloudSetting: String
+    val aiTriageCloudSettingHint: String
     val triageTabs: String
     val triageHeading: String
-    val triageSummaryHeading: String
-    val triageSummaryTitle: String
     val triageNew: String
     val triageUnsorted: String
     val triageUnsortedHint: String
@@ -214,6 +216,23 @@ interface Strings {
 
     /** The button that applies the plan. It says how many, and whether the tabs will be closed with it. */
     fun triageApply(count: Int, closesTabs: Boolean): String
+
+    /** The toast once a plan is applied — what Ctrl/Cmd+Z takes back, cards and closed tabs alike. */
+    fun triageApplied(count: Int): String
+
+    /** The first pre-step: tabs whose page is already saved somewhere — closed before the model is asked. */
+    val triageSavedHeading: String
+    val triageSavedHint: String
+
+    /** The second pre-step: the same page open in more than one tab. */
+    val triageDupesHeading: String
+    val triageDupesHint: String
+
+    /** The bulk-close button either pre-step offers. */
+    fun triageCloseStep(count: Int): String
+
+    /** Move past a pre-step without closing anything. */
+    val triageSkipStep: String
 
     /** What the model is told before it is shown the sites: what it is sorting, and into what. */
     val aiTriageSystemPrompt: String
@@ -324,6 +343,19 @@ interface Strings {
 
     /** ...and the same, asked before it happens: a whole window's worth of tabs is not one click's work. */
     fun confirmSaveTabs(count: Int, collection: String, closing: Boolean): String
+
+    /**
+     * Asked before a single drag-and-drop save would duplicate a page already sitting in a
+     * collection somewhere — [title] is the tab's own, or its host if it has none.
+     */
+    fun confirmSaveDuplicate(title: String): String
+
+    /**
+     * The collection a background capture (keyboard shortcut, right-click menu, or the toolbar
+     * button) lands in — created under this name the first time one is staged with no stramus tab
+     * open to say where it should go.
+     */
+    val quickSaveTitle: String
 
     /** Settings: what saving a whole window's tabs does to the tabs themselves. */
     val tabsSection: String
@@ -614,17 +646,20 @@ private object EnStrings : Strings {
     override val aiTriageSettingHint = "Adds a button to a window of tabs: the model reads them and proposes " +
         "a collection for each, for you to check before anything is saved. Everything stays on this " +
         "machine. It takes a minute or two on a large window, and it leaves out whatever it cannot place."
+    override val aiTriageCloudSetting = "Sort with the cloud model instead"
+    override val aiTriageCloudSettingHint = "Sends the same questions to GPT-5.6 Luna on the server " +
+        "instead of the model on this machine — faster and more consistent answers, for a signed-in " +
+        "account. A hundred questions a month; past that, sorting offers to wait for next month or " +
+        "switch back to the built-in model."
     override val triageTabs = "Sort into collections"
     override val triageHeading = "Sort tabs into collections"
-    override val triageSummaryHeading = "What this session was about"
-    override val triageSummaryTitle = "Session summary"
     override val triageNew = "new"
     override fun triageNewHint(section: String) = "There is no such collection yet — it will be created in \"$section\"."
     override val triageNewSectionHint = "There is no such group in this collection yet — it will be created."
     override val triageGroupHint = "Which sidebar section this new collection will be created in"
     override val triageSectionHint = "Which group inside the collection this tab goes under"
     override val triageNoSection = "No group"
-    override fun triageProgress(done: Int, total: Int) = "Sorting sites — $done of $total…"
+    override fun triageProgress(done: Int, total: Int) = "Sorting tabs — $done of $total…"
     override val triageUnsorted = "Not sorted"
     override val triageUnsortedHint = "The model had nothing to say about these. Pick a collection, or leave them open."
     override val triageSkip = "Don't save"
@@ -634,6 +669,13 @@ private object EnStrings : Strings {
     override fun triageRelated(site: String, count: Int) = "Already saved from $site ($count):"
     override fun triageApply(count: Int, closesTabs: Boolean) =
         if (closesTabs) "Save ($count) and close" else "Save ($count)"
+    override fun triageApplied(count: Int) = "Sorted ($count)"
+    override val triageSavedHeading = "Already saved"
+    override val triageSavedHint = "These pages are already in a collection. Close them so the model does not spend a question on them."
+    override val triageDupesHeading = "Duplicate tabs"
+    override val triageDupesHint = "The same page is open more than once. Close the extra copies before sorting."
+    override fun triageCloseStep(count: Int) = "Close ($count) and continue"
+    override val triageSkipStep = "Continue without closing"
     override val aiTriageSystemPrompt = "You sort a user's open browser tabs into their collections. " +
         "You are given tabs and the collections that exist. For every tab, answer with the one " +
         "collection it belongs in — reuse an existing name wherever the tab fits it, and only invent " +
@@ -730,6 +772,8 @@ private object EnStrings : Strings {
     override fun confirmSaveTabs(count: Int, collection: String, closing: Boolean) =
         if (closing) "Save this window's tabs ($count) into “$collection” and close them?"
         else "Save this window's tabs ($count) into “$collection”?"
+    override fun confirmSaveDuplicate(title: String) = "“$title” is already saved elsewhere. Save it again?"
+    override val quickSaveTitle = "Quick saves"
 
     override val tabsSection = "Tabs"
     override val closeSavedTabs = "After saving tabs"
@@ -1014,17 +1058,20 @@ private object RuStrings : Strings {
     override val aiTriageSettingHint = "Добавляет кнопку к окну вкладок: модель читает их и предлагает " +
         "коллекцию для каждой — вы проверяете до того, как что-либо сохранится. Всё остаётся на этой " +
         "машине. На большом окне занимает минуту-другую, а то, что не смогла определить, оставляет вам."
+    override val aiTriageCloudSetting = "Разбирать через облачную модель"
+    override val aiTriageCloudSettingHint = "Отправляет те же вопросы GPT-5.6 Luna на сервере вместо " +
+        "модели на этой машине — быстрее и стабильнее, но только для авторизованного аккаунта. Сто " +
+        "вопросов в месяц; после лимита разбор предложит подождать до следующего месяца или вернуться " +
+        "на встроенную модель."
     override val triageTabs = "Разобрать по коллекциям"
     override val triageHeading = "Разобрать вкладки по коллекциям"
-    override val triageSummaryHeading = "О чём была эта сессия"
-    override val triageSummaryTitle = "Итог сессии"
     override val triageNew = "новая"
     override fun triageNewHint(section: String) = "Такой коллекции ещё нет — она будет создана в разделе «$section»."
     override val triageNewSectionHint = "Такой секции в этой коллекции ещё нет — она будет создана."
     override val triageGroupHint = "В каком разделе сайдбара будет создана новая коллекция"
     override val triageSectionHint = "В какую секцию коллекции попадёт вкладка"
     override val triageNoSection = "Без секции"
-    override fun triageProgress(done: Int, total: Int) = "Разбирает сайты — $done из $total…"
+    override fun triageProgress(done: Int, total: Int) = "Разбирает вкладки — $done из $total…"
     override val triageUnsorted = "Не разобрано"
     override val triageUnsortedHint =
         "Про эти вкладки модель ничего не сказала. Выберите коллекцию или оставьте их открытыми."
@@ -1035,6 +1082,13 @@ private object RuStrings : Strings {
     override fun triageRelated(site: String, count: Int) = "С $site уже сохранено ($count):"
     override fun triageApply(count: Int, closesTabs: Boolean) =
         if (closesTabs) "Сохранить ($count) и закрыть" else "Сохранить ($count)"
+    override fun triageApplied(count: Int) = "Разобрано ($count)"
+    override val triageSavedHeading = "Уже сохранено"
+    override val triageSavedHint = "Эти страницы уже есть в какой-то коллекции. Закройте их, чтобы модель не тратила на них вопрос."
+    override val triageDupesHeading = "Повторяющиеся вкладки"
+    override val triageDupesHint = "Одна и та же страница открыта не в одной вкладке. Закройте лишние перед разбором."
+    override fun triageCloseStep(count: Int) = "Закрыть ($count) и продолжить"
+    override val triageSkipStep = "Продолжить, не закрывая"
     override val aiTriageSystemPrompt = "Ты раскладываешь открытые вкладки браузера по коллекциям " +
         "пользователя. Тебе дают вкладки и список существующих коллекций. Для каждой вкладки назови одну " +
         "коллекцию, которой он принадлежит: переиспользуй существующее название везде, где сайт в него " +
@@ -1131,6 +1185,8 @@ private object RuStrings : Strings {
     override fun confirmSaveTabs(count: Int, collection: String, closing: Boolean) =
         if (closing) "Сохранить вкладки этого окна ($count) в «$collection» и закрыть их?"
         else "Сохранить вкладки этого окна ($count) в «$collection»?"
+    override fun confirmSaveDuplicate(title: String) = "«$title» уже где-то сохранено. Сохранить ещё раз?"
+    override val quickSaveTitle = "Быстрые сохранения"
 
     override val tabsSection = "Вкладки"
     override val closeSavedTabs = "После сохранения вкладок"
@@ -1415,17 +1471,20 @@ private object FrStrings : Strings {
     override val aiTriageSettingHint = "Ajoute un bouton à une fenêtre d'onglets : le modèle les lit et propose " +
         "une collection pour chacun, à vérifier avant que quoi que ce soit ne soit enregistré. Tout reste sur " +
         "cet ordinateur. Cela prend une minute ou deux sur une grande fenêtre, et laisse de côté ce qu'il ne peut pas classer."
+    override val aiTriageCloudSetting = "Trier avec le modèle cloud à la place"
+    override val aiTriageCloudSettingHint = "Envoie les mêmes questions à GPT-5.6 Luna sur le serveur " +
+        "plutôt qu'au modèle de cet appareil — plus rapide et plus cohérent, pour un compte connecté. " +
+        "Cent questions par mois ; au-delà, le tri proposera d'attendre le mois suivant ou de revenir " +
+        "au modèle intégré."
     override val triageTabs = "Trier en collections"
     override val triageHeading = "Trier les onglets en collections"
-    override val triageSummaryHeading = "De quoi parlait cette session"
-    override val triageSummaryTitle = "Résumé de la session"
     override val triageNew = "nouvelle"
     override fun triageNewHint(section: String) = "Cette collection n'existe pas encore — elle sera créée dans « $section »."
     override val triageNewSectionHint = "Ce groupe n'existe pas encore dans cette collection — il sera créé."
     override val triageGroupHint = "Dans quelle section du panneau cette nouvelle collection sera créée"
     override val triageSectionHint = "Dans quel groupe de la collection cet onglet ira"
     override val triageNoSection = "Aucun groupe"
-    override fun triageProgress(done: Int, total: Int) = "Tri des sites — $done sur $total…"
+    override fun triageProgress(done: Int, total: Int) = "Tri des onglets — $done sur $total…"
     override val triageUnsorted = "Non triés"
     override val triageUnsortedHint = "Le modèle n'a rien proposé pour ceux-ci. Choisissez une collection, ou laissez-les ouverts."
     override val triageSkip = "Ne pas enregistrer"
@@ -1435,6 +1494,13 @@ private object FrStrings : Strings {
     override fun triageRelated(site: String, count: Int) = "Déjà enregistré depuis $site ($count) :"
     override fun triageApply(count: Int, closesTabs: Boolean) =
         if (closesTabs) "Enregistrer ($count) et fermer" else "Enregistrer ($count)"
+    override fun triageApplied(count: Int) = "Triées ($count)"
+    override val triageSavedHeading = "Déjà enregistrées"
+    override val triageSavedHint = "Ces pages sont déjà dans une collection. Fermez-les pour que le modèle ne leur consacre pas de question."
+    override val triageDupesHeading = "Onglets en double"
+    override val triageDupesHint = "La même page est ouverte plusieurs fois. Fermez les copies en trop avant le tri."
+    override fun triageCloseStep(count: Int) = "Fermer ($count) et continuer"
+    override val triageSkipStep = "Continuer sans fermer"
     override val aiTriageSystemPrompt = "Tu tries les onglets ouverts d'un utilisateur dans ses collections. " +
         "On te donne les onglets et les collections existantes. Pour chaque onglet, réponds avec l'unique " +
         "collection à laquelle il appartient — réutilise un nom existant partout où l'onglet lui correspond, " +
@@ -1531,6 +1597,8 @@ private object FrStrings : Strings {
     override fun confirmSaveTabs(count: Int, collection: String, closing: Boolean) =
         if (closing) "Enregistrer les onglets de cette fenêtre ($count) dans « $collection » et les fermer ?"
         else "Enregistrer les onglets de cette fenêtre ($count) dans « $collection » ?"
+    override fun confirmSaveDuplicate(title: String) = "« $title » est déjà enregistré ailleurs. L'enregistrer quand même ?"
+    override val quickSaveTitle = "Enregistrements rapides"
 
     override val tabsSection = "Onglets"
     override val closeSavedTabs = "Après avoir enregistré des onglets"
@@ -1815,17 +1883,20 @@ private object EsStrings : Strings {
     override val aiTriageSettingHint = "Añade un botón a una ventana de pestañas: el modelo las lee y propone " +
         "una colección para cada una, para que la revises antes de que se guarde nada. Todo permanece en " +
         "este equipo. Tarda uno o dos minutos en una ventana grande, y deja fuera lo que no puede ubicar."
+    override val aiTriageCloudSetting = "Ordenar con el modelo en la nube"
+    override val aiTriageCloudSettingHint = "Envía las mismas preguntas a GPT-5.6 Luna en el servidor " +
+        "en lugar del modelo de este dispositivo — más rápido y más consistente, solo para una cuenta " +
+        "conectada. Cien preguntas al mes; superado esto, el orden propondrá esperar al mes siguiente " +
+        "o volver al modelo integrado."
     override val triageTabs = "Ordenar en colecciones"
     override val triageHeading = "Ordenar pestañas en colecciones"
-    override val triageSummaryHeading = "De qué trató esta sesión"
-    override val triageSummaryTitle = "Resumen de la sesión"
     override val triageNew = "nueva"
     override fun triageNewHint(section: String) = "Todavía no existe esa colección — se creará en «$section»."
     override val triageNewSectionHint = "Todavía no existe ese grupo en esta colección — se creará."
     override val triageGroupHint = "En qué sección del panel se creará esta nueva colección"
     override val triageSectionHint = "En qué grupo de la colección irá esta pestaña"
     override val triageNoSection = "Sin grupo"
-    override fun triageProgress(done: Int, total: Int) = "Ordenando sitios — $done de $total…"
+    override fun triageProgress(done: Int, total: Int) = "Ordenando pestañas — $done de $total…"
     override val triageUnsorted = "Sin ordenar"
     override val triageUnsortedHint = "El modelo no tuvo nada que decir sobre estas. Elige una colección, o déjalas abiertas."
     override val triageSkip = "No guardar"
@@ -1835,6 +1906,13 @@ private object EsStrings : Strings {
     override fun triageRelated(site: String, count: Int) = "Ya guardado de $site ($count):"
     override fun triageApply(count: Int, closesTabs: Boolean) =
         if (closesTabs) "Guardar ($count) y cerrar" else "Guardar ($count)"
+    override fun triageApplied(count: Int) = "Ordenadas ($count)"
+    override val triageSavedHeading = "Ya guardadas"
+    override val triageSavedHint = "Estas páginas ya están en una colección. Ciérrelas para que el modelo no les dedique una pregunta."
+    override val triageDupesHeading = "Pestañas duplicadas"
+    override val triageDupesHint = "La misma página está abierta más de una vez. Cierre las copias de más antes de ordenar."
+    override fun triageCloseStep(count: Int) = "Cerrar ($count) y continuar"
+    override val triageSkipStep = "Continuar sin cerrar"
     override val aiTriageSystemPrompt = "Ordenas las pestañas abiertas del navegador de un usuario en sus " +
         "colecciones. Se te dan las pestañas y las colecciones que existen. Para cada pestaña, responde con " +
         "la única colección a la que pertenece — reutiliza un nombre existente siempre que la pestaña encaje, " +
@@ -1931,6 +2009,8 @@ private object EsStrings : Strings {
     override fun confirmSaveTabs(count: Int, collection: String, closing: Boolean) =
         if (closing) "¿Guardar las pestañas de esta ventana ($count) en «$collection» y cerrarlas?"
         else "¿Guardar las pestañas de esta ventana ($count) en «$collection»?"
+    override fun confirmSaveDuplicate(title: String) = "«$title» ya está guardado en otro lugar. ¿Guardarlo de todos modos?"
+    override val quickSaveTitle = "Guardado rápido"
 
     override val tabsSection = "Pestañas"
     override val closeSavedTabs = "Tras guardar pestañas"
@@ -2215,17 +2295,20 @@ private object DeStrings : Strings {
     override val aiTriageSettingHint = "Fügt einem Tab-Fenster eine Schaltfläche hinzu: Das Modell liest die Tabs und schlägt " +
         "für jeden eine Sammlung vor, die du prüfst, bevor irgendetwas gespeichert wird. Alles bleibt auf " +
         "diesem Gerät. Bei einem großen Fenster dauert es ein bis zwei Minuten, und was es nicht einordnen kann, lässt es aus."
+    override val aiTriageCloudSetting = "Stattdessen mit dem Cloud-Modell sortieren"
+    override val aiTriageCloudSettingHint = "Sendet dieselben Fragen an GPT-5.6 Luna auf dem Server " +
+        "statt an das Modell auf diesem Gerät — schneller und gleichmäßiger, nur für ein angemeldetes " +
+        "Konto. Hundert Fragen im Monat; danach schlägt die Sortierung vor, es nächsten Monat erneut " +
+        "zu versuchen oder zum integrierten Modell zurückzuwechseln."
     override val triageTabs = "In Sammlungen sortieren"
     override val triageHeading = "Tabs in Sammlungen sortieren"
-    override val triageSummaryHeading = "Worum es in dieser Sitzung ging"
-    override val triageSummaryTitle = "Sitzungszusammenfassung"
     override val triageNew = "neu"
     override fun triageNewHint(section: String) = "Diese Sammlung gibt es noch nicht — sie wird in „$section“ angelegt."
     override val triageNewSectionHint = "Diese Gruppe gibt es in dieser Sammlung noch nicht — sie wird angelegt."
     override val triageGroupHint = "In welchem Bereich der Leiste diese neue Sammlung angelegt wird"
     override val triageSectionHint = "In welche Gruppe der Sammlung dieser Tab kommt"
     override val triageNoSection = "Keine Gruppe"
-    override fun triageProgress(done: Int, total: Int) = "Seiten werden sortiert — $done von $total…"
+    override fun triageProgress(done: Int, total: Int) = "Tabs werden sortiert — $done von $total…"
     override val triageUnsorted = "Nicht sortiert"
     override val triageUnsortedHint = "Zu diesen hatte das Modell nichts zu sagen. Wähle eine Sammlung, oder lass sie offen."
     override val triageSkip = "Nicht speichern"
@@ -2235,6 +2318,13 @@ private object DeStrings : Strings {
     override fun triageRelated(site: String, count: Int) = "Bereits gespeichert von $site ($count):"
     override fun triageApply(count: Int, closesTabs: Boolean) =
         if (closesTabs) "Speichern ($count) und schließen" else "Speichern ($count)"
+    override fun triageApplied(count: Int) = "Sortiert ($count)"
+    override val triageSavedHeading = "Bereits gespeichert"
+    override val triageSavedHint = "Diese Seiten sind schon in einer Sammlung. Schließen Sie sie, damit das Modell keine Frage an sie verschwendet."
+    override val triageDupesHeading = "Doppelte Tabs"
+    override val triageDupesHint = "Dieselbe Seite ist mehrfach geöffnet. Schließen Sie die zusätzlichen Kopien vor dem Sortieren."
+    override fun triageCloseStep(count: Int) = "Schließen ($count) und weiter"
+    override val triageSkipStep = "Weiter, ohne zu schließen"
     override val aiTriageSystemPrompt = "Du sortierst die offenen Browser-Tabs eines Nutzers in dessen Sammlungen. " +
         "Du bekommst die Tabs und die vorhandenen Sammlungen. Antworte für jeden Tab mit der einen Sammlung, " +
         "zu der er gehört — nutze einen vorhandenen Namen, wo immer der Tab dazu passt, und erfinde nur dann " +
@@ -2331,6 +2421,8 @@ private object DeStrings : Strings {
     override fun confirmSaveTabs(count: Int, collection: String, closing: Boolean) =
         if (closing) "Tabs dieses Fensters ($count) in „$collection“ speichern und schließen?"
         else "Tabs dieses Fensters ($count) in „$collection“ speichern?"
+    override fun confirmSaveDuplicate(title: String) = "„$title“ ist bereits an anderer Stelle gespeichert. Trotzdem erneut speichern?"
+    override val quickSaveTitle = "Schnell gespeichert"
 
     override val tabsSection = "Tabs"
     override val closeSavedTabs = "Nach dem Speichern von Tabs"
@@ -2615,17 +2707,20 @@ private object PtBrStrings : Strings {
     override val aiTriageSettingHint = "Adiciona um botão a uma janela de abas: o modelo as lê e propõe " +
         "uma coleção para cada uma, para você conferir antes que algo seja salvo. Tudo permanece neste " +
         "computador. Leva um ou dois minutos numa janela grande, e deixa de fora o que não conseguir classificar."
+    override val aiTriageCloudSetting = "Organizar com o modelo na nuvem"
+    override val aiTriageCloudSettingHint = "Envia as mesmas perguntas ao GPT-5.6 Luna no servidor em " +
+        "vez do modelo deste dispositivo — mais rápido e consistente, apenas para uma conta conectada. " +
+        "Cem perguntas por mês; passado isso, a organização vai propor esperar o próximo mês ou voltar " +
+        "ao modelo embutido."
     override val triageTabs = "Organizar em coleções"
     override val triageHeading = "Organizar abas em coleções"
-    override val triageSummaryHeading = "Sobre o que foi esta sessão"
-    override val triageSummaryTitle = "Resumo da sessão"
     override val triageNew = "nova"
     override fun triageNewHint(section: String) = "Essa coleção ainda não existe — ela será criada em “$section”."
     override val triageNewSectionHint = "Esse grupo ainda não existe nesta coleção — ele será criado."
     override val triageGroupHint = "Em qual seção do painel esta nova coleção será criada"
     override val triageSectionHint = "Em qual grupo da coleção esta aba vai entrar"
     override val triageNoSection = "Sem grupo"
-    override fun triageProgress(done: Int, total: Int) = "Organizando sites — $done de $total…"
+    override fun triageProgress(done: Int, total: Int) = "Organizando abas — $done de $total…"
     override val triageUnsorted = "Não organizadas"
     override val triageUnsortedHint = "O modelo não teve nada a dizer sobre estas. Escolha uma coleção, ou deixe-as abertas."
     override val triageSkip = "Não salvar"
@@ -2635,6 +2730,13 @@ private object PtBrStrings : Strings {
     override fun triageRelated(site: String, count: Int) = "Já salvo de $site ($count):"
     override fun triageApply(count: Int, closesTabs: Boolean) =
         if (closesTabs) "Salvar ($count) e fechar" else "Salvar ($count)"
+    override fun triageApplied(count: Int) = "Organizadas ($count)"
+    override val triageSavedHeading = "Já salvas"
+    override val triageSavedHint = "Essas páginas já estão em uma coleção. Feche-as para o modelo não gastar uma pergunta com elas."
+    override val triageDupesHeading = "Abas duplicadas"
+    override val triageDupesHint = "A mesma página está aberta mais de uma vez. Feche as cópias extras antes de organizar."
+    override fun triageCloseStep(count: Int) = "Fechar ($count) e continuar"
+    override val triageSkipStep = "Continuar sem fechar"
     override val aiTriageSystemPrompt = "Você organiza as abas abertas do navegador de um usuário em suas " +
         "coleções. Você recebe as abas e as coleções existentes. Para cada aba, responda com a única " +
         "coleção a que ela pertence — reutilize um nome existente sempre que a aba se encaixar nele, e só " +
@@ -2731,6 +2833,8 @@ private object PtBrStrings : Strings {
     override fun confirmSaveTabs(count: Int, collection: String, closing: Boolean) =
         if (closing) "Salvar as abas desta janela ($count) em “$collection” e fechá-las?"
         else "Salvar as abas desta janela ($count) em “$collection”?"
+    override fun confirmSaveDuplicate(title: String) = "“$title” já está salvo em outro lugar. Salvar mesmo assim?"
+    override val quickSaveTitle = "Salvos rápidos"
 
     override val tabsSection = "Abas"
     override val closeSavedTabs = "Depois de salvar abas"
@@ -3013,17 +3117,18 @@ private object ZhCnStrings : Strings {
     override val aiTriageSetting = "用内置模型整理标签页"
     override val aiTriageSettingHint = "为标签页窗口添加一个按钮：模型会读取这些标签页，并为每一个提出一个" +
         "收藏夹建议，供你在保存前确认。一切都留在这台设备上。窗口较大时需要一两分钟，模型无法归类的会被略过。"
+    override val aiTriageCloudSetting = "改用云端模型整理"
+    override val aiTriageCloudSettingHint = "把同样的问题发送给服务器上的 GPT-5.6 Luna，而不是这台设备上的模型" +
+        "——更快也更稳定，但仅限已登录的账号。每月一百次；超过后，整理会建议等到下个月，或切换回内置模型。"
     override val triageTabs = "整理到收藏夹"
     override val triageHeading = "将标签页整理到收藏夹"
-    override val triageSummaryHeading = "本次会话的内容概要"
-    override val triageSummaryTitle = "会话摘要"
     override val triageNew = "新建"
     override fun triageNewHint(section: String) = "该收藏夹尚不存在——将在“$section”中创建。"
     override val triageNewSectionHint = "该收藏夹中尚无此分组——将会创建。"
     override val triageGroupHint = "这个新收藏夹会创建在侧栏的哪个分区中"
     override val triageSectionHint = "此标签页会归入收藏夹中的哪个分组"
     override val triageNoSection = "不分组"
-    override fun triageProgress(done: Int, total: Int) = "正在整理网站——$done / $total…"
+    override fun triageProgress(done: Int, total: Int) = "正在整理标签页——$done / $total…"
     override val triageUnsorted = "未整理"
     override val triageUnsortedHint = "模型对这些没有给出建议。请选择一个收藏夹，或者让它们保持打开。"
     override val triageSkip = "不保存"
@@ -3033,6 +3138,13 @@ private object ZhCnStrings : Strings {
     override fun triageRelated(site: String, count: Int) = "已从 $site 保存（$count）："
     override fun triageApply(count: Int, closesTabs: Boolean) =
         if (closesTabs) "保存（$count）并关闭" else "保存（$count）"
+    override fun triageApplied(count: Int) = "已整理（$count）"
+    override val triageSavedHeading = "已保存"
+    override val triageSavedHint = "这些页面已经在某个收藏夹中。关闭它们，这样模型就不用为它们浪费一次提问。"
+    override val triageDupesHeading = "重复的标签页"
+    override val triageDupesHint = "同一页面打开了不止一次。整理前请先关闭多余的副本。"
+    override fun triageCloseStep(count: Int) = "关闭（$count）并继续"
+    override val triageSkipStep = "不关闭，继续"
     override val aiTriageSystemPrompt = "你需要把用户浏览器中打开的标签页整理到他们的收藏夹中。系统会给你提供" +
         "标签页列表和现有的收藏夹。对每个标签页，回答它所属的唯一一个收藏夹——只要合适就复用已有的名称，" +
         "只有在都不合适时才发明一个简短的新名称（一到两个词）。在收藏夹内，你也可以指定一个分组，同样优先" +
@@ -3126,6 +3238,8 @@ private object ZhCnStrings : Strings {
     override fun confirmSaveTabs(count: Int, collection: String, closing: Boolean) =
         if (closing) "将此窗口的标签页（$count 个）保存到“$collection”并关闭它们？"
         else "将此窗口的标签页（$count 个）保存到“$collection”？"
+    override fun confirmSaveDuplicate(title: String) = "“$title”已保存在别处。仍要再次保存吗？"
+    override val quickSaveTitle = "快速保存"
 
     override val tabsSection = "标签页"
     override val closeSavedTabs = "保存标签页之后"
@@ -3408,17 +3522,19 @@ private object JaStrings : Strings {
     override val aiTriageSettingHint = "タブのウィンドウにボタンを追加します。モデルがタブを読み取り、" +
         "それぞれに対してコレクションを提案し、保存前に確認できます。すべてこの端末内で処理されます。" +
         "大きなウィンドウでは1、2分かかり、分類できないものは除外されます。"
+    override val aiTriageCloudSetting = "代わりにクラウドモデルで整理する"
+    override val aiTriageCloudSettingHint = "同じ質問をこの端末のモデルではなく、サーバー上の GPT-5.6 Luna " +
+        "に送ります——サインイン済みのアカウント限定で、より速く安定した回答が得られます。月100回まで。" +
+        "超えると、来月まで待つか内蔵モデルに戻すよう整理機能が提案します。"
     override val triageTabs = "コレクションに整理"
     override val triageHeading = "タブをコレクションに整理"
-    override val triageSummaryHeading = "このセッションの内容"
-    override val triageSummaryTitle = "セッションの要約"
     override val triageNew = "新規"
     override fun triageNewHint(section: String) = "このコレクションはまだ存在しません——「$section」内に作成されます。"
     override val triageNewSectionHint = "このコレクションにはまだこのグループがありません——作成されます。"
     override val triageGroupHint = "この新しいコレクションをサイドバーのどのセクションに作成するか"
     override val triageSectionHint = "このタブをコレクション内のどのグループに入れるか"
     override val triageNoSection = "グループなし"
-    override fun triageProgress(done: Int, total: Int) = "サイトを整理中——$done / $total…"
+    override fun triageProgress(done: Int, total: Int) = "タブを整理中——$done / $total…"
     override val triageUnsorted = "未整理"
     override val triageUnsortedHint = "モデルはこれらについて提案がありませんでした。コレクションを選ぶか、開いたままにしてください。"
     override val triageSkip = "保存しない"
@@ -3428,6 +3544,13 @@ private object JaStrings : Strings {
     override fun triageRelated(site: String, count: Int) = "$site からすでに保存済み（$count 件）："
     override fun triageApply(count: Int, closesTabs: Boolean) =
         if (closesTabs) "保存（$count）して閉じる" else "保存（$count）"
+    override fun triageApplied(count: Int) = "整理しました（$count）"
+    override val triageSavedHeading = "保存済み"
+    override val triageSavedHint = "これらのページはすでにコレクションに保存されています。閉じておけば、モデルが無駄な質問をしなくて済みます。"
+    override val triageDupesHeading = "重複したタブ"
+    override val triageDupesHint = "同じページが複数開かれています。整理する前に余分なタブを閉じてください。"
+    override fun triageCloseStep(count: Int) = "閉じて続ける（$count）"
+    override val triageSkipStep = "閉じずに続ける"
     override val aiTriageSystemPrompt = "あなたはユーザーのブラウザで開いているタブを、そのコレクションに整理します。" +
         "タブと既存のコレクションが与えられます。各タブについて、それが属する唯一のコレクションを答えてください——" +
         "タブに合う既存の名前があればそれを使い、どれにも合わない場合のみ短い新しい名前（1、2語）を考えてください。" +
@@ -3522,6 +3645,8 @@ private object JaStrings : Strings {
     override fun confirmSaveTabs(count: Int, collection: String, closing: Boolean) =
         if (closing) "このウィンドウのタブ（$count 個）を「$collection」に保存して閉じますか？"
         else "このウィンドウのタブ（$count 個）を「$collection」に保存しますか？"
+    override fun confirmSaveDuplicate(title: String) = "「$title」はすでに別の場所に保存されています。もう一度保存しますか？"
+    override val quickSaveTitle = "クイック保存"
 
     override val tabsSection = "タブ"
     override val closeSavedTabs = "タブを保存した後"
@@ -3806,17 +3931,19 @@ private object KoStrings : Strings {
     override val aiTriageSettingHint = "탭 창에 버튼을 추가합니다. 모델이 탭을 읽고 각 탭에 대해 컬렉션을 " +
         "제안하며, 저장되기 전에 직접 확인할 수 있습니다. 모든 처리는 이 기기 안에서 이루어집니다. " +
         "탭이 많은 창에서는 1~2분 정도 걸리며, 분류할 수 없는 항목은 제외됩니다."
+    override val aiTriageCloudSetting = "대신 클라우드 모델로 정리하기"
+    override val aiTriageCloudSettingHint = "같은 질문을 이 기기의 모델이 아니라 서버의 GPT-5.6 Luna로 " +
+        "보냅니다 — 로그인한 계정에 한해 더 빠르고 일관된 답변을 받습니다. 월 100회 한도이며, 초과하면 " +
+        "다음 달까지 기다리거나 내장 모델로 되돌리도록 정리 기능이 안내합니다."
     override val triageTabs = "컬렉션으로 정리"
     override val triageHeading = "탭을 컬렉션으로 정리"
-    override val triageSummaryHeading = "이번 세션의 내용"
-    override val triageSummaryTitle = "세션 요약"
     override val triageNew = "새로 만들기"
     override fun triageNewHint(section: String) = "아직 존재하지 않는 컬렉션입니다——“$section”에 만들어집니다."
     override val triageNewSectionHint = "이 컬렉션에는 아직 이 그룹이 없습니다——새로 만들어집니다."
     override val triageGroupHint = "이 새 컬렉션을 사이드바의 어느 섹션에 만들지"
     override val triageSectionHint = "이 탭을 컬렉션의 어느 그룹에 넣을지"
     override val triageNoSection = "그룹 없음"
-    override fun triageProgress(done: Int, total: Int) = "사이트 정리 중——$done / $total…"
+    override fun triageProgress(done: Int, total: Int) = "탭 정리 중——$done / $total…"
     override val triageUnsorted = "정리되지 않음"
     override val triageUnsortedHint = "모델이 이 항목들에 대해 제안한 내용이 없습니다. 컬렉션을 선택하거나 열린 채로 두세요."
     override val triageSkip = "저장하지 않기"
@@ -3826,6 +3953,13 @@ private object KoStrings : Strings {
     override fun triageRelated(site: String, count: Int) = "$site 에서 이미 저장됨（$count 개）:"
     override fun triageApply(count: Int, closesTabs: Boolean) =
         if (closesTabs) "저장（$count）하고 닫기" else "저장（$count）"
+    override fun triageApplied(count: Int) = "정리함（$count）"
+    override val triageSavedHeading = "이미 저장됨"
+    override val triageSavedHint = "이 페이지들은 이미 어떤 컬렉션에 저장되어 있습니다. 닫아 두면 모델이 이들에 질문을 낭비하지 않습니다."
+    override val triageDupesHeading = "중복된 탭"
+    override val triageDupesHint = "같은 페이지가 여러 개 열려 있습니다. 정리하기 전에 여분의 탭을 닫으세요."
+    override fun triageCloseStep(count: Int) = "닫고 계속（$count）"
+    override val triageSkipStep = "닫지 않고 계속"
     override val aiTriageSystemPrompt = "당신은 사용자의 브라우저에 열려 있는 탭을 그의 컬렉션으로 정리합니다. " +
         "탭 목록과 기존 컬렉션이 주어집니다. 각 탭에 대해 그 탭이 속하는 단 하나의 컬렉션으로 답하세요——" +
         "탭에 맞는 기존 이름이 있으면 그것을 재사용하고, 어느 것에도 맞지 않을 때만 짧은 새 이름(한두 단어)을 " +
@@ -3921,6 +4055,8 @@ private object KoStrings : Strings {
     override fun confirmSaveTabs(count: Int, collection: String, closing: Boolean) =
         if (closing) "이 창의 탭（$count 개）을 “$collection”에 저장하고 닫을까요?"
         else "이 창의 탭（$count 개）을 “$collection”에 저장할까요?"
+    override fun confirmSaveDuplicate(title: String) = "“$title”은（는） 이미 다른 곳에 저장되어 있습니다. 그래도 다시 저장할까요?"
+    override val quickSaveTitle = "빠른 저장"
 
     override val tabsSection = "탭"
     override val closeSavedTabs = "탭을 저장한 뒤"
@@ -4205,17 +4341,20 @@ private object ItStrings : Strings {
     override val aiTriageSettingHint = "Aggiunge un pulsante a una finestra di schede: il modello le legge e propone " +
         "una raccolta per ciascuna, da controllare prima che venga salvato qualcosa. Tutto resta su " +
         "questo dispositivo. Su una finestra grande richiede uno o due minuti, e lascia fuori ciò che non riesce a classificare."
+    override val aiTriageCloudSetting = "Ordina invece con il modello cloud"
+    override val aiTriageCloudSettingHint = "Invia le stesse domande a GPT-5.6 Luna sul server invece " +
+        "che al modello su questo dispositivo — più veloce e coerente, solo per un account connesso. " +
+        "Cento domande al mese; superato il limite, l'ordinamento proporrà di attendere il mese " +
+        "successivo o tornare al modello integrato."
     override val triageTabs = "Ordina in raccolte"
     override val triageHeading = "Ordina le schede in raccolte"
-    override val triageSummaryHeading = "Di cosa parlava questa sessione"
-    override val triageSummaryTitle = "Riepilogo della sessione"
     override val triageNew = "nuova"
     override fun triageNewHint(section: String) = "Questa raccolta non esiste ancora — verrà creata in “$section”."
     override val triageNewSectionHint = "Questo gruppo non esiste ancora in questa raccolta — verrà creato."
     override val triageGroupHint = "In quale sezione del pannello verrà creata questa nuova raccolta"
     override val triageSectionHint = "In quale gruppo della raccolta andrà questa scheda"
     override val triageNoSection = "Nessun gruppo"
-    override fun triageProgress(done: Int, total: Int) = "Ordinamento dei siti — $done di $total…"
+    override fun triageProgress(done: Int, total: Int) = "Ordinamento delle schede — $done di $total…"
     override val triageUnsorted = "Non ordinate"
     override val triageUnsortedHint = "Il modello non ha proposto nulla per queste. Scegli una raccolta, o lasciale aperte."
     override val triageSkip = "Non salvare"
@@ -4225,6 +4364,13 @@ private object ItStrings : Strings {
     override fun triageRelated(site: String, count: Int) = "Già salvato da $site ($count):"
     override fun triageApply(count: Int, closesTabs: Boolean) =
         if (closesTabs) "Salva ($count) e chiudi" else "Salva ($count)"
+    override fun triageApplied(count: Int) = "Ordinate ($count)"
+    override val triageSavedHeading = "Già salvate"
+    override val triageSavedHint = "Queste pagine sono già in una raccolta. Chiudile così il modello non spreca una domanda su di loro."
+    override val triageDupesHeading = "Schede duplicate"
+    override val triageDupesHint = "La stessa pagina è aperta più di una volta. Chiudi le copie in più prima di ordinare."
+    override fun triageCloseStep(count: Int) = "Chiudi ($count) e continua"
+    override val triageSkipStep = "Continua senza chiudere"
     override val aiTriageSystemPrompt = "Ordini le schede aperte nel browser di un utente nelle sue raccolte. " +
         "Ti vengono fornite le schede e le raccolte esistenti. Per ogni scheda, rispondi con l'unica " +
         "raccolta a cui appartiene — riusa un nome esistente ovunque la scheda vi si adatti, e inventa " +
@@ -4321,6 +4467,8 @@ private object ItStrings : Strings {
     override fun confirmSaveTabs(count: Int, collection: String, closing: Boolean) =
         if (closing) "Salvare le schede di questa finestra ($count) in “$collection” e chiuderle?"
         else "Salvare le schede di questa finestra ($count) in “$collection”?"
+    override fun confirmSaveDuplicate(title: String) = "“$title” è già salvato altrove. Salvarlo comunque di nuovo?"
+    override val quickSaveTitle = "Salvataggi rapidi"
 
     override val tabsSection = "Schede"
     override val closeSavedTabs = "Dopo aver salvato le schede"
@@ -4605,17 +4753,20 @@ private object TrStrings : Strings {
     override val aiTriageSettingHint = "Bir sekme penceresine bir düğme ekler: model sekmeleri okur ve " +
         "her biri için, herhangi bir şey kaydedilmeden önce senin kontrol edebileceğin bir koleksiyon önerir. " +
         "Her şey bu cihazda kalır. Büyük bir pencerede bir iki dakika sürer ve sınıflandıramadıklarını dışarıda bırakır."
+    override val aiTriageCloudSetting = "Bunun yerine bulut modeliyle sırala"
+    override val aiTriageCloudSettingHint = "Aynı soruları bu cihazdaki model yerine sunucudaki GPT-5.6 " +
+        "Luna'ya gönderir — yalnızca oturum açmış bir hesap için daha hızlı ve tutarlı yanıtlar. Ayda " +
+        "yüz soru; bu sınırı aşınca sıralama, gelecek ayı beklemeyi ya da yerleşik modele geri dönmeyi " +
+        "önerir."
     override val triageTabs = "Koleksiyonlara ayır"
     override val triageHeading = "Sekmeleri koleksiyonlara ayır"
-    override val triageSummaryHeading = "Bu oturum neyle ilgiliydi"
-    override val triageSummaryTitle = "Oturum özeti"
     override val triageNew = "yeni"
     override fun triageNewHint(section: String) = "Bu koleksiyon henüz yok — “$section” içinde oluşturulacak."
     override val triageNewSectionHint = "Bu grup bu koleksiyonda henüz yok — oluşturulacak."
     override val triageGroupHint = "Bu yeni koleksiyon kenar çubuğunun hangi bölümünde oluşturulacak"
     override val triageSectionHint = "Bu sekme koleksiyonun hangi grubuna girecek"
     override val triageNoSection = "Grup yok"
-    override fun triageProgress(done: Int, total: Int) = "Siteler sıralanıyor — $total üzerinden $done…"
+    override fun triageProgress(done: Int, total: Int) = "Sekmeler sıralanıyor — $total üzerinden $done…"
     override val triageUnsorted = "Sıralanmadı"
     override val triageUnsortedHint = "Model bunlar hakkında bir şey söylemedi. Bir koleksiyon seç, ya da açık bırak."
     override val triageSkip = "Kaydetme"
@@ -4625,6 +4776,13 @@ private object TrStrings : Strings {
     override fun triageRelated(site: String, count: Int) = "$site sitesinden zaten kayıtlı ($count):"
     override fun triageApply(count: Int, closesTabs: Boolean) =
         if (closesTabs) "Kaydet ($count) ve kapat" else "Kaydet ($count)"
+    override fun triageApplied(count: Int) = "Sıralandı ($count)"
+    override val triageSavedHeading = "Zaten kaydedildi"
+    override val triageSavedHint = "Bu sayfalar zaten bir koleksiyonda. Modelin onlara boşuna soru harcamaması için kapatın."
+    override val triageDupesHeading = "Yinelenen sekmeler"
+    override val triageDupesHint = "Aynı sayfa birden fazla kez açık. Sıralamadan önce fazladan kopyaları kapatın."
+    override fun triageCloseStep(count: Int) = "Kapat ($count) ve devam et"
+    override val triageSkipStep = "Kapatmadan devam et"
     override val aiTriageSystemPrompt = "Bir kullanıcının tarayıcısında açık olan sekmeleri onun koleksiyonlarına " +
         "ayırıyorsun. Sana sekmeler ve mevcut koleksiyonlar veriliyor. Her sekme için, ait olduğu tek " +
         "koleksiyonla cevap ver — sekme uyduğu her yerde mevcut bir adı yeniden kullan, ve hiçbirine " +
@@ -4720,6 +4878,8 @@ private object TrStrings : Strings {
     override fun confirmSaveTabs(count: Int, collection: String, closing: Boolean) =
         if (closing) "Bu pencerenin sekmeleri ($count) “$collection” içine kaydedilip kapatılsın mı?"
         else "Bu pencerenin sekmeleri ($count) “$collection” içine kaydedilsin mi?"
+    override fun confirmSaveDuplicate(title: String) = "“$title” zaten başka bir yerde kayıtlı. Yine de tekrar kaydedilsin mi?"
+    override val quickSaveTitle = "Hızlı kayıtlar"
 
     override val tabsSection = "Sekmeler"
     override val closeSavedTabs = "Sekmeleri kaydettikten sonra"

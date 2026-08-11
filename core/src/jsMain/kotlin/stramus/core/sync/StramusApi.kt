@@ -23,6 +23,8 @@ import kotlin.uuid.Uuid
 import kotlinx.browser.localStorage
 import kotlinx.serialization.json.Json
 import stramus.protocol.AccountExport
+import stramus.protocol.AiTriageRequest
+import stramus.protocol.AiTriageResponse
 import stramus.protocol.ApiError
 import stramus.protocol.BlobCheckRequest
 import stramus.protocol.BlobCheckResponse
@@ -162,6 +164,21 @@ class StramusApi(
     /** Every row the server holds about this account, in the form it holds it — the GDPR copy-of-everything. */
     suspend fun exportAccount(): AccountExport = withToken { token ->
         http.get("$baseUrl/v1/account/export") { header(HttpHeaders.Authorization, "Bearer $token") }
+    }.body()
+
+    /**
+     * One batch of tabs, triaged by the cloud model — see [stramus.core.ai.cloudTriage] and the server's
+     * `AiProxyService`. Only titles and urls travel; the collections they might go into are read back out
+     * of this same account's synced data on the server, not sent here at all (see [AiTriageRequest]'s own
+     * class doc). 429 (through [orThrow]/[ApiException]) is how the monthly limit says so; the caller
+     * decides what that should look like on screen, this is only the wire.
+     */
+    suspend fun aiTriage(request: AiTriageRequest): AiTriageResponse = withToken { token ->
+        http.post("$baseUrl/v1/ai/triage") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }
     }.body()
 
     override suspend fun sync(request: SyncRequest): SyncResponse = withToken { token ->

@@ -26,6 +26,7 @@ import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.jwt.jwt
 import io.ktor.server.auth.principal
+import io.ktor.server.plugins.calllogging.CallLogging
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.cors.routing.CORS
 import io.ktor.server.plugins.di.dependencies
@@ -33,8 +34,10 @@ import io.ktor.server.plugins.di.provide
 import io.ktor.server.plugins.origin
 import io.ktor.server.response.header
 import io.ktor.server.plugins.statuspages.StatusPages
+import io.ktor.server.request.httpMethod
 import io.ktor.server.request.receive
 import io.ktor.server.request.receiveChannel
+import io.ktor.server.request.uri
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondBytes
 import io.ktor.server.routing.delete
@@ -46,6 +49,7 @@ import io.ktor.server.routing.routing
 import kotlinx.serialization.json.Json
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
+import stramus.protocol.AiTriageRequest
 import stramus.protocol.ApiError
 import stramus.protocol.CodeRequest
 import stramus.protocol.CodeVerifyRequest
@@ -81,6 +85,8 @@ fun Application.stramusModule(
     val sync = SyncService(db)
     val blobs = BlobStore(db, config)
     val favicons = FaviconService(db, config)
+    val aiCatalog = AiCatalogService(db)
+    val aiProxy = AiProxyService(db, config, aiCatalog)
     val faviconBudget = MissBudget(config.faviconMissesPerMinute)
 
     // The sweep, on its own clock. Once a day is often enough for landfill — an orphaned file costs disk
@@ -108,6 +114,12 @@ fun Application.stramusModule(
     install(ContentNegotiation) {
         json(Json { ignoreUnknownKeys = true })
     }
+
+    // One line a request: the method, the path, the status. Without this, a request that never reaches a
+    // route at all — a CORS rejection, a dead gateway in front of this process — looks identical to one
+    // that reached a handler and threw: nothing prints either way, and the only way to tell them apart was
+    // to add this and look again.
+    install(CallLogging)
 
     install(CORS) {
         // The web app and the extension are both cross-origin — one on a static host, one on
@@ -138,6 +150,16 @@ fun Application.stramusModule(
 
     install(StatusPages) {
         exception<AccountException> { call, e ->
+            // A 5xx here is this server's own doing — a dependency it called did not answer, say — and
+            // [CallLogging]'s one line (status, path, timing) does not carry *why*. Below 500 it is the
+            // caller's own mistake (a bad request, a name already taken), which is exactly what
+            // [ApiError] already says back to them, and not this process's to log as if it were a fault.
+            // 501 is excluded too: every use of it is "this feature is deliberately off on this server"
+            // (no Google client configured, no OpenRouter key) — an expected, static state, not a fault
+            // that just happened, and logging it on every such call would only bury the ones that are.
+            if (e.status >= 500 && e.status != 501) {
+                call.application.log.error("Account error on ${call.request.httpMethod.value} ${call.request.uri}", e)
+            }
             call.respond(HttpStatusCode.fromValue(e.status), ApiError("account", e.message ?: "bad request"))
         }
         exception<AuthException> { call, e ->
@@ -146,8 +168,20 @@ fun Application.stramusModule(
         exception<QuotaException> { call, e ->
             call.respond(HttpStatusCode.PayloadTooLarge, ApiError("quota", e.message ?: "too large"))
         }
+        exception<AiQuotaException> { call, e ->
+            call.respond(HttpStatusCode.TooManyRequests, ApiError("ai-quota", e.message ?: "monthly limit reached"))
+        }
         exception<KormiumException> { call, e ->
+            call.application.log.error("Database error on ${call.request.httpMethod.value} ${call.request.uri}", e)
             call.respond(HttpStatusCode.InternalServerError, ApiError("database", e.message ?: "database error"))
+        }
+        // Everything not already named above — a network failure calling OpenRouter, a bug. The specific
+        // handlers exist so a caller can act on *why*; this one exists so a caller (and whoever is
+        // watching this process's own output) is at least told *that* something broke, with the actual
+        // stack trace next to it rather than a bare 500 nobody can explain after the fact.
+        exception<Throwable> { call, e ->
+            call.application.log.error("Unhandled exception on ${call.request.httpMethod.value} ${call.request.uri}", e)
+            call.respond(HttpStatusCode.InternalServerError, ApiError("internal", "something went wrong"))
         }
     }
 
@@ -258,6 +292,17 @@ fun Application.stramusModule(
                 // to write rows as one of the user's *other* devices, which is what the tie-break in a
                 // conflict is decided by.
                 call.respond(sync.sync(call.userId(), call.deviceId(), body.since, body.rows))
+            }
+
+            /**
+             * The cloud model, asked on the caller's behalf — see [AiProxyService]. Behind the same
+             * bearer auth as everything else here: there is no anonymous door to this one at all, unlike
+             * `/v1/favicon`, because every call costs this server real money and someone has to be on
+             * the hook for it.
+             */
+            post("/v1/ai/triage") {
+                val body = call.receive<AiTriageRequest>()
+                call.respond(aiProxy.triage(call.userId(), body))
             }
 
             /**

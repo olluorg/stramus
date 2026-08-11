@@ -94,4 +94,10 @@ data class Card(
     val blobSha: String?,
     val orderKey: String,
     val createdAt: Instant,
+    /**
+     * True while this card came from the tab triage's plan and has not been opened yet. The UI's cue
+     * for "this is what the model sorted, not you" — cleared the first time the card is opened, not
+     * merely displayed once, so it does not linger past the one moment it is useful.
+     */
+    val aiCreated: Boolean = false,
 )

@@ -186,7 +186,7 @@ private fun CollectionRow.toModel() = Collection(id, sectionId, title, orderKey,
 private fun CardSectionRow.toModel() = CardSection(id, collectionId, title, description, orderKey, collapsed != 0)
 private fun CardRow.toModel() = Card(
     id, collectionId, cardSectionId, CardKind.from(kind), title, url, favicon, content, thumb, mime, blobSha,
-    orderKey, createdAt,
+    orderKey, createdAt, aiCreated == true,
 )
 
 // The way back from a model to the row it came from — what an undo writes. A restored row keeps its
@@ -702,8 +702,14 @@ internal class KidxCardRepository(
         Cards.find(Cards.byCollection) { Cards.collectionId eq collectionId }.count { it.deletedAt == null }
     }
 
-    override suspend fun add(collectionId: Uuid, title: String, url: String, favicon: String?, cardSectionId: Uuid?): Card =
-        insert(collectionId, cardSectionId, CardKind.LINK, title, url, favicon, content = null, mime = null)
+    override suspend fun add(
+        collectionId: Uuid,
+        title: String,
+        url: String,
+        favicon: String?,
+        cardSectionId: Uuid?,
+        aiCreated: Boolean,
+    ): Card = insert(collectionId, cardSectionId, CardKind.LINK, title, url, favicon, content = null, mime = null, aiCreated = aiCreated)
 
     override suspend fun addNote(collectionId: Uuid, title: String, content: String, cardSectionId: Uuid?): Card =
         insert(collectionId, cardSectionId, CardKind.NOTE, title, url = "", favicon = null, content = content, mime = null)
@@ -743,6 +749,7 @@ internal class KidxCardRepository(
         thumb: String? = null,
         blob: String? = null,
         blobSha: String? = null,
+        aiCreated: Boolean = false,
     ): Card {
         val row = db.write(Cards, CardBlobs) {
             val last = lastKeyOfGroup(collectionId, cardSectionId)
@@ -758,6 +765,7 @@ internal class KidxCardRepository(
                 this.thumb = thumb
                 this.mime = mime
                 this.blobSha = blobSha
+                this.aiCreated = aiCreated
                 this.orderKey = appendKey(last)
                 this.createdAt = Clock.System.now()
                 this.updatedAt = Clock.System.now()
@@ -810,6 +818,16 @@ internal class KidxCardRepository(
         db.write(Cards) {
             val row = Cards.get(id) ?: return@write
             row.url = url
+            row.updatedAt = Clock.System.now()
+            Cards.put(row)
+        }
+    }
+
+    override suspend fun markOpened(id: Uuid) {
+        db.write(Cards) {
+            val row = Cards.get(id) ?: return@write
+            if (row.aiCreated != true) return@write
+            row.aiCreated = false
             row.updatedAt = Clock.System.now()
             Cards.put(row)
         }

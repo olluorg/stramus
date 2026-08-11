@@ -78,11 +78,26 @@ internal external interface ChromeSearch {
 }
 
 /**
- * `chrome.runtime` — here, only for [getURL]: the address of a file inside the extension, on the
- * extension's own origin (`chrome-extension://<id>/…`), which is not known until it is installed.
+ * `chrome.runtime` — [getURL] is the address of a file inside the extension, on the extension's own
+ * origin (`chrome-extension://<id>/…`), not known until it is installed. [onMessage] is how the app
+ * hears from background.js that a quick capture was just staged — see [ChromeQuickCapture].
  */
 internal external interface ChromeRuntime {
     fun getURL(path: String): String
+    val onMessage: ChromeEvent
+}
+
+/**
+ * One area of `chrome.storage` — here, `local`, the only one used. [get] with a single key resolves
+ * to an object holding that key if it was set, empty otherwise; there is no "key not found" error.
+ */
+internal external interface ChromeStorageArea {
+    fun get(keys: dynamic): Promise<dynamic>
+    fun remove(keys: dynamic): Promise<Unit>
+}
+
+internal external interface ChromeStorage {
+    val local: ChromeStorageArea
 }
 
 /**
@@ -110,6 +125,7 @@ internal external interface Chrome {
     val search: ChromeSearch
     val runtime: ChromeRuntime
     val identity: ChromeIdentity
+    val storage: ChromeStorage
 }
 
 internal external val chrome: Chrome

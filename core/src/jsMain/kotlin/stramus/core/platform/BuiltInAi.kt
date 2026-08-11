@@ -53,6 +53,34 @@ private fun outputLanguages(): List<String?> {
     return listOfNotNull(ui?.takeIf { it in ATTESTED_OUTPUT_LANGUAGES }, "en", null).distinct()
 }
 
+/** How much lower than Chrome's own default a session asks for — a plain fraction, easy to retune. */
+private const val TEMPERATURE_SCALE = 0.5
+
+/** However low [TEMPERATURE_SCALE] would take it, never below this — some models refuse a temperature of exactly zero as not a distribution at all. */
+private const val MIN_TEMPERATURE = 0.1
+
+/**
+ * A steadier session than Chrome's own default sampling gives, or null where the browser will not say
+ * what its default is (an older Chrome, or `params()` refusing on a device with no model at all) — the
+ * session then opens on Chrome's own defaults, exactly as before this existed.
+ *
+ * Asked for once per [BuiltInAi.start] rather than hand-picked: `defaultTopK` is carried through
+ * unchanged and only [defaultTemperature] is scaled down, because Chrome refuses a session that names
+ * one of `temperature`/`topK` without the other — a session cannot lower its temperature and say
+ * nothing about `topK` at all.
+ *
+ * The reasoning it exists for: `stramus.core.ai.agreed` trusts a placement only where two independent
+ * answers to the same question agree, and treats a difference between them as the model having guessed.
+ * A lower temperature answers more like itself the second time it is asked — the same question this
+ * whole double-ask machinery was built to answer, tried at the source instead.
+ */
+private suspend fun lowTemperature(api: dynamic): Pair<Double, Int>? {
+    val params = runCatching { api.params().unsafeCast<Promise<dynamic>>().await() }.getOrNull() ?: return null
+    val defaultTemperature = (params.defaultTemperature as? Number)?.toDouble() ?: return null
+    val defaultTopK = (params.defaultTopK as? Number)?.toInt() ?: return null
+    return (defaultTemperature * TEMPERATURE_SCALE).coerceAtLeast(MIN_TEMPERATURE) to defaultTopK
+}
+
 /**
  * The model, if this browser has one. Null in every browser that does not (and in Chrome without the
  * hardware for it), which is what keeps the AI out of the UI where it cannot work: the search box
@@ -94,10 +122,16 @@ private object BuiltInAi : AiAssistant {
 
     override suspend fun start(systemPrompt: String, onDownloadProgress: (Double) -> Unit): AiSession {
         val api = languageModel() ?: error("no built-in model in this browser")
+        val sampling = lowTemperature(api)
 
         fun options(outputLanguage: String?): dynamic {
             val options: dynamic = expectedOutputs(outputLanguage)
             options.initialPrompts = arrayOf(json("role" to "system", "content" to systemPrompt))
+            if (sampling != null) {
+                val (temperature, topK) = sampling
+                options.temperature = temperature
+                options.topK = topK
+            }
             // Fired only on the first session on this machine, while the model itself is fetched;
             // `loaded` is a fraction of one.
             options.monitor = { monitor: dynamic ->

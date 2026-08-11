@@ -164,28 +164,36 @@ private fun <T : HTMLElement> HTMLAttributes<T>.cardTileBody(props: CardTileProp
         }
     }
 
-    // Leading glyph / thumbnail.
-    when (card.kind) {
-        CardKind.LINK -> Favicon {
-            url = card.url
-            favicon = card.favicon
-        }
-        CardKind.NOTE -> span { className = ClassName("glyph"); icon("file-text") }
-        // The card carries a downscaled preview, never the file itself — the bytes stay in the
-        // database until the file is opened. No preview (not an image, or one that would not
-        // decode) means a glyph.
-        CardKind.FILE -> {
-            val thumb = card.thumb
-            if (thumb != null) {
-                img {
-                    className = ClassName("fav thumb")
-                    src = thumb
-                    alt = ""
-                    draggable = false
-                }
-            } else {
-                span { className = ClassName("glyph"); icon(fileIconName(card.mime)) }
+    // Leading glyph / thumbnail, wrapped so a card the tab triage placed can carry a small badge in
+    // its corner — the same sparkles the ✨ triage button itself wears, small enough not to compete
+    // with the title for the eye. Gone the first time the card is opened — see `App.onCardOpen`.
+    div {
+        className = ClassName("card-icon")
+        when (card.kind) {
+            CardKind.LINK -> Favicon {
+                url = card.url
+                favicon = card.favicon
             }
+            CardKind.NOTE -> span { className = ClassName("glyph"); icon("file-text") }
+            // The card carries a downscaled preview, never the file itself — the bytes stay in the
+            // database until the file is opened. No preview (not an image, or one that would not
+            // decode) means a glyph.
+            CardKind.FILE -> {
+                val thumb = card.thumb
+                if (thumb != null) {
+                    img {
+                        className = ClassName("fav thumb")
+                        src = thumb
+                        alt = ""
+                        draggable = false
+                    }
+                } else {
+                    span { className = ClassName("glyph"); icon(fileIconName(card.mime)) }
+                }
+            }
+        }
+        if (card.aiCreated) {
+            span { className = ClassName("card-ai-badge"); icon("sparkles") }
         }
     }
 

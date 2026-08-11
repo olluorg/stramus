@@ -53,9 +53,15 @@ interface AiSession {
 }
 
 /**
- * The browser's own language model, running on the user's machine — no key, no account, no request
- * leaving the computer. In Chrome this is Gemini Nano behind the Prompt API; where the browser has no
- * such thing, `builtInAi()` returns null and the search box simply never offers to ask it.
+ * Something that can answer a question, framed as one conversation at a time — the browser's own
+ * on-device model (`builtInAi()`, Gemini Nano behind Chrome's Prompt API: no key, no account, no
+ * request leaving the computer). A caller that only needs to *ask something* is written against this
+ * and never has to know it could only ever be that one.
+ *
+ * The paid cloud model is not behind this interface at all — see `cloudTriage` in [stramus.core.ai],
+ * which talks to the server directly. There is no local session to hold open for it, no framing to
+ * clone, and no download to report progress on; the shape this interface offers a caller would only be
+ * in the way.
  *
  * This is why the AI lives at the platform layer next to [TabCapture] and [HistoryAccess]: it is a
  * capability of the host, present or absent, and the UI is built to work either way.
@@ -74,3 +80,13 @@ interface AiAssistant {
      */
     suspend fun start(systemPrompt: String, onDownloadProgress: (Double) -> Unit = {}): AiSession
 }
+
+/**
+ * Thrown once the cloud model's monthly quota has none left this period — `cloudTriage`'s hundred
+ * requests a month, charged for and worth telling the user about by name rather than folding into "the
+ * model failed to answer this one". Where a caller treats an ordinary failure as "this tab, this batch,
+ * unassigned" and carries on (see `core.ai`'s `resolveBatch`, `cloudTriage`), this is the one exception
+ * that is let through instead — the *next* question would fail exactly the same way, so carrying on
+ * merely delays saying so.
+ */
+class AiQuotaExceededException(message: String) : Exception(message)

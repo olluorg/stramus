@@ -51,8 +51,19 @@ data class TabBatch(val host: String, val tabs: List<TriageTab>)
 /**
  * A section inside a collection — the divider a card sits under. [id] null for one the plan has
  * invented but not yet made; null [id] means "not saved yet", never "no section".
+ *
+ * [examples] and [summary] are the section's own content signal, the same idea as
+ * [TriageCollection.examples] one level down — a bare name like "Для сна" says nothing on its own, and
+ * a model shown only the sidebar's own words for it will match on vibes rather than fact. [summary] is
+ * [examples] read by the model rather than by a person, and is what [batchPrompt] shows in its place
+ * once there is enough here that a couple of raw titles would not say much — see [summarizeCatalog].
  */
-data class TriageSection(val id: Uuid?, val title: String)
+data class TriageSection(
+    val id: Uuid?,
+    val title: String,
+    val examples: List<String> = emptyList(),
+    val summary: String? = null,
+)
 
 /**
  * A collection a tab may be placed in: the sidebar group it lives in, and the sections it holds.
@@ -80,6 +91,8 @@ data class TriageCollection(
      * misread — and the user had to write none of it, having already sorted those cards by hand.
      */
     val examples: List<String> = emptyList(),
+    /** [examples], read by the model into a sentence rather than quoted raw — see [TriageSection.summary]. */
+    val summary: String? = null,
 )
 
 /**
@@ -126,6 +139,44 @@ private const val EXAMPLES_SHOWN = 2
 private const val EXAMPLE_LIMIT = 44
 
 /**
+ * [EXAMPLES_SHOWN] and [EXAMPLE_LIMIT] for a *trusted* batch. Two titles clipped to 44 characters is what
+ * a small on-device model's context can spare; it is not what a collection *is*, and telling a capable
+ * model no more than that was the reason one run invented a second "stramus" alongside the user's own
+ * "Stramus(extension)" — two clipped titles were not enough to recognise it by, and the name alone is
+ * precisely what [appendCollections] tells the model not to judge by. The catalog's own budget
+ * ([TRUSTED_COLLECTIONS_BUDGET]) was raised for exactly this and then went almost unspent, because the
+ * lines it budgets for were still being written to the small model's measurements.
+ */
+private const val TRUSTED_EXAMPLES_SHOWN = 8
+private const val TRUSTED_EXAMPLE_LIMIT = 80
+
+/**
+ * A ceiling on a *section's* own examples, whatever its collection is allowed.
+ *
+ * A collection is described once; its sections are described one after another, so whatever a section
+ * costs is multiplied by however many it has. Left uncapped at [TRUSTED_EXAMPLES_SHOWN], a collection
+ * with four sections cost some 3 000 characters on its own, and measuring it showed 40 000 characters of
+ * catalog budget holding sixteen collections out of two hundred — the exact starvation the trusted budget
+ * was raised to prevent, reintroduced from the other end. Three titles is enough to tell what a divider
+ * holds; it is the collection that has to carry the argument.
+ */
+private const val SECTION_EXAMPLES_CAP = 3
+
+/**
+ * Above this many examples, a collection or section is described by [summarizeCatalog]'s summary
+ * instead of [EXAMPLES_SHOWN] raw titles — the same threshold, on purpose: once there is more here than
+ * would ever be quoted, quoting a couple is a coin flip about which two, and a summary reads all of it
+ * instead. At or below it, the titles already say everything a summary would, for one fewer question.
+ */
+internal const val SUMMARIZE_ABOVE = EXAMPLES_SHOWN
+
+/** How many of a collection's or section's cards are read as material for its summary. */
+private const val SUMMARY_SOURCE_LIMIT = 12
+
+/** A summary is a sentence, not a list — this is the line past which a "summary" is the model rambling. */
+private const val SUMMARY_LIMIT = 120
+
+/**
  * Roughly how much of the collection list is described to a batch. It is the one part of the prompt
  * that grows with the user rather than with the window — someone with eighty collections, each with
  * sections and cards quoted from it, would otherwise spend the whole context being introduced. What
@@ -138,11 +189,21 @@ private const val EXAMPLE_LIMIT = 44
 private const val COLLECTIONS_BUDGET = 1500
 
 /**
- * Roughly how much of the session the summary is written from. The summary is one question, so it is
- * the one place a window's whole shape still has to fit a context — fitted by budget rather than by a
- * count of sites. Nothing is sorted differently for it.
+ * [COLLECTIONS_BUDGET]'s counterpart for a *trusted* batch — see [trustedBatchPrompt]. [COLLECTIONS_BUDGET]
+ * was sized for the small on-device model's own context, and reusing it for a cloud model with a context
+ * window in the hundreds of thousands of tokens defeated the reason cloud support exists at all: an
+ * account with more than a dozen or so collections would have most of them silently missing from the
+ * prompt, and a collection the model was never shown is one it cannot place a tab in, confidently correct
+ * placement or not — a real run left several tabs unassigned that plainly belonged to collections that had
+ * simply fallen off this budget. Input tokens are the cheap side of what a cloud call costs (see
+ * `ServerConfig.openrouterModel`'s pricing note), so there is little reason to ration this as tightly.
+ *
+ * Only the default for callers with no better number — `AiProxyService.triage` (the one real caller)
+ * works out an account's actual context room from `ServerConfig.openrouterContextTokens` and passes that
+ * instead, since the account's own model choice is a better source of truth than a number fixed at
+ * compile time.
  */
-private const val SUMMARY_BUDGET = 1500
+const val TRUSTED_COLLECTIONS_BUDGET = 40_000
 
 /**
  * [tabs] gathered by site — sites in the order their first tab appears, one entry per page.
@@ -182,50 +243,154 @@ fun batches(groups: List<TabGroup>): List<TabBatch> =
  * at a tab that is not here.
  */
 fun batchPrompt(batch: TabBatch, collections: List<TriageCollection>, groups: List<String>): String = buildString {
-    if (collections.isEmpty()) {
-        append("The user has no collections yet. Name new ones.\n\n")
-    } else {
-        // Flat, one collection per line, with the group as an attribute of it — never as a heading
-        // the collections are nested under. Nesting was tried and it taught the model to read the
-        // levels off by one: shown "Работа:" with "Поиск" indented beneath it, it answered with the
-        // collection "Работа" and the section "Поиск" — the group became a collection and the
-        // collection became a section. There is nothing to misread here: every line is a collection,
-        // and the only names inside a collection are the ones after "sections:".
-        append("The user's collections — one per line: the name, the sidebar group it lives in, the ")
-        append("sections inside it, and some of what is already saved there. Judge a collection by ")
-        append("what is in it, not by its name: a name can mean anything, its contents cannot. The ")
-        append("group is context for the name too, and never a place to put a tab.\n")
-        for (collection in collections) {
-            val line = buildString {
-                append("- \"").append(collection.title).append("\" (group: ").append(collection.inSection ?: "none")
-                if (collection.sections.isNotEmpty()) {
-                    append("; sections: ").append(collection.sections.joinToString(", ") { it.title })
-                }
-                if (collection.examples.isNotEmpty()) {
-                    append("; already here: ")
-                    append(collection.examples.take(EXAMPLES_SHOWN).joinToString(", ") { "\"${it.take(EXAMPLE_LIMIT)}\"" })
-                }
-                append(")\n")
-            }
-            if (length + line.length > COLLECTIONS_BUDGET) break
-            append(line)
-        }
-        append("\nAnswer with a collection name from this list — never a group name. ")
-        append("Only invent a new short name if a tab fits none of them")
-        if (groups.isNotEmpty()) {
-            append("; when you do, also give the group it belongs in, one of: ")
-            append(groups.joinToString(", "))
-        }
-        append(".\n\n")
-    }
+    appendCollections(collections, groups, COLLECTIONS_BUDGET, EXAMPLES_SHOWN, EXAMPLE_LIMIT)
     append("These tabs are open on ").append(batch.host).append(":\n")
     batch.tabs.forEachIndexed { index, tab ->
         append(index + 1).append(". ")
         append(tab.title.take(TITLE_SAMPLE_LIMIT).ifBlank { tab.url.take(TITLE_SAMPLE_LIMIT) })
         append('\n')
     }
-    append("\nFor every tab, give its collection, and a section within that collection if one fits. ")
-    append("Tabs of this site may go to different collections. Leave the section out when none applies.")
+    appendPlacementInstructions(sameSite = true)
+}
+
+/**
+ * [batchPrompt]'s counterpart for a *trusted* batch. The one real difference is the tab list:
+ * [batchPrompt] can say "these are all on hh.ru" once, because a batch is one site by construction; a
+ * trusted batch is not, so every line names its own tab's host instead.
+ *
+ * [collectionsBudget] defaults to [TRUSTED_COLLECTIONS_BUDGET] for callers with nothing better — see
+ * [trustedBatchPromptFitting], which is what actually decides it from an account's real context room.
+ */
+fun trustedBatchPrompt(
+    batch: TabBatch,
+    collections: List<TriageCollection>,
+    groups: List<String>,
+    collectionsBudget: Int = TRUSTED_COLLECTIONS_BUDGET,
+): String = buildString {
+    appendCollections(collections, groups, collectionsBudget, TRUSTED_EXAMPLES_SHOWN, TRUSTED_EXAMPLE_LIMIT)
+    append("These tabs are open:\n")
+    batch.tabs.forEachIndexed { index, tab ->
+        append(index + 1).append(". [").append(hostOf(tab.url)).append("] ")
+        append(tab.title.take(TITLE_SAMPLE_LIMIT).ifBlank { tab.url.take(TITLE_SAMPLE_LIMIT) })
+        append('\n')
+    }
+    appendPlacementInstructions(sameSite = false)
+}
+
+/**
+ * As many of [tabs], from the front, as fit within [budget] — estimated the same way
+ * [trustedBatchPrompt] renders a tab's own line, so the estimate and the actual prompt agree. [tabs] is
+ * taken in the order it is given, which is the caller's to have arranged for locality: [preGroup] keeps
+ * one site's tabs together, and because `groupBy` keeps a key's first-seen position, the sites themselves
+ * come in the order the strip first reaches them.
+ *
+ * Note what that is and is not. Two tabs of one site stay adjacent; two neighbours in the strip that are
+ * on *different* sites do not, since flattening runs each site's tabs out in turn. So the cut this makes
+ * falls on a site boundary far more often than through the middle of a topic — which is what makes
+ * cutting at all defensible — but it is site locality, not strip locality, doing the work.
+ *
+ * Never empty when [tabs] is not: a batch that cannot even fit one tab is a run stuck making no progress
+ * at all, and a prompt that runs slightly over its budget is recoverable in a way that is not.
+ */
+fun selectByBudget(tabs: List<TriageTab>, budget: Int): List<TriageTab> {
+    if (tabs.isEmpty()) return tabs
+    val selected = mutableListOf<TriageTab>()
+    var used = 0
+    for ((index, tab) in tabs.withIndex()) {
+        val line = "${index + 1}. [${hostOf(tab.url)}] ${tab.title.take(TITLE_SAMPLE_LIMIT).ifBlank { tab.url.take(TITLE_SAMPLE_LIMIT) }}\n"
+        if (used + line.length > budget && selected.isNotEmpty()) break
+        selected += tab
+        used += line.length
+    }
+    return selected
+}
+
+/**
+ * The whole of a trusted call's prompt-budgeting: fill in order of what matters most — the catalog first
+ * (up to [collectionsBudget], itself capped so it cannot starve the tabs entirely — see the caller for
+ * how that cap is chosen), then as many of [tabs] as fit in whatever [totalCharBudget] has left once the
+ * catalog, the surrounding instructions, and the tab list's own header are accounted for.
+ *
+ * The measuring trick: [trustedBatchPrompt] is asked once with *no* tabs at all, which is exactly the
+ * fixed cost around wherever the tab list will go — the catalog, "These tabs are open:", and the
+ * placement instructions after it. What that call's length leaves of [totalCharBudget] is what
+ * [selectByBudget] gets to spend, and the real prompt is then built once more, this time with the tabs it
+ * chose.
+ *
+ * Returns the finished prompt together with the tabs it actually asked about — the caller needs both:
+ * the prompt to send, and the tab ids to report back as [stramus.protocol.AiTriageResponse.consideredTabIds]
+ * so whoever sent more tabs than fit knows which ones to ask about again.
+ */
+fun trustedBatchPromptFitting(
+    tabs: List<TriageTab>,
+    collections: List<TriageCollection>,
+    groups: List<String>,
+    totalCharBudget: Int,
+    collectionsBudget: Int,
+): Pair<String, List<TriageTab>> {
+    val fixedCost = trustedBatchPrompt(TabBatch(host = "", tabs = emptyList()), collections, groups, collectionsBudget).length
+    val tabsBudget = (totalCharBudget - fixedCost).coerceAtLeast(0)
+    val selected = selectByBudget(tabs, tabsBudget)
+    val prompt = trustedBatchPrompt(TabBatch(host = "", tabs = selected), collections, groups, collectionsBudget)
+    return prompt to selected
+}
+
+/** The collections-and-sections preamble [batchPrompt] and [trustedBatchPrompt] both open with. */
+private fun StringBuilder.appendCollections(
+    collections: List<TriageCollection>,
+    groups: List<String>,
+    budget: Int,
+    examplesShown: Int,
+    exampleLimit: Int,
+) {
+    if (collections.isEmpty()) {
+        append("The user has no collections yet. Name new ones.\n\n")
+        return
+    }
+    // Flat, one collection per line, with the group as an attribute of it — never as a heading the
+    // collections are nested under. Nesting was tried and it taught the model to read the levels off
+    // by one: shown "Работа:" with "Поиск" indented beneath it, it answered with the collection
+    // "Работа" and the section "Поиск" — the group became a collection and the collection became a
+    // section. There is nothing to misread here: every line is a collection, and the only names inside
+    // a collection are the ones after "sections:".
+    append("The user's collections — one per line: the name, the sidebar group it lives in, the ")
+    append("sections inside it — each said what it holds, same as the collection is — and some of ")
+    append("what is already saved in the collection as a whole. Judge a collection or a section by ")
+    append("what is in it, not by its name: a name can mean anything, its contents cannot. The ")
+    append("group is context for the name too, and never a place to put a tab.\n")
+    for (collection in collections) {
+        val line = buildString {
+            append("- \"").append(collection.title).append("\" (group: ").append(collection.inSection ?: "none")
+            if (collection.sections.isNotEmpty()) {
+                append("; sections: ")
+                    .append(collection.sections.joinToString(", ") { sectionAbout(it, examplesShown.coerceAtMost(SECTION_EXAMPLES_CAP), exampleLimit) })
+            }
+            collectionAbout(collection, examplesShown, exampleLimit)?.let { append("; already here: ").append(it) }
+            append(")\n")
+        }
+        if (length + line.length > budget) break
+        append(line)
+    }
+    append("\nAnswer with a collection name from this list — never a group name. ")
+    append("Only invent a new short name if a tab fits none of them")
+    if (groups.isNotEmpty()) {
+        append("; when you do, also give the group it belongs in, one of: ")
+        append(groups.joinToString(", "))
+    }
+    append(".\n\n")
+}
+
+/** The tail both [batchPrompt] and [trustedBatchPrompt] end on — how to place a tab, and when not to. */
+private fun StringBuilder.appendPlacementInstructions(sameSite: Boolean) {
+    append("\nFor every tab, give its collection, and a section within that collection if one genuinely ")
+    append("fits. ")
+    if (sameSite) append("Tabs of this site may go to different collections. ")
+    append("A section must match what the tab ")
+    append("is actually about, not merely be the closest one on offer — reuse an existing section, even ")
+    append("worded differently, only when the tab is truly about the same specific thing; invent a short ")
+    append("new one only when the tab clearly needs dividing out and nothing existing is that. Where ")
+    append("neither is a good match, leave the section out — that is the right answer far more often ")
+    append("than forcing a weak one, and it is never a mistake.")
     // The model must be able to decline. Made to answer for every tab it will answer for every tab —
     // and an on-device model asked where a graphics card listing goes, given no collection for it,
     // will put it somewhere. Three runs put it in three different places. A tab left out costs the
@@ -233,6 +398,21 @@ fun batchPrompt(batch: TabBatch, collections: List<TriageCollection>, groups: Li
     // plan, which is the thing this feature is actually made of.
     append(" If you are not sure where a tab belongs, leave that tab out of your answer entirely — ")
     append("the user will place it themselves. Do not guess.")
+}
+
+/** What [batchPrompt] says a collection holds: its [TriageCollection.summary] if it has one, else a couple of raw titles. */
+private fun collectionAbout(collection: TriageCollection, examplesShown: Int, exampleLimit: Int): String? = collection.summary
+    ?: collection.examples.takeIf { it.isNotEmpty() }
+        ?.take(examplesShown)
+        ?.joinToString(", ") { "\"${it.take(exampleLimit)}\"" }
+
+/** A section as [batchPrompt] names it — bare if it has nothing to say about itself, parenthesised if it does. */
+private fun sectionAbout(section: TriageSection, examplesShown: Int, exampleLimit: Int): String {
+    val about = section.summary
+        ?: section.examples.takeIf { it.isNotEmpty() }
+            ?.take(examplesShown)
+            ?.joinToString("; ") { it.take(exampleLimit) }
+    return if (about == null) section.title else "${section.title} ($about)"
 }
 
 /**
@@ -243,11 +423,17 @@ fun batchPrompt(batch: TabBatch, collections: List<TriageCollection>, groups: Li
  * that can be told from an answer by looking at it. Constrained, what comes back is JSON of this shape
  * or the call fails, and a failure is something the UI can say out loud.
  *
- * `section` and `group` are not required: most collections have no sections, and a model made to name
- * one every time would invent one every time; and `group` is only meaningful for a collection the
- * model has just invented, an existing one being somewhere already.
+ * `section` and `group` are optional in meaning but *not* by omission: they are nullable and listed in
+ * `required` like everything else. That is not a style choice — OpenAI's strict structured-output mode
+ * (which is how `AiProxyService` sends this, `strict: true`) rejects a schema outright unless every
+ * property is required, and expresses "may be absent" as a null-able type instead. Left as it was, this
+ * schema was accepted by one OpenAI-compatible proxy and would have been a 400 from OpenAI itself; worse,
+ * a lenient provider that "fixes" it by making both mandatory turns "most collections have no sections"
+ * into a model obliged to name one every time, which is exactly the invented-section failure the prompt
+ * spends a paragraph trying to prevent. Null says the same thing omission did, and [planForBatch] already
+ * reads a JSON null as "nothing here" — `contentOrNullIfNotString` sees `JsonNull` is not a string.
  *
- * Nor is the array required to cover the batch. A tab the model is unsure of is a tab it is told to
+ * The array is still not required to cover the batch. A tab the model is unsure of is a tab it is told to
  * leave out — see the end of [batchPrompt] — and one it leaves out arrives unassigned.
  */
 fun batchSchema(): String =
@@ -262,10 +448,10 @@ fun batchSchema(): String =
             "properties": {
               "tab": { "type": "integer" },
               "collection": { "type": "string" },
-              "section": { "type": "string" },
-              "group": { "type": "string" }
+              "section": { "type": ["string", "null"] },
+              "group": { "type": ["string", "null"] }
             },
-            "required": ["tab", "collection"],
+            "required": ["tab", "collection", "section", "group"],
             "additionalProperties": false
           }
         }
@@ -290,7 +476,7 @@ fun batchSchema(): String =
  */
 fun planForBatch(
     answer: String,
-    batch: TabBatch,
+    tabs: List<TriageTab>,
     collections: List<TriageCollection>,
     groups: List<String>,
 ): List<TriageAssignment> {
@@ -304,23 +490,31 @@ fun planForBatch(
         val number = (item["tab"] as? JsonPrimitive)?.intOrNullIfNotNumber() ?: return@mapNotNull null
         // The model numbered a tab that is not in this batch, or numbered one twice. Neither is a
         // placement, and neither is a near-miss worth guessing at.
-        val tab = batch.tabs.getOrNull(number - 1) ?: return@mapNotNull null
+        val tab = tabs.getOrNull(number - 1) ?: return@mapNotNull null
         if (!taken.add(tab.id)) return@mapNotNull null
 
-        val name = cleanName((item["collection"] as? JsonPrimitive)?.contentOrNullIfNotString())
-            ?: return@mapNotNull null
         // An existing collection keeps its own title, not the model's spelling of it: matched
         // case-insensitively, "kotlin" must still save into "Kotlin".
-        val collection = collections.firstOrNull { it.title.trim().equals(name, ignoreCase = true) }
-        val collectionTitle = collection?.title ?: name
+        //
+        // Matched *before* [cleanName] gets a say, and that order is the whole point: [NAME_LIMIT] is
+        // there to reject a model that answered with a sentence where a name belonged, and a name the
+        // user themselves gave a collection is not that, however long it runs. Checked the other way
+        // round — as it was — an account with a collection named past the limit could never be answered
+        // with at all: every tab correctly placed there was thrown away here, silently, as if the model
+        // had rambled.
+        val written = nameText((item["collection"] as? JsonPrimitive)?.contentOrNullIfNotString())
+        val collection = written?.let { w -> collections.firstOrNull { it.title.trim().equals(w, ignoreCase = true) } }
+        val collectionTitle = collection?.title ?: written?.takeIf { it.length <= NAME_LIMIT } ?: return@mapNotNull null
 
         // A section belongs to its collection, so it is matched only among that collection's own —
         // "Вакансии" in "Работа" is not the "Вакансии" in some other collection, and a section named
-        // for a collection that is itself invented cannot exist yet either.
-        val sectionName = cleanName((item["section"] as? JsonPrimitive)?.contentOrNullIfNotString())
-        val section = sectionName?.let { wanted ->
+        // for a collection that is itself invented cannot exist yet either. Same order as above: an
+        // existing section is named by the user, so its own length is not this function's to judge.
+        val writtenSection = nameText((item["section"] as? JsonPrimitive)?.contentOrNullIfNotString())
+        val section = writtenSection?.let { wanted ->
             collection?.sections?.firstOrNull { it.title.trim().equals(wanted, ignoreCase = true) }
         }
+        val sectionName = writtenSection?.takeIf { section != null || it.length <= NAME_LIMIT }
         // A collection that exists is already somewhere, and the model does not get to move it. Only
         // an invented one has a group to choose, and the choice must be a group that exists —
         // anything else falls back to the caller's own.
@@ -339,31 +533,24 @@ fun planForBatch(
 }
 
 /**
- * What the model is asked for the session summary: the sites, where they ended up, and a title each.
+ * What two independent answers about the same batch *both* say about a tab's collection — the pairing
+ * [agreed] and [sectionDisagreements] are both built from, so the two never drift apart on what counts
+ * as "the same tab, agreed".
  *
- * Self-contained rather than a follow-up in the session that placed the tabs — there is no such
- * session, each batch having been asked in a clone of its own. It reads better for it: by the time
- * this is asked, the tabs have collection names against them, and a name the model itself chose says
- * more about what the user was doing than the host ever did.
- *
- * [placed] is host → the collections its tabs went to. Prose, and constrained by nothing: the user
- * reads it, and keeps it as a note or does not — there is nothing here to act on.
+ * A tab is kept only where both answers put it in the same collection. Where they disagree at all about
+ * it, or where only one of them mentions the tab, it is dropped here — it arrives unassigned and the
+ * user places it, which costs them one click, against a plan they cannot trust.
  */
-fun summaryPrompt(groups: List<TabGroup>, placed: Map<String, Set<String>>): String = buildString {
-    append("A browsing session had these pages open:\n")
-    for (group in groups) {
-        val line = buildString {
-            append("- ").append(group.host)
-            placed[group.host]?.takeIf { it.isNotEmpty() }?.let { append(" [").append(it.joinToString(", ")).append(']') }
-            group.tabs.firstOrNull()?.let { append(": ").append(it.title.take(TITLE_SAMPLE_LIMIT)) }
-            append('\n')
-        }
-        if (length + line.length > SUMMARY_BUDGET) break
-        append(line)
+private fun agreedCollections(
+    first: List<TriageAssignment>,
+    second: List<TriageAssignment>,
+): List<Pair<TriageAssignment, TriageAssignment>> {
+    val byTab = second.associateBy { it.tabId }
+    return first.mapNotNull { one ->
+        val other = byTab[one.tabId] ?: return@mapNotNull null
+        if (!one.collectionTitle.equals(other.collectionTitle, ignoreCase = true)) return@mapNotNull null
+        one to other
     }
-    append("\nIn two or three sentences: what was this session about? ")
-    append("Write it for the user to read later, as a reminder of what they were doing. ")
-    append("Do not list the sites back — say what the work was.")
 }
 
 /**
@@ -377,40 +564,193 @@ fun summaryPrompt(groups: List<TabGroup>, placed: Map<String, Set<String>>): Str
  * Confidence is what survives being asked again, and that is a fact about the answers, not a claim by
  * the model about itself.
  *
- * So a tab is placed only where both answers put it in the same collection. Where they agree on the
- * collection but not the divider under it, the collection stands and the divider is dropped: the
- * agreed part of an answer is still an answer, and a tab going in ungrouped is a normal outcome. Where
- * they disagree at all about the collection, or where only one of them mentions the tab, it arrives
- * unassigned and the user places it — which costs them one click, against a plan they cannot trust.
+ * Where the two agree on the collection but not the divider under it, the collection stands and the
+ * divider is dropped here — that is a normal outcome, not a bug, for the two who named no section at
+ * all, or named a section on one side only. Where both *did* name a section but spelled it differently,
+ * that is not a disagreement so much as an open question, and it is [sectionDisagreements] that holds
+ * it rather than this function settling it by string equality — see there for why.
  *
  * The price is two questions per batch instead of one. That is the whole cost of the feature doubled,
  * and it buys the only thing that makes a plan worth reading.
  */
-fun agreed(first: List<TriageAssignment>, second: List<TriageAssignment>): List<TriageAssignment> {
-    val byTab = second.associateBy { it.tabId }
-    return first.mapNotNull { one ->
-        val other = byTab[one.tabId] ?: return@mapNotNull null
-        if (!one.collectionTitle.equals(other.collectionTitle, ignoreCase = true)) return@mapNotNull null
+fun agreed(first: List<TriageAssignment>, second: List<TriageAssignment>): List<TriageAssignment> =
+    agreedCollections(first, second).map { (one, other) ->
         val sameSection = one.sectionTitle != null && one.sectionTitle.equals(other.sectionTitle, ignoreCase = true)
         if (sameSection) one else one.copy(sectionTitle = null, sectionId = null)
+    }
+
+/**
+ * A tab where both answers agreed on the collection and both named *a* section, but not the same one by
+ * spelling — [one] carries the first answer's placement (as [agreed] would keep it before dropping the
+ * section), and [otherSectionTitle] / [otherSectionId] are the second answer's version of the divider.
+ *
+ * [otherSectionId] is non-null exactly when the second answer's spelling matched one of the collection's
+ * *existing* sections — which [resolveSections] needs to prefer over a spelling that merely matches
+ * nothing yet, on either side.
+ */
+data class SectionDisagreement(
+    val one: TriageAssignment,
+    val otherSectionTitle: String,
+    val otherSectionId: Uuid?,
+)
+
+/**
+ * The batch's tabs where [agreedCollections] agreed on a collection and both answers named a section,
+ * but a different one by spelling — "Резюме" against "CV" is not the same fact as "Резюме" against
+ * nothing, and treating it as one, the way plain string equality in [agreed] does, throws away the one
+ * case where both answers actually tried. [sectionAdjudicationPrompt] is the question that settles it
+ * instead of a string comparison.
+ */
+fun sectionDisagreements(first: List<TriageAssignment>, second: List<TriageAssignment>): List<SectionDisagreement> =
+    agreedCollections(first, second).mapNotNull { (one, other) ->
+        val a = one.sectionTitle
+        val b = other.sectionTitle
+        if (a == null || b == null || a.equals(b, ignoreCase = true)) return@mapNotNull null
+        SectionDisagreement(one, b, other.sectionId)
+    }
+
+/**
+ * What the model is asked to settle about a batch's [SectionDisagreement]s: for each tab, whether the
+ * two spellings of its section are the same specific place inside the collection or two different ones.
+ *
+ * A tie-breaker, not a re-ask of the batch — the collection is already settled by then, so the question
+ * is narrow and cheap, and it is asked at all only when there is something to settle: a batch with no
+ * disagreement never pays for it.
+ */
+fun sectionAdjudicationPrompt(disagreements: List<SectionDisagreement>): String = buildString {
+    append("Two answers about the same tabs each named a section for it, but spelled differently. For ")
+    append("each pair, say whether the two names most likely mean the same specific place inside the ")
+    append("collection — the same grouping worded two ways — or are genuinely two different ones.\n\n")
+    disagreements.forEach { d ->
+        append(d.one.tabId).append(". in \"").append(d.one.collectionTitle).append("\": \"")
+        append(d.one.sectionTitle).append("\" vs \"").append(d.otherSectionTitle).append("\"\n")
+    }
+}
+
+/** The shape [sectionAdjudicationPrompt]'s answer must have — one verdict per tab it was asked about. */
+fun sectionAdjudicationSchema(): String =
+    """
+    {
+      "type": "object",
+      "properties": {
+        "pairs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tab": { "type": "integer" },
+              "same": { "type": "boolean" }
+            },
+            "required": ["tab", "same"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["pairs"],
+      "additionalProperties": false
+    }
+    """.trimIndent()
+
+/**
+ * Which of [disagreements] the model's adjudication answer called the same place — everything else,
+ * including a tab it did not mention or a malformed answer, is left as [agreed] already decided it: no
+ * section, the same fallback a batch gets when there is nothing to adjudicate at all.
+ */
+fun adjudicatedSame(answer: String, disagreements: List<SectionDisagreement>): Set<Int> {
+    val known = disagreements.mapTo(mutableSetOf()) { it.one.tabId }
+    val items = runCatching {
+        (Json.parseToJsonElement(answer) as? JsonObject)?.get("pairs") as? JsonArray
+    }.getOrNull() ?: return emptySet()
+    return items.mapNotNullTo(mutableSetOf()) { element ->
+        val item = element as? JsonObject ?: return@mapNotNullTo null
+        val tab = (item["tab"] as? JsonPrimitive)?.intOrNullIfNotNumber()?.takeIf { it in known } ?: return@mapNotNullTo null
+        val same = (item["same"] as? JsonPrimitive)?.booleanOrNullIfNotBoolean() ?: return@mapNotNullTo null
+        tab.takeIf { same }
     }
 }
 
 /**
- * What the model wrote, as a name — or null, if what it wrote is not one.
+ * [agreed]'s result, with a disagreement's section restored where [same] says the two spellings were the
+ * same place after all.
  *
- * The same reasoning as `cleanedTitle` in the rename box: a small model asked for a name will now and
- * then answer with a sentence, wrap it in quotes, or fence it as code. A name cannot be checked
- * against a source the way a cleaned-up title can — inventing one is the whole point — so what is
- * checked is that it is shaped like a name at all.
+ * The restored title and id are not simply [SectionDisagreement.one]'s: whichever side's spelling
+ * already matched an *existing* section of the collection wins, over one that only matches nothing yet
+ * — a plan should reuse the section the user already has, not the wording that happened to come first.
  */
-internal fun cleanName(raw: String?): String? {
+fun resolveSections(
+    agreed: List<TriageAssignment>,
+    disagreements: List<SectionDisagreement>,
+    same: Set<Int>,
+): List<TriageAssignment> {
+    if (same.isEmpty()) return agreed
+    val byTab = disagreements.associateBy { it.one.tabId }
+    return agreed.map { assignment ->
+        if (assignment.tabId !in same) return@map assignment
+        val d = byTab[assignment.tabId] ?: return@map assignment
+        val (title, id) = if (d.one.sectionId != null) {
+            d.one.sectionTitle!! to d.one.sectionId
+        } else {
+            d.otherSectionId?.let { d.otherSectionTitle to it } ?: (d.one.sectionTitle!! to null)
+        }
+        assignment.copy(sectionTitle = title, sectionId = id)
+    }
+}
+
+/**
+ * The text of what the model wrote, tidied but not judged: its first non-blank line, unfenced and
+ * unquoted. Null only when there was nothing there at all.
+ *
+ * Split out from [cleanName] because the two questions it used to answer at once are not the same
+ * question. "What did it write?" has an answer for any reply; "is that shaped like a name?" only matters
+ * where the reply has to *become* a name. Matching against a collection the user already has is the
+ * first kind — see [planForBatch] — and running it through the second threw away perfectly good answers.
+ */
+internal fun nameText(raw: String?): String? {
     val line = raw?.lineSequence()
         ?.map { it.trim().trim('`').trim() }
         ?.firstOrNull { it.isNotBlank() }
         ?: return null
-    val name = line.trim('"', '\'', '«', '»', '“', '”', '.').trim()
-    return name.takeIf { it.isNotBlank() && it.length <= NAME_LIMIT }
+    return line.trim('"', '\'', '«', '»', '“', '”', '.').trim().takeIf { it.isNotBlank() }
+}
+
+/**
+ * What the model wrote, as a name it may *invent* — or null, if what it wrote is not one.
+ *
+ * The same reasoning as `cleanedTitle` in the rename box: a small model asked for a name will now and
+ * then answer with a sentence, wrap it in quotes, or fence it as code. An invented name cannot be checked
+ * against a source the way a cleaned-up title can — inventing one is the whole point — so what is
+ * checked is that it is shaped like a name at all. A name that merely *matches* something the user
+ * already named is not invented and is not checked this way: see [nameText].
+ */
+internal fun cleanName(raw: String?): String? = nameText(raw)?.takeIf { it.length <= NAME_LIMIT }
+
+/**
+ * What the model is asked to describe a collection or section by, once it holds more than
+ * [SUMMARIZE_ABOVE] cards — see [summarizeCatalog]. [name] is shown only so the answer can talk about
+ * the thing in ordinary words, never as something to describe instead of the titles: the model is not
+ * asked "what is X", it is asked "what do these have in common", which is the question a name alone
+ * cannot answer and a batch prompt needs answered.
+ */
+fun catalogSummaryPrompt(name: String, titles: List<String>): String = buildString {
+    append("Titles of pages saved under \"").append(name).append("\":\n")
+    titles.take(SUMMARY_SOURCE_LIMIT).forEach { append("- ").append(it.take(EXAMPLE_LIMIT)).append('\n') }
+    append("\nIn well under 12 words, say what these have in common — specific enough that someone ")
+    append("deciding whether a new, unrelated-looking page belongs here could tell from your words ")
+    append("alone, not from the name \"").append(name).append("\" repeated back.")
+}
+
+/**
+ * What the model wrote, as a short description — or null, if it wrote something else. The same
+ * reasoning as [cleanName], stretched for a phrase rather than a word: a description this long or
+ * shorter is a description, and anything past it is the model having written a paragraph instead.
+ */
+internal fun cleanSummary(raw: String?): String? {
+    val line = raw?.lineSequence()
+        ?.map { it.trim().trim('`').trim() }
+        ?.firstOrNull { it.isNotBlank() }
+        ?: return null
+    val text = line.trim('"', '\'', '«', '»', '“', '”', '.').trim()
+    return text.takeIf { it.isNotBlank() && it.length <= SUMMARY_LIMIT }
 }
 
 /**
@@ -422,3 +762,7 @@ private fun JsonPrimitive.contentOrNullIfNotString(): String? = if (isString) co
 
 /** A JSON number's value, and null for anything else — including a *string* holding digits. */
 private fun JsonPrimitive.intOrNullIfNotNumber(): Int? = if (isString) null else content.toIntOrNull()
+
+/** A JSON boolean's value, and null for anything else — including a *string* holding "true"/"false". */
+private fun JsonPrimitive.booleanOrNullIfNotBoolean(): Boolean? =
+    if (!isString && (content == "true" || content == "false")) content == "true" else null

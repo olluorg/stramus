@@ -28,7 +28,9 @@ import react.useEffectOnce
 import react.useMemo
 import react.useRef
 import react.useState
+import stramus.core.ai.BackgroundTriage
 import stramus.core.ai.TriageAssignment
+import stramus.core.ai.TriageTab
 import stramus.core.db.StramusStore
 import stramus.core.db.openStramusStore
 import stramus.core.platform.GoogleSignIn
@@ -41,11 +43,14 @@ import stramus.core.model.Collection
 import stramus.core.model.Section
 import stramus.core.platform.AiAssistant
 import stramus.core.platform.AiAvailability
+import stramus.core.platform.CapturedPage
 import stramus.core.platform.CapturedTab
 import stramus.core.platform.HistoryAccess
 import stramus.core.platform.HistoryEntry
+import stramus.core.platform.QuickCaptureAccess
 import stramus.core.platform.TabCapture
 import stramus.core.platform.WebSearchAccess
+import stramus.core.repo.CardRepository
 import stramus.core.url.hostOf
 import web.cssom.ClassName
 import web.data.DropEffect
@@ -119,6 +124,53 @@ internal fun key(id: Uuid): Key = id.toString().unsafeCast<Key>()
  * for the most recent one, on Ctrl/Cmd+Z as well.
  */
 private data class Undo(val message: String, val restore: suspend () -> Unit)
+
+/**
+ * Whether [url] is already a card somewhere in the library — asked before a tab is saved a second
+ * time. `search` matches title, URL and note content over the whole library, not just one
+ * collection: the host narrows it to a handful of rows before the exact match, the same two-step
+ * [TabTriage.kt]'s `savedUrls` uses to mark a tab "saved already".
+ */
+private suspend fun CardRepository.hasUrl(url: String): Boolean = search(hostOf(url)).any { it.url == url }
+
+/** Where the id of the collection background captures land in is remembered — see [quickSaveCollectionId]. */
+private const val QUICK_SAVE_COLLECTION_PREF = "quickSaveCollectionId"
+
+/**
+ * The collection a background capture (keyboard shortcut, right-click, or the toolbar button) lands
+ * in when there is no open collection to ask — created on the first one, under [title], and found
+ * again after that by id rather than by title: a user who renames it should not get a second one
+ * back the next time they press the shortcut.
+ */
+private suspend fun quickSaveCollectionId(s: StramusStore, title: String): Uuid {
+    val rememberedId = prefGet(QUICK_SAVE_COLLECTION_PREF)
+    val existing = rememberedId?.let { id -> s.collections.all().firstOrNull { it.id.toString() == id } }
+    if (existing != null) return existing.id
+    val section = s.sections.create(title)
+    val created = s.collections.all().first { it.sectionId == section.id }
+    prefSet(QUICK_SAVE_COLLECTION_PREF, created.id.toString())
+    return created.id
+}
+
+/**
+ * Turns what a background capture staged — see [QuickCaptureAccess] and background.js — into cards.
+ * The shortcut, the context menu and the toolbar button all work with no stramus tab open, so this is
+ * the first moment anything can be done with what they queued: once at the store's own load, to catch
+ * up on everything staged while no tab was open, and again live if one already is (see the
+ * `onCaptured` effect in [App]). A page already saved elsewhere is not saved again — see [hasUrl] —
+ * and is simply consumed off the queue along with the rest.
+ */
+private suspend fun reconcilePendingCaptures(s: StramusStore, capture: QuickCaptureAccess, collectionTitle: String) {
+    val pages = capture.pending()
+    if (pages.isEmpty()) return
+    val collectionId = quickSaveCollectionId(s, collectionTitle)
+    pages.forEach { page ->
+        if (!s.cards.hasUrl(page.url)) {
+            s.cards.add(collectionId, page.title.ifBlank { hostOf(page.url) }, page.url, page.favicon)
+        }
+    }
+    capture.clear()
+}
 
 /**
  * The collection the page opens on: the one the user last had open, where they asked for that
@@ -594,6 +646,12 @@ external interface AppProps : Props {
     var historyAccess: HistoryAccess?
 
     /**
+     * Present in the extension; null in the web app. What a keyboard shortcut, a right-click, or the
+     * toolbar button staged while no stramus tab was open — reconciled into cards once one is.
+     */
+    var quickCapture: QuickCaptureAccess?
+
+    /**
      * The browser's own on-device model, where it has one (`builtInAi()`); null everywhere else, and
      * then the search box simply never offers to ask it.
      */
@@ -622,6 +680,7 @@ external interface AppProps : Props {
 val App = FC<AppProps> { props ->
     val tabCapture = props.tabCapture
     val historyAccess = props.historyAccess
+    val quickCapture = props.quickCapture
     val ai = props.ai
     val webSearch = props.webSearch
 
@@ -783,6 +842,10 @@ val App = FC<AppProps> { props ->
     // `== "0"` above precisely because it is off by default — an install that has never heard of it has
     // no preference stored, and no preference means no.
     var aiTriage by useState(prefGet(AI_TRIAGE_PREF) == "1")
+    // The triage's own model choice, on top of the switch above — off by default for the same reason:
+    // an install that has never been asked has not agreed to a window of tabs being read by a paid
+    // third party. Meaningless (and hidden — see `settingsPane`) without a signed-in account.
+    var aiTriageCloud by useState(prefGet(AI_TRIAGE_CLOUD_PREF) == "1")
     // Who the user asked to be answered by: the browser's own model, in a window over the page, or one
     // of the web chats — which cannot answer here, so the question opens there instead. What actually
     // answers is [aiProvider] below: a browser with no model to run cannot honour a choice of the local
@@ -878,6 +941,9 @@ val App = FC<AppProps> { props ->
             // to do — see [HitAction].
             initActionIndex(s.actions)
             usageVersion += 1
+            // Whatever a shortcut, a right-click or the toolbar button staged while no stramus tab was
+            // open, before the sidebar it may add a collection to is first read.
+            quickCapture?.let { reconcilePendingCaptures(s, it, t.quickSaveTitle) }
             val secs = s.sections.all()
             val cols = s.collections.all()
             store = s
@@ -1031,6 +1097,25 @@ val App = FC<AppProps> { props ->
         else -> aiState != AiAvailability.UNAVAILABLE
     }
 
+    // Whether there is an account for the triage's cloud switch to mean anything — the same test the
+    // account dialog uses (see below), pulled out here because the triage assistant needs it too.
+    val signedIn = syncUi.email != null && syncUi.status != SyncStatus.SIGNED_OUT
+
+    // Whether triage has a model to ask at all — the cloud one, once both switches (the feature itself
+    // and its own cloud choice) are on and there is an account to charge the question against; the
+    // built-in one otherwise, exactly as before this existed. Never the reverse of a user's choice: an
+    // account that signs out with the cloud switch left on simply falls back, rather than the feature
+    // turning itself off and losing the setting.
+    //
+    // Not one [AiAssistant] chosen between any more: the cloud run (`cloudTriage`) talks to [api]
+    // directly and holds no [AiAssistant] at all — its whole catalog lives on the server, which is the
+    // one thing that abstraction was never shaped to carry. `TabTriageModal` is handed [ai] and [api]
+    // both, and reads whichever its own `cloud` prop says to.
+    val triageCloud = aiTriageCloud && signedIn
+    // Cloud availability is found out by asking, the same as the local model finding out it needs a
+    // download — nothing here is known in advance the way [aiLocalAvailable] has to wait for Chrome.
+    val triageAvailable = if (triageCloud) true else aiLocalAvailable == true
+
     // Who actually answers. A browser that cannot run the local model is most browsers, and the user
     // who never had it cannot have chosen anything else — so rather than offer nothing, the question
     // goes to a web chat, and the settings show the local one struck out with the reason next to it.
@@ -1054,6 +1139,47 @@ val App = FC<AppProps> { props ->
         }
         // App is the page-root and mounts once, so the subscription lives for the page's lifetime.
         tc.onTabsChanged { scope.launch { openTabs = tc.currentTabs() } }
+    }
+
+    // The tab triage's background half: while this page is open, work out where the tab the user is
+    // currently looking at would be sorted, before they ever ask for a plan — see `BackgroundTriage`.
+    // One cache for the page's whole lifetime, the same reason `openTabs` above is not rebuilt per
+    // effect: opening a session per tile the user happens to glance at would spend exactly the time
+    // this exists to save.
+    val backgroundTriage = useRef<BackgroundTriage>(null)
+
+    // Kept current with what the store actually holds, so a collection this cache goes on to invent is
+    // never a second copy of one the user already has — see `BackgroundTriage.seed`. Read out of
+    // `collections`/`sections` rather than the props `TabTriageModal` builds for itself, because there
+    // is no modal open yet for this to be a prop of.
+    useEffect(collections, sections, ai, aiTriage) {
+        val assistant = ai
+        if (!aiTriage || assistant == null) return@useEffect
+        val cache = backgroundTriage.current ?: BackgroundTriage(assistant, t.aiTriageSystemPrompt).also { backgroundTriage.current = it }
+        val targets = collections.filter { it.id !in hiddenCollectionIds && !it.readOnly }
+        val sidebar = sections.filter { it.id !in lockedSectionIds }
+        scope.launch {
+            val s = store ?: return@launch
+            cache.seed(knownCollections(targets, sidebar, s.cardSections, s.cards))
+        }
+    }
+
+    // The tab the user is looking at, in every window — evaluated the moment it changes. `evaluate`
+    // itself is what keeps this cheap: asked again about a tab it already has a fresh answer for, it
+    // does nothing, so a coarse "something changed" signal like `openTabs` firing on every tab event is
+    // fine to react to directly rather than working out which event this was.
+    useEffect(openTabs, aiTriage, aiLocalAvailable, ai) {
+        val assistant = ai
+        if (!aiTriage || aiLocalAvailable != true || assistant == null) return@useEffect
+        val cache = backgroundTriage.current ?: BackgroundTriage(assistant, t.aiTriageSystemPrompt).also { backgroundTriage.current = it }
+        // Only real pages: the extension's own new-tab page and the browser's internal pages have
+        // nothing a collection would mean, and are not what this feature is for.
+        val active = openTabs.filter { it.active && it.url.startsWith("http") }
+        if (active.isEmpty()) return@useEffect
+        val sidebarGroups = sections.filter { it.id !in lockedSectionIds }.map { it.title }
+        scope.launch {
+            active.forEach { tab -> cache.evaluate(TriageTab(tab.id, tab.title, tab.url), sidebarGroups) }
+        }
     }
 
     // The history pane, live in the same way — but only while it is the pane on screen, and re-read
@@ -1086,6 +1212,29 @@ val App = FC<AppProps> { props ->
         scope.launch {
             cards = s.cards.byCollection(sel)
             cardSections = s.cardSections.byCollection(sel)
+        }
+    }
+
+    // A stramus tab already open hears about a capture the moment it happens, instead of waiting for
+    // the next one — see background.js's best-effort chrome.runtime.sendMessage. Waits on [store]
+    // because there is nothing to reconcile into before it opens, and on [lang] because a *first*
+    // capture's default collection is titled in whatever language is current when it lands.
+    useEffect(quickCapture, store, lang) {
+        val qc = quickCapture
+        val s = store
+        if (qc == null || s == null) return@useEffect
+        val unsubscribe = qc.onCaptured {
+            scope.launch {
+                reconcilePendingCaptures(s, qc, t.quickSaveTitle)
+                sections = s.sections.all()
+                collections = s.collections.all()
+                selectedId?.let { reloadCards(it) }
+            }
+        }
+        try {
+            awaitCancellation()
+        } finally {
+            unsubscribe()
         }
     }
 
@@ -1310,11 +1459,16 @@ val App = FC<AppProps> { props ->
     }
 
     // Save a dragged-in tab as a card in [collectionId], under [cardSectionId] (null = ungrouped) —
-    // the tab lands in whichever section it was dropped on — then close the browser tab.
+    // the tab lands in whichever section it was dropped on — then close the browser tab. A page that
+    // is already a card somewhere is confirmed first, not saved a second time on the spot: the same
+    // "saved already" TabTriageModal marks, asked here as a yes/no instead of a checkbox.
     fun saveTab(tab: CapturedTab, collectionId: Uuid, cardSectionId: Uuid? = null) {
         val s = store ?: return
         val tc = tabCapture ?: return
         scope.launch {
+            if (s.cards.hasUrl(tab.url) && !browserConfirm(t.confirmSaveDuplicate(tab.title.ifBlank { hostOf(tab.url) }))) {
+                return@launch
+            }
             s.cards.add(
                 collectionId,
                 tab.title.ifBlank { hostOf(tab.url) },
@@ -1343,6 +1497,12 @@ val App = FC<AppProps> { props ->
      *
      * The stramus page itself is never in this list — [TabCapture] lists only http(s) pages — so
      * closing a window's tabs cannot close the page doing the closing.
+     *
+     * A tab whose page is already a card somewhere is skipped rather than duplicated — unlike
+     * [saveTab], there is no dialog per tab to ask on: the confirmation above already covers the
+     * batch, and a window's worth of "save again?" prompts would only teach the user to click
+     * through them. It is still closed with the rest, on the same setting: the page is safely kept,
+     * whichever card it is under.
      */
     fun saveTabs(tabs: List<CapturedTab>, collection: Collection) {
         val s = store ?: return
@@ -1351,12 +1511,14 @@ val App = FC<AppProps> { props ->
         if (!browserConfirm(t.confirmSaveTabs(tabs.size, collection.title, closeSavedTabs))) return
         scope.launch {
             tabs.forEach { tab ->
-                s.cards.add(
-                    collection.id,
-                    tab.title.ifBlank { hostOf(tab.url) },
-                    tab.url,
-                    tab.favicon ?: faviconFor(tab.url),
-                )
+                if (!s.cards.hasUrl(tab.url)) {
+                    s.cards.add(
+                        collection.id,
+                        tab.title.ifBlank { hostOf(tab.url) },
+                        tab.url,
+                        tab.favicon ?: faviconFor(tab.url),
+                    )
+                }
             }
             if (closeSavedTabs) tabs.forEach { tc.closeTab(it.id) }
             reloadCards(collection.id)
@@ -1380,6 +1542,14 @@ val App = FC<AppProps> { props ->
      * second collection called "Kotlin", and `madeSections` does the same for the dividers. A section
      * is keyed by its collection as well as its name, because a section belongs to its collection —
      * two collections may both have a "Docs", and they are not the same divider.
+     *
+     * Offered back on the undo toast, same as a deletion is: what it takes back is everything the plan
+     * did, not merely the cards — a collection or section it invented goes with them, and a tab it
+     * closed is reopened. A collection deleted this way takes its own cards and sections down with it
+     * (see `CollectionRepository.delete`), so only the cards this plan put into an *existing* collection
+     * need deleting one at a time; a section invented inside an existing collection is deleted the same
+     * way, its cards ungrouped rather than gone, which does not matter here — they are about to be
+     * deleted themselves, by id, regardless of which section they landed in.
      */
     fun applyTriage(plan: List<TriageAssignment>, sectionId: Uuid) {
         val s = store ?: return
@@ -1389,12 +1559,26 @@ val App = FC<AppProps> { props ->
         scope.launch {
             val madeCollections = mutableMapOf<String, Uuid>()
             val madeSections = mutableMapOf<Pair<Uuid, String>, Uuid>()
+            /** Card sections already in a collection, read once per collection — see their use below. */
+            val existingSections = mutableMapOf<Uuid, List<CardSection>>()
+            val createdCardIds = mutableListOf<Uuid>()
             plan.forEach { assignment ->
                 // A tab the user closed in the browser while reading the plan is simply not saved: the
                 // plan is a proposal about tabs, and this one is not there any more.
                 val tab = byId[assignment.tabId] ?: return@forEach
+                val wantedTitle = assignment.collectionTitle.trim()
                 val collectionId = assignment.collectionId
                     ?: madeCollections[assignment.collectionTitle]
+                    // Last look before making one: a collection of this name that a card could actually
+                    // go into. Creating is irreversible in the way that matters — the user ends up with
+                    // two collections of one name and has to merge them by hand — so it must be the
+                    // thing that happens when nothing else could have been meant, not the first
+                    // resort. The plan is *supposed* to have settled this already (see `Target`), and
+                    // this catches the case where the two sides disagreed about identity anyway.
+                    ?: collections.firstOrNull {
+                        it.id !in hiddenCollectionIds && !it.readOnly &&
+                            it.title.trim().equals(wantedTitle, ignoreCase = true)
+                    }?.id
                     // Created in the section the plan says, which is the one the user saw it drawn
                     // under and could change. [sectionId] is only the fallback now — it used to be
                     // the rule, and that is how a new "Электроника" ended up under "Работа" merely
@@ -1405,25 +1589,38 @@ val App = FC<AppProps> { props ->
                     ).id.also { madeCollections[assignment.collectionTitle] = it }
                 val cardSectionId = assignment.sectionId
                     ?: assignment.sectionTitle?.let { title ->
-                        madeSections.getOrPut(collectionId to title) {
-                            s.cardSections.create(collectionId, title, null).id
-                        }
+                        madeSections[collectionId to title]
+                            // The same last look the collection above gets, for the same reason: a
+                            // divider of this name already under this collection is the one meant.
+                            // Read per collection and remembered, so a plan filling one collection with
+                            // twenty cards asks once rather than twenty times.
+                            ?: existingSections.getOrPut(collectionId) {
+                                runCatching { s.cardSections.byCollection(collectionId) }.getOrDefault(emptyList())
+                            }.firstOrNull { it.title.trim().equals(title.trim(), ignoreCase = true) }?.id
+                            ?: s.cardSections.create(collectionId, title, null).id
+                                .also { madeSections[collectionId to title] = it }
                     }
-                s.cards.add(
+                createdCardIds += s.cards.add(
                     collectionId,
                     tab.title.ifBlank { hostOf(tab.url) },
                     tab.url,
                     tab.favicon ?: faviconFor(tab.url),
                     cardSectionId,
-                )
+                    aiCreated = true,
+                ).id
             }
-            if (closeSavedTabs) {
-                // Closed by URL, not by the ids in the plan: the plan holds one row per *page*, the
-                // duplicates having been collapsed into it (see `preGroup`), and the second tab of a
-                // page that has just been saved is as saved as the first. Closing only the plan's own
-                // ids would leave it open — the one thing "keep the first tab" must not get wrong.
+            // Closed by URL, not by the ids in the plan: the plan holds one row per *page*, the
+            // duplicates having been collapsed into it (see `preGroup`), and the second tab of a page
+            // that has just been saved is as saved as the first. Closing only the plan's own ids would
+            // leave it open — the one thing "keep the first tab" must not get wrong. Read regardless of
+            // `closeSavedTabs`: the undo below needs to know what to reopen if the setting changes
+            // between now and then, which it cannot — so it is read now, while it still means this run.
+            val closed = if (closeSavedTabs) {
                 val saved = plan.mapNotNull { byId[it.tabId]?.url }.toSet()
-                openTabs.filter { it.url in saved }.forEach { tc.closeTab(it.id) }
+                openTabs.filter { it.url in saved }.also { tabs -> tabs.forEach { tc.closeTab(it.id) } }
+                    .map { it.url }
+            } else {
+                emptyList()
             }
             if (madeCollections.isNotEmpty()) collections = s.collections.all()
             // Only the open collection is redrawn — the plan will have filled several, and the others
@@ -1431,6 +1628,20 @@ val App = FC<AppProps> { props ->
             selectedId?.let { reloadCards(it) }
             openTabs = tc.currentTabs()
             triageWindowId = null
+
+            undo = Undo(t.triageApplied(createdCardIds.size)) {
+                // A collection this plan invented takes its own cards and sections down with it, so
+                // deleting a card the plan also put there is redundant, not wrong — `cards.delete` on
+                // an id already gone is a no-op (see `CardRepository.delete`). Simplest to delete
+                // everything this plan is on record for rather than work out what already went.
+                madeCollections.values.forEach { s.collections.delete(it) }
+                madeSections.values.forEach { s.cardSections.delete(it) }
+                createdCardIds.forEach { s.cards.delete(it) }
+                closed.forEach { url -> tc.createTab(url) }
+                collections = s.collections.all()
+                selectedId?.let { reloadCards(it) }
+                openTabs = tc.currentTabs()
+            }
         }
     }
 
@@ -1740,7 +1951,14 @@ val App = FC<AppProps> { props ->
 
     // Open a card by its kind: a link goes to its page — or to the tab already showing it, see
     // [openPage] — notes open the markdown editor, files open the viewer.
-    val onCardOpen = useCallback(usageVersion, tabCapture) { card: Card ->
+    val onCardOpen = useCallback(usageVersion, tabCapture, store) { card: Card ->
+        // The "sorted by the model, not you yet" cue is a one-time thing — cleared in the grid right
+        // away, so the user does not see it flash again before the write lands, and in the database so
+        // it does not come back on the next reload.
+        if (card.aiCreated) {
+            store?.let { s -> scope.launch { s.cards.markOpened(card.id) } }
+            cards = cards.map { if (it.id == card.id) it.copy(aiCreated = false) else it }
+        }
         when (card.kind) {
             CardKind.LINK -> openPage(card.url, card.title)
             CardKind.NOTE -> noteModal = NoteModal(card.collectionId, card.cardSectionId, card)
@@ -3274,14 +3492,14 @@ val App = FC<AppProps> { props ->
                                             t.saveTabsHint(allWindowTabs.size, closeSavedTabs)
                                         },
                                         // The ✨ needs no collection selected — it decides that itself,
-                                        // and may make one — only a model on this machine and tabs to
-                                        // read. It is offered even where the model is still to be
-                                        // downloaded: the window shows the download rather than hanging.
-                                        // Off unless switched on in the settings, and then only
-                                        // where there is a model on this machine to do it and tabs
-                                        // to do it to.
+                                        // and may make one — only a model to ask (this machine's, or the
+                                        // cloud one — see [triageAvailable]) and tabs to read. Offered
+                                        // even where the local model is still to be downloaded: the
+                                        // window shows the download rather than hanging. Off unless
+                                        // switched on in the settings, and then only where there is a
+                                        // model to do it and tabs to do it to.
                                         triageHint = t.triageTabs.takeIf {
-                                            aiTriage && aiLocalAvailable == true && allWindowTabs.isNotEmpty()
+                                            aiTriage && triageAvailable && allWindowTabs.isNotEmpty()
                                         },
                                         onOver = { hoverTabs(windowId, null) },
                                         // Dropped on the window but on none of its tabs: append (-1).
@@ -3513,7 +3731,7 @@ val App = FC<AppProps> { props ->
                     // fresh read of the whole account brings them back.
                     if (on) scope.launch { engine?.refetchEverything(); runSync() }
                 }
-                this.signedIn = syncUi.email != null && syncUi.status != SyncStatus.SIGNED_OUT
+                this.signedIn = signedIn
                 this.accountEmail = syncUi.email
                 this.serverOnline = serverOnline
                 onSignIn = {
@@ -3548,6 +3766,11 @@ val App = FC<AppProps> { props ->
                 onAiTriageChange = { on ->
                     aiTriage = on
                     prefSet(AI_TRIAGE_PREF, if (on) "1" else "0")
+                }
+                this.aiTriageCloud = aiTriageCloud
+                onAiTriageCloudChange = { on ->
+                    aiTriageCloud = on
+                    prefSet(AI_TRIAGE_CLOUD_PREF, if (on) "1" else "0")
                 }
                 // Who is answering — the one actually answering, which on a browser without a model of
                 // its own is not the one that was chosen. The local option is offered until the browser
@@ -3676,9 +3899,11 @@ val App = FC<AppProps> { props ->
         // still means App's own state rather than the prop being set.
         val triageSidebarSections = sections.filter { it.id !in lockedSectionIds }
         // The model is offered this regardless of who the user chose to answer their *questions* (see
-        // [AiProvider]): a window of tabs is read on this machine or not at all, and a web chat is never
-        // handed one. So the gate is the local model's own availability, nothing else.
-        if (aiTriage && aiAssistant != null && triageStore != null && triageTabs.isNotEmpty() && aiLocalAvailable == true) {
+        // [AiProvider]): a window of tabs is read on this machine, or on the cloud model this account
+        // opted into (the triage's own switch, [aiTriageCloud]) — a web chat is never handed one either
+        // way. So the gate is [triageAvailable], not [aiLocalAvailable]: the two agree unless the cloud
+        // switch is on, and then it is the cloud model's own readiness that matters.
+        if (aiTriage && (triageCloud || ai != null) && triageStore != null && triageTabs.isNotEmpty() && triageAvailable) {
             // Where a collection the plan invents goes when the model names no section for it: the
             // default one, and never the section the user happens to be standing in.
             //
@@ -3693,20 +3918,38 @@ val App = FC<AppProps> { props ->
             if (triageSection != null) {
                 TabTriageModal {
                     strings = t
-                    assistant = aiAssistant
+                    assistant = ai
+                    stramusApi = api
+                    cloud = triageCloud
                     tabs = triageTabs
                     intoCollections = triageTargets
                     savedCards = triageStore.cards
                     savedSections = triageStore.cardSections
                     sidebarSections = triageSidebarSections
                     newCollectionsIn = triageSection.title
+                    // Whatever the background half already worked out for these tabs — see the
+                    // effects above. Empty is the correct fallback too: a modal opened before the
+                    // cache warmed up simply asks about everything itself, as it always did. Empty is
+                    // also what a cloud run gets on purpose: the background cache is always the local
+                    // model's own doing (it must stay free to run unattended — see those effects), and
+                    // mixing its answers into a paid, deliberately-asked cloud plan would spend money
+                    // on consistency the cloud model was the one being asked for in the first place.
+                    precomputed = if (aiTriageCloud && signedIn) {
+                        emptyMap()
+                    } else {
+                        backgroundTriage.current
+                            ?.snapshot(triageTabs.map { TriageTab(it.id, it.title, it.url) })
+                            .orEmpty()
+                    }
                     closesTabs = closeSavedTabs
-                    canSaveSummary = targetCollection != null
-                    onSaveSummary = { title, content ->
-                        targetCollection?.let { target ->
+                    // The two pre-steps' own "close and continue" — nothing here for the model to see,
+                    // so nothing waits on a plan to close these.
+                    onCloseTabs = { ids ->
+                        val tc = tabCapture
+                        if (tc != null) {
                             scope.launch {
-                                triageStore.cards.addNote(target.id, title, content)
-                                reloadCards(target.id)
+                                ids.forEach { tc.closeTab(it) }
+                                openTabs = tc.currentTabs()
                             }
                         }
                     }

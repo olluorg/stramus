@@ -12,6 +12,7 @@ on:
     paths:
       - 'server/**'
       - 'protocol/**'
+      - 'core/**'
       - 'Dockerfile'
       - '.dockerignore'
       - 'settings.gradle.kts'

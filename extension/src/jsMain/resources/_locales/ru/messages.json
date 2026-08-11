@@ -8,7 +8,23 @@
     "description": "The Web Store's short description. Chrome allows at most 132 characters."
   },
   "actionTitle": {
-    "message": "stramus — открыть новую вкладку",
+    "message": "stramus — сохранить эту вкладку",
     "description": "The tooltip on the toolbar button."
+  },
+  "commandSaveTab": {
+    "message": "Сохранить эту вкладку в stramus",
+    "description": "The description shown for the keyboard shortcut in chrome://extensions/shortcuts."
+  },
+  "ctxSavePage": {
+    "message": "Сохранить страницу в stramus",
+    "description": "Right-click context menu item on a page."
+  },
+  "ctxSaveLink": {
+    "message": "Сохранить ссылку в stramus",
+    "description": "Right-click context menu item on a link."
+  },
+  "notifSaved": {
+    "message": "Сохранено в stramus",
+    "description": "Notification title shown after a quick capture."
   }
 }

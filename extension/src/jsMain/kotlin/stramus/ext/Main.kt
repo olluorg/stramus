@@ -27,6 +27,9 @@ fun main() {
             // The browser's own favicon store, so that no icon service is ever told which hosts the
             // user keeps here — see [ChromeIcons].
             iconSources = ChromeIcons
+            // Where a capture made without the app open (shortcut, right-click, toolbar button) is
+            // waiting to become a card — see background.js and [ChromeQuickCapture].
+            quickCapture = ChromeQuickCapture
             ai = builtInAi()
             // chrome.identity.getAuthToken needs no client id here — it is the one baked into the
             // manifest's own `oauth2` block. The Web application client id (possibly blank) is only for

@@ -17,15 +17,20 @@ import react.dom.html.ReactHTML.option
 import react.dom.html.ReactHTML.select
 import react.dom.html.ReactHTML.span
 import react.dom.html.ReactHTML.ul
+import react.useEffect
 import react.useEffectOnce
 import react.useMemo
 import react.useState
+import kotlinx.coroutines.flow.Flow
+import stramus.core.ai.TabGroup
 import stramus.core.ai.TriageAssignment
 import stramus.core.ai.TriageCollection
 import stramus.core.ai.TriageSection
 import stramus.core.ai.TriageStep
 import stramus.core.ai.TriageTab
+import stramus.core.ai.cloudTriage
 import stramus.core.ai.preGroup
+import stramus.core.ai.summarizeCatalog
 import stramus.core.ai.triage
 import stramus.core.model.CardKind
 import stramus.core.model.Collection
@@ -35,11 +40,14 @@ import stramus.core.platform.AiAvailability
 import stramus.core.platform.CapturedTab
 import stramus.core.repo.CardRepository
 import stramus.core.repo.CardSectionRepository
+import stramus.core.sync.StramusApi
 import stramus.core.url.hostOf
 import web.cssom.ClassName
 import web.html.InputType
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.js.console
 import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /**
  * The value of the "don't save this one" option in a row's collection picker, and of "no section" in
@@ -52,17 +60,45 @@ private const val NONE = ""
 private const val RELATED_SHOWN = 3
 
 /**
- * How many of a collection's cards are read to describe it to the model. A couple more than the
- * prompt will quote (`EXAMPLES_SHOWN` there), so that blanks and notes filtered out of them do not
- * leave a collection looking empty when it is not.
+ * How many of a collection's — and, within it, a section's — cards are read as material for what the
+ * model is told about it, whether that is a couple of titles quoted raw or a summary read from many
+ * (see `summarizeCatalog`, `SUMMARIZE_ABOVE`). Generous on purpose: reading a card's title is cheap,
+ * already-loaded metadata, no network call, and a summary is only as good as what it is written from.
  */
-private const val EXAMPLES_READ = 4
+private const val EXAMPLES_READ = 20
 
 // The wrappers' InputType is opaque; named here the way the rest of the UI names the ones it uses.
 private val CHECKBOX_INPUT: InputType = "checkbox".unsafeCast<InputType>()
 
-/** Where one row is going, as the plan now has it: a collection, and a section within it or none. */
-private data class Target(val collection: String, val section: String?)
+/**
+ * Where one row is going, as the plan now has it: a collection, and a section within it or none.
+ *
+ * [collectionId] and [sectionId] are what makes this a *place* rather than a pair of words. Null means
+ * "does not exist yet", exactly as in [TriageAssignment], and applying the plan is what would create it.
+ *
+ * They are carried rather than looked up again at the end, and that is the whole point of their being
+ * here. A cloud run's ids are resolved on the server, against the account's synced catalog; re-deriving
+ * them here, from a list this side filters differently and compares more strictly, quietly turned a
+ * collection that plainly exists into a new one — and applying that made a second "Stramus" beside the
+ * user's own. A title is what a person reads; an id is what a card is saved into, and the two must not
+ * be the same field doing both jobs.
+ */
+private data class Target(
+    val collection: String,
+    val section: String?,
+    val collectionId: Uuid? = null,
+    val sectionId: Uuid? = null,
+)
+
+/**
+ * Where the modal is before it ever asks the model anything: two free, certain checks first, in this
+ * order, each skipped when it has nothing to show. [SAVED] is a tab whose page is already a card
+ * somewhere — the model would only place it and have the user untick it, see the old `triageDuplicate`
+ * badge. [DUPES] is the same page open in more than one tab — not the model's business either way, and
+ * a mess left for the user to notice on their own otherwise. Neither costs the model a question; only
+ * [PLAN] does.
+ */
+private enum class TriagePhase { SAVED, DUPES, PLAN }
 
 /**
  * The plan so far: it grows a batch of tabs at a time as the model works down the window, and the
@@ -102,9 +138,62 @@ private data class TriageCatalog(
 /** An already-saved card, as the preview names it: enough to recognise, not enough to open. */
 private data class RelatedCard(val title: String, val collectionTitle: String)
 
+/**
+ * The store's collections, read into the shape the model is shown — name, sidebar group, sections, and
+ * a few saved cards as what the collection actually holds (see [TriageCollection.examples]).
+ *
+ * Shared between [TabTriageModal], which reads it once when the plan is asked for, and the App's
+ * background pre-evaluation, which reads it again whenever the collections themselves change — the same
+ * computation either way, so the catalog a tab is judged against in the background is never a different
+ * shape from the one it would be judged against in the modal.
+ */
+suspend fun knownCollections(
+    collections: List<Collection>,
+    sidebarSections: List<Section>,
+    savedSections: CardSectionRepository,
+    savedCards: CardRepository,
+): List<TriageCollection> {
+    val groupNames = sidebarSections.associateBy({ it.id }, { it.title })
+    return collections.map { collection ->
+        val sections = runCatching { savedSections.byCollection(collection.id) }
+            .getOrDefault(emptyList())
+            .sortedBy { it.orderKey }
+        // What is in the collection, to be quoted to the model — or summarised — as what the
+        // collection *is*. Links only: a note the user wrote, or a file they dropped in, says less
+        // about where a browser tab belongs than a link already sitting there does. Cheap, and already
+        // sorted by hand — this is the user's own judgement being handed back to the model.
+        val cards = runCatching { savedCards.byCollection(collection.id) }
+            .getOrDefault(emptyList())
+            .filter { it.kind == CardKind.LINK && it.title.isNotBlank() }
+        // Bucketed once, by whichever section (or none) each card sits under — one read of the
+        // collection serves both its own examples and every one of its sections', rather than a
+        // separate query per section for the same cards.
+        val bySection = cards.groupBy { it.cardSectionId }
+        TriageCollection(
+            id = collection.id,
+            title = collection.title,
+            inSection = groupNames[collection.sectionId],
+            sections = sections.map { section ->
+                TriageSection(section.id, section.title, examples = bySection[section.id].orEmpty().take(EXAMPLES_READ).map { it.title })
+            },
+            examples = cards.take(EXAMPLES_READ).map { it.title },
+        )
+    }
+}
+
 external interface TabTriageProps : Props {
     var strings: Strings
-    var assistant: AiAssistant
+
+    /** The local, on-device model — read only when [cloud] is false; see the note there. */
+    var assistant: AiAssistant?
+
+    /**
+     * The signed-in account's own connection to the server — read only when [cloud] is true.
+     *
+     * Not named `api`: `App` holds its own state under that name, and inside the builder that sets a
+     * prop a local of the same name wins — see the note on [intoCollections].
+     */
+    var stramusApi: StramusApi
 
     /** The window's open tabs — what is about to be sorted. */
     var tabs: List<CapturedTab>
@@ -137,13 +226,28 @@ external interface TabTriageProps : Props {
     /** The sidebar section a collection the model invented would be created in, to be said out loud. */
     var newCollectionsIn: String
 
+    /**
+     * What the App's background pre-evaluation already worked out for some of [tabs], keyed by tab id —
+     * null for one it confidently found no place for. Skips asking the model about these all over
+     * again; see [triage]'s own `precomputed` for how a stale or since-superseded guess here is caught
+     * rather than trusted.
+     */
+    var precomputed: Map<Int, TriageAssignment?>
+
+    /**
+     * True where the run should ask the cloud model rather than the one on this machine — a wholly
+     * different run, `cloudTriage` over [api] rather than `triage` over [assistant]: the cloud model's
+     * whole catalog lives on the server, so there is no local [TriageCollection] list to pre-summarise
+     * (`summarizeCatalog` is skipped) or to hand it in the first place.
+     */
+    var cloud: Boolean
+
     /** True where the setting says a saved tab is closed — the button has to say which it will do. */
     var closesTabs: Boolean
 
-    /** False with no collection open: then the summary can be copied but not kept. */
-    var canSaveSummary: Boolean
+    /** Close these tabs — what the two pre-steps act with, before the model ever sees the window. */
+    var onCloseTabs: (List<Int>) -> Unit
 
-    var onSaveSummary: (String, String) -> Unit
     var onApply: (List<TriageAssignment>) -> Unit
     var onClose: () -> Unit
 }
@@ -189,9 +293,18 @@ val TabTriageModal = FC<TabTriageProps> { props ->
     val setDropped = droppedState.component2()
 
     var catalog by useState(TriageCatalog())
-    var summary by useState("")
     var downloading by useState<Double?>(null)
     var error by useState<String?>(null)
+
+    // Where the modal is in the two free pre-steps — see [TriagePhase]. Null until the store has been
+    // read: which of SAVED/DUPES/PLAN to start on depends on what it found, so there is nothing to
+    // decide yet, and the model must not be asked before this is settled to something other than null.
+    var phase by useState<TriagePhase?>(null)
+
+    // Unticked rows of the current pre-step — closing is the default, per [triageStep], and this is
+    // what a row opts out of it. Reset on every [advance]: a step's ticks are its own, not carried into
+    // the next one's unrelated list of tabs.
+    var keptOpen by useState<Set<Int>>(emptySet())
 
     // The window's pages, gathered by site and with the duplicates already collapsed. Derived from the
     // props rather than held: it is what the tabs *are*, and the run has no say in it.
@@ -200,37 +313,28 @@ val TabTriageModal = FC<TabTriageProps> { props ->
     // One row per page — not per tab: the same page open twice was two identical rows to read.
     val rows = useMemo(groups, byId) { groups.flatMap { group -> group.tabs.mapNotNull { byId[it.id] } } }
 
-    // Read the store, then ask the model — one effect, because the second needs what the first found
-    // and cannot read it back out of state: `catalog` inside this closure would be the empty value it
-    // had on the first render (see the note on the setters above). So `known` stays a local, and the
-    // sections are read once rather than once per reader.
-    //
-    // The store goes first because it is quick and certain, and because it decides which rows arrive
-    // unticked. Nothing waits on it to be *shown*: the rows come from the props, so the window is
-    // never a spinner — everything is on screen, unsorted, while the model works down the batches.
-    useEffectOnce {
-        val groupNames = props.sidebarSections.associateBy({ it.id }, { it.title })
-        val known = props.intoCollections.map { collection ->
-            val sections = runCatching { props.savedSections.byCollection(collection.id) }
-                .getOrDefault(emptyList())
-                .sortedBy { it.orderKey }
-            // What is in the collection, to be quoted to the model as what the collection *is*. Links
-            // only: a note the user wrote, or a file they dropped in, says less about where a browser
-            // tab belongs than a link already sitting there does. Cheap, and already sorted by hand —
-            // this is the user's own judgement being handed back to the model.
-            val examples = runCatching { props.savedCards.byCollection(collection.id) }
-                .getOrDefault(emptyList())
-                .filter { it.kind == CardKind.LINK && it.title.isNotBlank() }
-                .take(EXAMPLES_READ)
-                .map { it.title }
-            TriageCollection(
-                id = collection.id,
-                title = collection.title,
-                inSection = groupNames[collection.sectionId],
-                sections = sections.map { TriageSection(it.id, it.title) },
-                examples = examples,
-            )
+    // The same page, open more than once — the second pre-step's business. A free, certain check, over
+    // `props.tabs` rather than `rows`: `rows` has already collapsed these for the model (see `preGroup`),
+    // which is exactly why the browser itself still needs telling. Keyed by the identity `openPage`
+    // itself uses, so a trailing slash or a tracking parameter does not hide a duplicate from this.
+    val openDupGroups = useMemo(props.tabs) {
+        props.tabs.groupBy { normalizeUrl(it.url) }.filterKeys { it.isNotBlank() }.filterValues { it.size > 1 }
+    }
+
+    // What the model is actually asked about: [groups] with a tab dropped wherever its id is a known
+    // duplicate — the whole point of asking first rather than letting the plan arrive with it unticked.
+    // A site left with nothing to ask about disappears rather than being sent as an empty batch.
+    val aiGroups = useMemo(groups, catalog) {
+        groups.mapNotNull { group ->
+            group.tabs.filter { it.id !in catalog.duplicates }.takeIf { it.isNotEmpty() }?.let { TabGroup(group.host, it) }
         }
+    }
+
+    // Read the store — quick, and certain — then decide where to start: the first pre-step that has
+    // something to show, or [TriagePhase.PLAN] straight away if neither does. Nothing here waits to be
+    // *shown*: the rows come from the props, so the window is never a spinner regardless of phase.
+    useEffectOnce {
+        val known = knownCollections(props.intoCollections, props.sidebarSections, props.savedSections, props.savedCards)
         val byTitle = props.intoCollections.associateBy({ it.id }, { it.title })
         val savedUrls = mutableSetOf<String>()
         val related = mutableMapOf<String, List<RelatedCard>>()
@@ -248,46 +352,132 @@ val TabTriageModal = FC<TabTriageProps> { props ->
         catalog = TriageCatalog(known, duplicates, related)
         // The plan is a proposal, and proposing a second copy of something is the one case where the
         // user almost certainly means no. They can tick it back — and a row they have already unticked
-        // by hand while this query was running must stay unticked, hence the transform.
+        // by hand while this query was running must stay unticked, hence the transform. Only matters for
+        // whatever is left after the pre-step: a duplicate closed there never reaches the plan at all.
         if (duplicates.isNotEmpty()) setDropped { it + duplicates }
+        phase = when {
+            duplicates.isNotEmpty() -> TriagePhase.SAVED
+            openDupGroups.isNotEmpty() -> TriagePhase.DUPES
+            else -> TriagePhase.PLAN
+        }
+    }
 
+    /** Past the pre-step [from] — to the next one with something to show, or straight to the plan. */
+    fun advance(from: TriagePhase) {
+        keptOpen = emptySet()
+        phase = when (from) {
+            TriagePhase.SAVED -> if (openDupGroups.isNotEmpty()) TriagePhase.DUPES else TriagePhase.PLAN
+            TriagePhase.DUPES, TriagePhase.PLAN -> TriagePhase.PLAN
+        }
+    }
+
+    // The model is asked only once [phase] has settled on PLAN — see the effect above, which is the one
+    // place that ever sets it there for the first time. Runs exactly once for that reason: [phase] only
+    // ever *reaches* PLAN, it does not leave it, so this fires on that one transition and never again.
+    useEffect(phase) {
+        if (phase != TriagePhase.PLAN) return@useEffect
         try {
-            if (props.assistant.availability() == AiAvailability.UNAVAILABLE) {
-                error = s.aiUnavailable
-                return@useEffectOnce
+            // Two different runs behind one flow of [TriageStep]s — [cloudTriage] over [props.stramusApi] when
+            // the run is a cloud one, [triage] over [props.assistant] otherwise. The rest of this effect
+            // does not care which: a step is a step regardless of which model wrote it.
+            // How many tabs the run will ask about in total, known before it has answered anything —
+            // so the progress line reads "0 of N" the moment the run starts rather than nothing at all
+            // until the first step. Tabs for both runs, never batches: a cloud run does not know its
+            // round count in advance at all (the server decides it mid-run), so tabs are the only unit
+            // the two can both report — see `TriageStep.Placed`.
+            setPlan { it.copy(total = aiGroups.sumOf { group -> group.tabs.size }) }
+
+            val steps: Flow<TriageStep> = if (props.cloud) {
+                cloudTriage(props.stramusApi, aiGroups)
+            } else {
+                val assistant = props.assistant ?: run {
+                    error = s.aiUnavailable
+                    return@useEffect
+                }
+                val availability = assistant.availability()
+                if (availability == AiAvailability.UNAVAILABLE) {
+                    error = s.aiUnavailable
+                    return@useEffect
+                }
+                // A collection or section holding more than a couple of cards is described by what it
+                // is about rather than by a couple of their titles — see `summarizeCatalog`. Asked once
+                // here, not per batch: every batch of this run reads the same summaries, which is also
+                // what keeps this out of the pre-steps above — they must stay instant, and this is not.
+                val known = summarizeCatalog(assistant, s.aiSystemPrompt, catalog.collections)
+                triage(
+                    ai = assistant,
+                    systemPrompt = s.aiTriageSystemPrompt,
+                    groups = aiGroups,
+                    known = known,
+                    sidebarGroups = props.sidebarSections.map { it.title },
+                    newCollectionsIn = props.newCollectionsIn,
+                    precomputed = props.precomputed,
+                    // The browser's `monitor` fires a progress event even for a model that is already
+                    // on the machine — nothing is actually being fetched, and the number means nothing.
+                    // Rather than try to tell a real download from that one apart by its numbers,
+                    // `availability()` is asked first and believed: only a browser that just said "not
+                    // ready yet" gets this wired up at all, so an already-available model never shows
+                    // the banner regardless of what the browser's own event says.
+                    onDownloadProgress = if (availability == AiAvailability.AVAILABLE) {
+                        {}
+                    } else {
+                        { progress -> downloading = progress }
+                    },
+                )
             }
-            triage(
-                ai = props.assistant,
-                systemPrompt = s.aiTriageSystemPrompt,
-                groups = groups,
-                known = known,
-                sidebarGroups = props.sidebarSections.map { it.title },
-                newCollectionsIn = props.newCollectionsIn,
-                // The plain assistant framing: the summary is prose, and the triage's own system
-                // prompt would have the model answer it in JSON.
-                summarySystemPrompt = s.aiSystemPrompt,
-                onDownloadProgress = { progress -> downloading = progress },
-            ).collect { step ->
+            steps.collect { step ->
                 downloading = null
                 when (step) {
                     // Onto the plan as it now stands, not as it stood when this closure was made:
                     // every batch before this one is in it, and so is anything the user has moved.
-                    is TriageStep.Placed -> setPlan { current ->
-                        current.copy(
-                            targets = current.targets + step.assignments.associate {
-                                it.tabId to Target(it.collectionTitle, it.sectionTitle)
-                            },
-                            // Only for collections that do not exist: an existing one is already
-                            // somewhere. A group the user has since chosen by hand stands.
-                            newGroups = current.newGroups + step.assignments
-                                .filter { it.collectionId == null && it.groupTitle != null }
-                                .filter { it.collectionTitle !in current.newGroups }
-                                .associate { it.collectionTitle to it.groupTitle!! },
-                            done = step.done,
-                            total = step.total,
-                        )
+                    is TriageStep.Placed -> {
+                        // The run settles *identity*; this browser is the authority on what that
+                        // identity is called and where it sits. They can disagree: a cloud run answers
+                        // out of the account's synced catalog, which may hold an older name than this
+                        // browser shows — a collection renamed here and not yet pushed comes back under
+                        // the name the server still has. Left as it arrived, that title matches no local
+                        // collection, so the plan cannot group it, cannot offer its sections, and draws
+                        // it under the fallback section as though it were about to be created; the card
+                        // would still be saved into the right collection (the id is right), which is
+                        // precisely what makes the wrong display so hard to argue with. Renamed to what
+                        // this browser calls it, every lookup below works on names it actually has.
+                        val assignments = step.assignments.map { a ->
+                            val local = a.collectionId?.let { id -> catalog.collections.firstOrNull { it.id == id } }
+                            val localSection = a.sectionId?.let { id -> local?.sections?.firstOrNull { it.id == id } }
+                            a.copy(
+                                collectionTitle = local?.title ?: a.collectionTitle,
+                                sectionTitle = localSection?.title ?: a.sectionTitle,
+                            )
+                        }
+                        // What the model decided, as it decides it — one line a tab, filterable on
+                        // "[triage]" in devtools. Not a permanent feature: it exists to be read over
+                        // someone's shoulder while a run happens, the plan already saying the same
+                        // thing more slowly (see the tree below). A tab the batch left unassigned is
+                        // not logged here — it is exactly the rows the "не разобрано" group shows.
+                        assignments.forEach { assignment ->
+                            val tab = byId[assignment.tabId]
+                            val place = assignment.sectionTitle
+                                ?.let { "${assignment.collectionTitle} / $it" }
+                                ?: assignment.collectionTitle
+                            val name = tab?.title?.takeIf { it.isNotBlank() } ?: tab?.url ?: "#${assignment.tabId}"
+                            console.log("[triage] ${step.host} — $name → $place")
+                        }
+                        setPlan { current ->
+                            current.copy(
+                                targets = current.targets + assignments.associate {
+                                    it.tabId to Target(it.collectionTitle, it.sectionTitle, it.collectionId, it.sectionId)
+                                },
+                                // Only for collections that do not exist: an existing one is already
+                                // somewhere. A group the user has since chosen by hand stands.
+                                newGroups = current.newGroups + assignments
+                                    .filter { it.collectionId == null && it.groupTitle != null }
+                                    .filter { it.collectionTitle !in current.newGroups }
+                                    .associate { it.collectionTitle to it.groupTitle!! },
+                                done = step.done,
+                                total = step.total,
+                            )
+                        }
                     }
-                    is TriageStep.Summarised -> summary = step.text
                 }
             }
         } catch (e: CancellationException) {
@@ -300,9 +490,15 @@ val TabTriageModal = FC<TabTriageProps> { props ->
 
     fun targetOf(tab: CapturedTab): Target? = if (tab.id in dropped) null else plan.targets[tab.id]
 
-    /** The collection of this title that already exists, if it does — what makes it not a new one. */
+    /**
+     * The collection of this title that already exists, if it does — what makes it not a new one.
+     *
+     * Trimmed on both sides, the way `planForBatch` has always matched: a title with a stray space at
+     * either end is the same collection to the person who named it, and one of the two comparisons
+     * being stricter than the other is precisely how the same name ends up existing twice.
+     */
     fun existing(title: String): TriageCollection? =
-        catalog.collections.firstOrNull { it.title.equals(title, ignoreCase = true) }
+        catalog.collections.firstOrNull { it.title.trim().equals(title.trim(), ignoreCase = true) }
 
     /** Every collection a row may be sent to: the ones there are, plus the ones the run has invented. */
     val collectionTitles = catalog.collections.map { it.title } +
@@ -339,7 +535,23 @@ val TabTriageModal = FC<TabTriageProps> { props ->
         return (had + proposed).distinct()
     }
 
-    fun isNewCollection(title: String): Boolean = existing(title) == null
+    /**
+     * Collections the run resolved to a real id, keyed by the title it answered with — the ones this
+     * side may not find in [catalog] at all. Small and rebuilt per render, which is fine: it is only
+     * ever as long as the plan itself.
+     */
+    val resolvedByTitle: Map<String, Uuid> = plan.targets.values
+        .mapNotNull { t -> t.collectionId?.let { t.collection.trim().lowercase() to it } }
+        .toMap()
+
+    /**
+     * Whether applying this would *create* the collection — which is what the "new" badge claims, so it
+     * has to be the same question `applyTriage` will ask. An id the run resolved settles it even where
+     * this side's own catalog does not recognise the title: marking that "new" was how a collection that
+     * already existed came to be announced, and then created, a second time.
+     */
+    fun isNewCollection(title: String): Boolean =
+        existing(title) == null && title.trim().lowercase() !in resolvedByTitle
 
     fun isNewSection(collection: String, section: String): Boolean =
         existing(collection)?.sections?.none { it.title.equals(section, ignoreCase = true) } ?: true
@@ -358,13 +570,21 @@ val TabTriageModal = FC<TabTriageProps> { props ->
         val kept = plan.targets[tabId]?.section?.takeIf { section ->
             offeredThere.any { it.equals(section, ignoreCase = true) }
         }
-        setPlan { current -> current.copy(targets = current.targets + (tabId to Target(title, kept))) }
+        // Picked by hand out of the list this side drew, so this side is exactly the right place to
+        // resolve it — unlike a placement the run produced, whose identity is already settled.
+        val picked = existing(title)
+        val keptId = kept?.let { k -> picked?.sections?.firstOrNull { it.title.trim().equals(k.trim(), ignoreCase = true) }?.id }
+        setPlan { current -> current.copy(targets = current.targets + (tabId to Target(title, kept, picked?.id, keptId))) }
     }
 
     fun setSection(tabId: Int, section: String) {
+        val wanted = section.takeIf { it != NONE }
         setPlan { current ->
             val target = current.targets[tabId] ?: return@setPlan current
-            current.copy(targets = current.targets + (tabId to target.copy(section = section.takeIf { it != NONE })))
+            val id = wanted?.let { w ->
+                existing(target.collection)?.sections?.firstOrNull { it.title.trim().equals(w.trim(), ignoreCase = true) }?.id
+            }
+            current.copy(targets = current.targets + (tabId to target.copy(section = wanted, sectionId = id)))
         }
     }
 
@@ -386,7 +606,7 @@ val TabTriageModal = FC<TabTriageProps> { props ->
             when {
                 current.targets.containsKey(tabId) -> current
                 else -> collectionTitles.firstOrNull()
-                    ?.let { current.copy(targets = current.targets + (tabId to Target(it, null))) }
+                    ?.let { current.copy(targets = current.targets + (tabId to Target(it, null, existing(it)?.id))) }
                     ?: current
             }
         }
@@ -398,16 +618,18 @@ val TabTriageModal = FC<TabTriageProps> { props ->
         val target = targetOf(tab) ?: return@mapNotNull null
         val collection = existing(target.collection)
         val section = target.section?.let { wanted ->
-            collection?.sections?.firstOrNull { it.title.equals(wanted, ignoreCase = true) }
+            collection?.sections?.firstOrNull { it.title.trim().equals(wanted.trim(), ignoreCase = true) }
         }
         // The group travels with the plan: `applyTriage` needs it to know where to *make* a collection
         // that does not exist. For one that does, it is where it already is and changes nothing.
         TriageAssignment(
             tabId = tab.id,
             collectionTitle = target.collection,
-            collectionId = collection?.id,
+            // What the run resolved wins; the local lookup is the fallback for a title that only this
+            // side knows about — one the user typed into a row, or a collection made since the run began.
+            collectionId = target.collectionId ?: collection?.id,
             sectionTitle = target.section,
-            sectionId = section?.id,
+            sectionId = target.sectionId ?: section?.id,
             groupTitle = groupOf(target.collection),
         )
     }
@@ -424,6 +646,33 @@ val TabTriageModal = FC<TabTriageProps> { props ->
             button { className = ClassName("icon del"); onClick = { props.onClose() }; icon("x") }
         }
 
+        if (phase == TriagePhase.SAVED) {
+            triageStep(
+                heading = s.triageSavedHeading,
+                hintText = s.triageSavedHint,
+                rows = props.tabs.filter { it.id in catalog.duplicates },
+                keptOpen = keptOpen,
+                onToggle = { id, keep -> keptOpen = if (keep) keptOpen + id else keptOpen - id },
+                closeLabel = { count -> s.triageCloseStep(count) },
+                skipLabel = s.triageSkipStep,
+                onClose = { ids -> props.onCloseTabs(ids); advance(TriagePhase.SAVED) },
+                onSkip = { advance(TriagePhase.SAVED) },
+            )
+        } else if (phase == TriagePhase.DUPES) {
+            // The kept tab of each group is not shown — see [preGroup]'s own precedent, "the first tab
+            // of the page is the one kept". What is offered here is only the ones closing would remove.
+            triageStep(
+                heading = s.triageDupesHeading,
+                hintText = s.triageDupesHint,
+                rows = openDupGroups.values.flatMap { it.drop(1) },
+                keptOpen = keptOpen,
+                onToggle = { id, keep -> keptOpen = if (keep) keptOpen + id else keptOpen - id },
+                closeLabel = { count -> s.triageCloseStep(count) },
+                skipLabel = s.triageSkipStep,
+                onClose = { ids -> props.onCloseTabs(ids); advance(TriagePhase.DUPES) },
+                onSkip = { advance(TriagePhase.DUPES) },
+            )
+        } else {
         div {
             className = ClassName("triage-body")
 
@@ -435,31 +684,6 @@ val TabTriageModal = FC<TabTriageProps> { props ->
             // fill in under it as they land, so this is a progress line and not a spinner.
             if (running) {
                 div { className = ClassName("triage-progress"); +s.triageProgress(plan.done, plan.total) }
-            }
-
-            if (summary.isNotBlank()) {
-                div {
-                    className = ClassName("triage-summary")
-                    div { className = ClassName("triage-summary-head"); +s.triageSummaryHeading }
-                    markdownBlock("ai-answer", summary)
-                    div {
-                        className = ClassName("ai-turn-tools")
-                        button {
-                            className = ClassName("icon ai-tool")
-                            hint(s.aiCopy)
-                            onClick = { copyToClipboard(summary) }
-                            icon("copy")
-                        }
-                        if (props.canSaveSummary) {
-                            button {
-                                className = ClassName("icon ai-tool")
-                                hint(s.aiSaveNote)
-                                onClick = { props.onSaveSummary(s.triageSummaryTitle, summary) }
-                                icon("file-text")
-                            }
-                        }
-                    }
-                }
             }
 
             // The plan drawn as the thing it is about: the sidebar's own tree — section, then the
@@ -575,6 +799,75 @@ val TabTriageModal = FC<TabTriageProps> { props ->
                 onClick = { props.onApply(chosen) }
                 +s.triageApply(chosen.size, props.closesTabs)
             }
+        }
+        }
+    }
+}
+
+/**
+ * One of the two pre-steps a run may open with — see [TriagePhase]. A heading, why, the tabs in
+ * question, and a way past it. Shared between [TriagePhase.SAVED] and [TriagePhase.DUPES], which
+ * differ only in which tabs they name and the words around them.
+ *
+ * Every row starts ticked — closing is the default, the same way a plan row starts placed — and
+ * unticking one is how a single tab is kept open rather than all of them or none, without hunting for
+ * an individual close button per row. [onClose] only ever hears about the ticked ones, [keptOpen] is
+ * where the rest are kept — and the primary button's own count follows the ticks, not the full list.
+ */
+private fun ChildrenBuilder.triageStep(
+    heading: String,
+    hintText: String,
+    rows: List<CapturedTab>,
+    keptOpen: Set<Int>,
+    onToggle: (Int, Boolean) -> Unit,
+    closeLabel: (Int) -> String,
+    skipLabel: String,
+    onClose: (List<Int>) -> Unit,
+    onSkip: () -> Unit,
+) {
+    val toClose = rows.filterNot { it.id in keptOpen }
+    div {
+        className = ClassName("triage-body")
+        div {
+            className = ClassName("triage-step")
+            div { className = ClassName("triage-step-head"); +heading }
+            div { className = ClassName("triage-step-hint"); +hintText }
+            ul {
+                className = ClassName("triage-tabs")
+                rows.forEach { tab ->
+                    li {
+                        key = tab.id.toString().unsafeCast<Key>()
+                        className = ClassName("triage-tab")
+                        label {
+                            className = ClassName("triage-pick")
+                            input {
+                                type = CHECKBOX_INPUT
+                                checked = tab.id !in keptOpen
+                                onChange = { e -> onToggle(tab.id, !e.target.checked) }
+                            }
+                            Favicon {
+                                url = tab.url
+                                favicon = tab.favicon
+                            }
+                            span {
+                                className = ClassName("triage-tab-title")
+                                hint(tab.title.ifBlank { tab.url })
+                                +tab.title.ifBlank { hostOf(tab.url) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    div {
+        className = ClassName("modal-actions")
+        button { className = ClassName("btn"); onClick = { onSkip() }; +skipLabel }
+        button {
+            className = ClassName("btn primary")
+            disabled = toClose.isEmpty()
+            onClick = { onClose(toClose.map { it.id }) }
+            +closeLabel(toClose.size)
         }
     }
 }

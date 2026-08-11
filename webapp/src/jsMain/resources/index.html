@@ -502,11 +502,12 @@
         /* The shell (.modal) is already a column capped at 88vh, so this only has to take what is left
            and scroll it — as .ai-log does. A max-height of its own here would fight the shell's. */
         .triage-body { flex: 1; min-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding: 16px 18px; }
-        /* flex: none on both — a column flex child shrinks before its parent scrolls, so without this
-           a group of twenty tabs is squashed to a sliver instead of pushing the body into its scroll. */
-        .triage-summary { flex: none; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; position: relative; }
-        .triage-summary-head { margin-bottom: 6px; font-weight: 700; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
-        .triage-summary:hover .ai-turn-tools, .triage-summary .ai-turn-tools:focus-within { opacity: 1; }
+        /* The two pre-steps — already-saved tabs, then duplicate open tabs — offered before the model
+           is asked anything at all, so neither wastes a question on it. flex: none, the same reason
+           the tabs list below it needs it: a column flex child shrinks before its parent scrolls. */
+        .triage-step { flex: none; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; }
+        .triage-step-head { margin-bottom: 2px; font-weight: 700; font-size: 13px; }
+        .triage-step-hint { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
         /* How far down the sites the run has got. A line rather than a spinner: the groups below fill
            in under it as each site lands, so there is always something to read while it works. */
         .triage-progress { flex: none; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); font-size: 13px; }
@@ -658,6 +659,19 @@
         .card.kind-note { --card-accent: #f5c451; border-left: 3px solid var(--card-accent); }
         .card.kind-file { --card-accent: #7c9cf5; border-left: 3px solid var(--card-accent); }
         .card:hover .icon.edit:hover { color: var(--card-accent); }
+        /* Wraps the favicon/glyph/thumbnail so a card the tab triage placed can carry .card-ai-badge in
+           its corner, sized against it rather than against the tile. */
+        .card-icon { position: relative; display: flex; flex: none; }
+        /* The same sparkles the ✨ triage button wears — small enough to read as a corner mark, not a
+           label competing with the title. Gone the moment the card is opened (CardTile.kt, App.kt's
+           onCardOpen), so it marks the one thing worth a second look, not a permanent record of it. */
+        .card-ai-badge {
+            position: absolute; bottom: -3px; right: -3px;
+            width: 14px; height: 14px; font-size: 8px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 50%; background: var(--accent); color: #fff;
+            border: 2px solid var(--panel);
+        }
 
         /* The hover menus of a card-section header: "+" adds a card, "⇅" sorts the section. Both drop a
            list of actions under a glyph, and like the header's other tools they stay out of the way

@@ -8,7 +8,23 @@
     "description": "The Web Store's short description. Chrome allows at most 132 characters."
   },
   "actionTitle": {
-    "message": "stramus — 새 탭 열기",
+    "message": "stramus — 이 탭 저장",
     "description": "The tooltip on the toolbar button."
+  },
+  "commandSaveTab": {
+    "message": "이 탭을 stramus에 저장",
+    "description": "The description shown for the keyboard shortcut in chrome://extensions/shortcuts."
+  },
+  "ctxSavePage": {
+    "message": "이 페이지를 stramus에 저장",
+    "description": "Right-click context menu item on a page."
+  },
+  "ctxSaveLink": {
+    "message": "이 링크를 stramus에 저장",
+    "description": "Right-click context menu item on a link."
+  },
+  "notifSaved": {
+    "message": "stramus에 저장됨",
+    "description": "Notification title shown after a quick capture."
   }
 }

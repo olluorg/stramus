@@ -124,6 +124,47 @@ data class ServerConfig(
      */
     val faviconMissesPerMinute: Int = 60,
 
+    /**
+     * The key this server authenticates to OpenRouter with, calling the cloud model on an authorised
+     * user's behalf ([AiProxyService]). Blank means that door is not there at all — the client's cloud
+     * triage setting then has nothing to turn on, the same shape [googleClientId] blank leaves Google
+     * sign-in in. Never sent to a client: the whole reason this call is proxied through the server
+     * rather than made from the browser is that this key must not leave it.
+     */
+    val openrouterApiKey: String = "",
+
+    /**
+     * Where the cloud model is actually asked — OpenRouter's own endpoint by default, but any
+     * OpenAI-compatible one answers just as well: [AiProxyService] builds the same
+     * `{model, messages, response_format}` body and posts it here regardless. A developer pointing this
+     * at a local proxy in front of OpenRouter — to log or cache calls while testing without spending on
+     * every run — needs nothing but this one line changed.
+     */
+    val openrouterUrl: String = "https://openrouter.ai/api/v1/chat/completions",
+
+    /** The model asked first. See [openrouterFallbackModel] for when it does not answer at all. */
+    val openrouterModel: String = "openai/gpt-5.6-luna",
+
+    /**
+     * Tried when [openrouterModel] itself could not be — a bad response, a timeout, the provider having
+     * a moment. Configurable for the same reason [openrouterModel] is: a proxy in front of OpenRouter
+     * may know its upstream models by different names.
+     */
+    val openrouterFallbackModel: String = "google/gemini-3.5-flash-lite",
+
+    /**
+     * How much of [openrouterModel]'s context [AiProxyService] budgets a call against — see
+     * `trustedBatchPromptFitting` in `core`, which is what actually spends it (the account's catalog
+     * first, then as many tabs as fit in what is left). Conservative on purpose: both models this ships
+     * with advertise context windows over a million tokens, but a proxy in front of either may not honour
+     * the whole of that, and a call sized to what a model can *actually* answer about in one structured
+     * JSON response is worth more than one sized to what its context window merely permits reading.
+     */
+    val openrouterContextTokens: Int = 200_000,
+
+    /** How many of the cloud model's answers one account may ask for in a calendar month. */
+    val aiMonthlyLimit: Int = 100,
+
     val production: Boolean = false,
 ) {
     companion object {
@@ -142,6 +183,14 @@ data class ServerConfig(
                 googleClientId = env["STRAMUS_GOOGLE_CLIENT_ID"] ?: "",
                 googleExtensionClientId = env["STRAMUS_GOOGLE_EXTENSION_CLIENT_ID"] ?: "",
                 jwtSecret = env["STRAMUS_JWT_SECRET"] ?: "dev-secret-not-for-production",
+                openrouterApiKey = env["STRAMUS_OPENROUTER_API_KEY"] ?: "",
+                openrouterUrl = env["STRAMUS_OPENROUTER_URL"]?.takeIf { it.isNotBlank() }
+                    ?: "https://openrouter.ai/api/v1/chat/completions",
+                openrouterModel = env["STRAMUS_OPENROUTER_MODEL"]?.takeIf { it.isNotBlank() } ?: "openai/gpt-5.6-luna",
+                openrouterFallbackModel = env["STRAMUS_OPENROUTER_FALLBACK_MODEL"]?.takeIf { it.isNotBlank() }
+                    ?: "google/gemini-3.5-flash-lite",
+                openrouterContextTokens = env["STRAMUS_OPENROUTER_CONTEXT_TOKENS"]?.toIntOrNull() ?: 200_000,
+                aiMonthlyLimit = env["STRAMUS_AI_MONTHLY_LIMIT"]?.toIntOrNull() ?: 100,
                 faviconProxyEnabled = env["STRAMUS_FAVICON_PROXY"] != "0",
                 allowedOrigins = env["STRAMUS_ALLOWED_ORIGINS"]
                     ?.split(',')

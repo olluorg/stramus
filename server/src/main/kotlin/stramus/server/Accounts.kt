@@ -15,8 +15,14 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 import stramus.protocol.TokenPair
 
-/** Wrong password, wrong code, address already taken — anything the caller did wrong. Answered as 4xx. */
-class AccountException(val status: Int, message: String) : RuntimeException(message)
+/**
+ * Wrong password, wrong code, address already taken — anything the caller did wrong (4xx) — and also a
+ * dependency this server itself called that did not answer, like OpenRouter (5xx; see `AiProxy.kt`).
+ * [cause] is carried through for the second kind: `App.kt`'s `StatusPages` logs a 5xx one, and a message
+ * alone is sometimes not even that — a bare `ConnectException` carries no message of its own, only a
+ * type and a stack, both of which are lost the moment only [Throwable.message] is kept.
+ */
+class AccountException(val status: Int, message: String, cause: Throwable? = null) : RuntimeException(message, cause)
 
 /** How many wrong guesses a mailed code survives before it is dead. Six digits is a million; five is not. */
 private const val MAX_CODE_ATTEMPTS = 5

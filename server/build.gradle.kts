@@ -21,6 +21,12 @@ val ktorVersion = "3.5.0"
 
 dependencies {
     implementation(project(":protocol"))
+    // Just the JVM target: `core` is Kotlin/JS-first (kidx, the browser HTTP client) but its commonMain —
+    // where the triage prompt/catalog logic lives — has no browser in it and compiles for the JVM on its
+    // own, so this pulls in exactly that and none of the Node toolchain (verified: `:server:compileKotlin`
+    // runs `:core:compileKotlinJvm`/`:core:jvmJar` only, no `kotlinNodeJsSetup`/`yarn*` tasks). The
+    // Dockerfile mirrors this — see its comment on why `core` is copied in now.
+    implementation(project(":core"))
 
     implementation("io.ktor:ktor-server-core:$ktorVersion")
     implementation("io.ktor:ktor-server-netty:$ktorVersion")
@@ -52,16 +58,6 @@ dependencies {
     implementation("org.slf4j:slf4j-simple:2.0.16")
 
     testImplementation(kotlin("test"))
-    // The client's store and sync engine, exercised against this server over real HTTP: the merge is the
-    // one thing in the system that only exists in the space *between* the two, and that is where it is
-    // tested. (The client is Kotlin/JS in the app; its code is common, so the JVM can run it here.)
-    //
-    // Conditional because the server's container image copies in only `server` and `protocol` — there is no
-    // browser side there to depend on, and no tests are run there either. Everywhere a person or CI builds,
-    // the module is present and this binds.
-    if (findProject(":core") != null) {
-        testImplementation(project(":core"))
-    }
     testImplementation("io.ktor:ktor-server-test-host:$ktorVersion")
     testImplementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")

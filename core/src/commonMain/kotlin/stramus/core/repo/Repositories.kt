@@ -168,7 +168,18 @@ interface CardRepository {
      * sake of one number.
      */
     suspend fun count(collectionId: Uuid): Int
-    suspend fun add(collectionId: Uuid, title: String, url: String, favicon: String?, cardSectionId: Uuid? = null): Card
+    /**
+     * [aiCreated] true marks the card as the tab triage's doing rather than the user's own save — see
+     * [Card.aiCreated] and [markOpened].
+     */
+    suspend fun add(
+        collectionId: Uuid,
+        title: String,
+        url: String,
+        favicon: String?,
+        cardSectionId: Uuid? = null,
+        aiCreated: Boolean = false,
+    ): Card
 
     /** Create a markdown note card. */
     suspend fun addNote(collectionId: Uuid, title: String, content: String, cardSectionId: Uuid? = null): Card
@@ -206,6 +217,12 @@ interface CardRepository {
 
     /** Change a link card's address. */
     suspend fun updateUrl(id: Uuid, url: String)
+
+    /**
+     * Clear [Card.aiCreated] — called the first time the card is opened, so the "sorted by the model"
+     * cue is a one-time thing and not a badge that lingers. A no-op for a card that never carried it.
+     */
+    suspend fun markOpened(id: Uuid)
 
     /**
      * Delete a card — the file bytes go with it. Returns what was taken, for [restore]; null if there

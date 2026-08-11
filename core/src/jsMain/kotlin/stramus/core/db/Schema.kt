@@ -132,6 +132,7 @@ class CardRow : Row() {
     var createdAt by Cards.createdAt
     var updatedAt by Cards.updatedAt
     var deletedAt by Cards.deletedAt
+    var aiCreated by Cards.aiCreated
 }
 
 object Cards : Store<CardRow>("cards", ::CardRow) {
@@ -164,6 +165,15 @@ object Cards : Store<CardRow>("cards", ::CardRow) {
     val createdAt by Field.Instant()
     val updatedAt by Field.Instant()
     val deletedAt by Field.Instant().nullable()
+
+    /**
+     * True while a card came from the tab triage's plan and has not been opened yet — the UI's cue for
+     * "this is what the model sorted, not you". Absent on every card from before this field existed and
+     * on everything saved by hand, both of which read as "no" ([Card.aiCreated]). Cleared, not merely
+     * read past, the first time the card is opened — see `CardRepository.markOpened` — so the cue does
+     * not survive a reload to be re-noticed for nothing.
+     */
+    val aiCreated by Field.Boolean().nullable()
 
     /**
      * Every card of one collection, in group order. `cardSectionId` (which group, within the

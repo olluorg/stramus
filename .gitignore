@@ -20,3 +20,10 @@ build/
 
 # Local Gradle config / secrets
 local.properties
+
+# Local dev server script — carries a real OpenRouter key once filled in
+tools/dev-server.sh
+
+# The server's default sqlite file, written wherever it runs with no STRAMUS_DB set — `:server:test` and
+# `tools/dev-server.sh` both do this from the repo root.
+server/stramus.db*

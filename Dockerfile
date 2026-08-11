@@ -15,14 +15,17 @@ COPY gradlew settings.gradle.kts build.gradle.kts gradle.properties ./
 COPY gradle gradle
 COPY protocol/build.gradle.kts protocol/
 COPY server/build.gradle.kts server/
+COPY core/build.gradle.kts core/
 RUN ./gradlew --no-daemon --version
 
 COPY protocol protocol
 COPY server server
+COPY core core
 
-# Only the server and the protocol it speaks. The browser modules (`core`, `ui-shared`, `webapp`,
-# `extension`) are not built here and are not copied in: they are a Kotlin/JS build that would pull down a
-# Node toolchain to produce something this image does not serve.
+# The server, the protocol it speaks, and `core` — needed only for its commonMain triage/catalog logic
+# (`:server:installDist` resolves just `:core:compileKotlinJvm`/`:core:jvmJar`, never the Kotlin/JS side).
+# `ui-shared`, `webapp` and `extension` are still not copied in: they are the actual Kotlin/JS build that
+# would pull down a Node toolchain, and this image serves none of what they produce.
 RUN ./gradlew --no-daemon :server:installDist
 
 FROM eclipse-temurin:21-jre-jammy
