@@ -64,6 +64,10 @@ val InlineEdit = FC<InlineEditProps> { props ->
             onChange = { e -> draft = e.target.value }
             onBlur = { commit() }
             onKeyDown = { e ->
+                // Every key typed here belongs to the name and to nothing else. The header behind
+                // the field answers Space (it folds the section), Delete and Tab, so a key left to
+                // bubble would fold what is being renamed instead of putting a space in its title.
+                e.stopPropagation()
                 when (e.key) {
                     "Enter" -> { e.preventDefault(); commit() }
                     "Escape" -> { e.preventDefault(); cancel() }
