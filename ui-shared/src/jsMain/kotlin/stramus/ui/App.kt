@@ -136,6 +136,13 @@ private suspend fun CardRepository.hasUrl(url: String): Boolean = search(hostOf(
 /** Where the id of the collection background captures land in is remembered — see [quickSaveCollectionId]. */
 private const val QUICK_SAVE_COLLECTION_PREF = "quickSaveCollectionId"
 
+/** Which windows of the tabs sidebar are folded shut, as a comma-separated list of browser window ids. */
+private const val COLLAPSED_TAB_WINDOWS_PREF = "collapsedTabWindows"
+
+/** Reads [COLLAPSED_TAB_WINDOWS_PREF] back; anything unreadable in it is simply not a folded window. */
+private fun parseWindowIds(stored: String?): Set<Int> =
+    stored?.split(",")?.mapNotNull { it.trim().toIntOrNull() }?.toSet() ?: emptySet()
+
 /**
  * The collection a background capture (keyboard shortcut, right-click, or the toolbar button) lands
  * in when there is no open collection to ask — created on the first one, under [title], and found
@@ -469,6 +476,11 @@ private fun ChildrenBuilder.tabCardGrid(
  * The download button next to it saves the whole window into the open collection ([onSave]) — the drag,
  * done to every tab at once. [saveHint] is both its tooltip and its condition: null where there is no
  * collection to save into, and then the button is not there at all.
+ *
+ * The label folds the window's tabs away ([onToggle], [open]) exactly as a card section's title folds
+ * its cards — a second window of forty tabs is otherwise a scroll to get past. Folded, it keeps its
+ * count and its header tools: the window is still a drop target (the header is inside the block), and
+ * a tab dropped on it joins it out of sight, as it does with a collapsed section.
  */
 private fun ChildrenBuilder.tabWindow(
     strings: Strings,
@@ -477,10 +489,12 @@ private fun ChildrenBuilder.tabWindow(
     count: Int,
     accepts: Boolean,
     active: Boolean,
+    open: Boolean,
     saveHint: String?,
     triageHint: String?,
     onOver: () -> Unit,
     onDropHere: () -> Unit,
+    onToggle: () -> Unit,
     onSave: () -> Unit,
     onTriage: () -> Unit,
     onSort: (TabSort) -> Unit,
@@ -502,7 +516,20 @@ private fun ChildrenBuilder.tabWindow(
         }
         div {
             className = ClassName("tab-window-head")
-            span { +label }
+            span {
+                className = ClassName("tab-window-title")
+                hint(strings.toggleTabWindow)
+                tabIndex = 0
+                onClick = { onToggle() }
+                onKeyDown = { e ->
+                    if (e.key == "Enter" || e.key == " ") { e.preventDefault(); onToggle() }
+                }
+                span {
+                    className = ClassName(if (open) "chevron" else "chevron closed")
+                    icon("chevron-down")
+                }
+                +label
+            }
             div {
                 className = ClassName("tab-window-tools")
                 if (saveHint != null) {
@@ -539,7 +566,10 @@ private fun ChildrenBuilder.tabWindow(
                 span { className = ClassName("count"); +count.toString() }
             }
         }
-        content()
+        Collapsible {
+            this.open = open
+            content()
+        }
     }
 }
 
@@ -831,6 +861,12 @@ val App = FC<AppProps> { props ->
     // in the section list will match it, and the grid shows.
     var openFolderId by useState<Uuid?>(null)
     var rightPane by useState(RightPane.from(prefGet("rightPane")))
+    // The tab-sidebar windows folded away, by browser window id. Kept in localStorage rather than in
+    // this page's state alone: the app sits on the new tab page, so it is mounted afresh several times
+    // an hour, and a fold that came undone every time would not be a fold. The ids are the browser's own
+    // and outlive nothing but the session — a stale one simply matches no window and is dropped when the
+    // set is next written (see [toggleTabWindow]).
+    var collapsedTabWindows by useState { parseWindowIds(prefGet(COLLAPSED_TAB_WINDOWS_PREF)) }
     var autoLockMinutes by useState(prefGet("autoLock")?.toIntOrNull() ?: DEFAULT_AUTO_LOCK_MINUTES)
     // What the page opens on: where the user left off, or the first collection. Read once, on the
     // render that also loads the store — changing it later is for the *next* open, not for this one.
@@ -1684,6 +1720,18 @@ val App = FC<AppProps> { props ->
             tc.reorderTabs(windowId, by.apply(openTabs.filter { it.windowId == windowId }).map { it.id })
             openTabs = tc.currentTabs()
         }
+    }
+
+    // Fold one window's tabs away, or unfold them. Nothing of the browser's changes — this is the list
+    // in the panel, not the strip. What is written back is pruned to the windows actually open, so the
+    // stored set never grows past the windows there are: a browser id belongs to one session, and a
+    // window closed while folded would otherwise keep its entry for good.
+    fun toggleTabWindow(windowId: Int) {
+        val open = openTabs.map { it.windowId }.toSet()
+        val next = (if (windowId in collapsedTabWindows) collapsedTabWindows - windowId
+        else collapsedTabWindows + windowId).filterTo(mutableSetOf()) { it in open }
+        collapsedTabWindows = next
+        prefSet(COLLAPSED_TAB_WINDOWS_PREF, next.joinToString(","))
     }
 
     // Only one drop target may be lit at a time: a drag entering the tabs sidebar takes the highlight
@@ -3486,6 +3534,7 @@ val App = FC<AppProps> { props ->
                                         // and visited pages have no place in the browser's tab strip.
                                         accepts = draggingTab != null,
                                         active = dropTabWindowId == windowId && dropTabId == null,
+                                        open = windowId !in collapsedTabWindows,
                                         // Nowhere to save them to (no collection selected, a read-only
                                         // one, one behind a PIN): no ⤓ on the window either.
                                         saveHint = targetCollection?.let {
@@ -3504,6 +3553,7 @@ val App = FC<AppProps> { props ->
                                         onOver = { hoverTabs(windowId, null) },
                                         // Dropped on the window but on none of its tabs: append (-1).
                                         onDropHere = { moveTabTo(windowId, -1) },
+                                        onToggle = { toggleTabWindow(windowId) },
                                         onSave = {
                                             targetCollection?.let { target -> saveTabs(allWindowTabs, target) }
                                         },

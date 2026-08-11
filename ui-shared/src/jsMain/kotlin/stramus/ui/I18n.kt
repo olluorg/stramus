@@ -335,6 +335,11 @@ interface Strings {
     /** The ⇅ menu in a window's header, which rearranges that window's tabs in the browser itself. */
     val sortTabs: String
     /**
+     * The window's own name in the sidebar, which folds its tabs away on a click — nothing of the
+     * browser's changes, only what the panel shows.
+     */
+    val toggleTabWindow: String
+    /**
      * The ⤓ in a window's header: how many tabs the click would save, where they land, and whether
      * the browser keeps them. [closing] is the "after saving tabs" setting, so the tooltip is the
      * answer the user chose.
@@ -765,6 +770,7 @@ private object EnStrings : Strings {
     override fun windowLabel(number: Int) = "Window $number"
     override val closeTab = "Close tab"
     override val sortTabs = "Sort this window's tabs"
+    override val toggleTabWindow = "Fold this window's tabs away"
     override fun saveTabsHint(count: Int, closing: Boolean) =
         "Save this window's tabs ($count) into the open collection, ungrouped — " +
             if (closing) "and close them" else "and leave them open"
@@ -1178,6 +1184,7 @@ private object RuStrings : Strings {
     override fun windowLabel(number: Int) = "Окно $number"
     override val closeTab = "Закрыть вкладку"
     override val sortTabs = "Отсортировать вкладки этого окна"
+    override val toggleTabWindow = "Свернуть или развернуть вкладки этого окна"
     override fun saveTabsHint(count: Int, closing: Boolean) =
         "Сохранить вкладки этого окна ($count) в открытую коллекцию, без секции — " +
             if (closing) "и закрыть их" else "и оставить их открытыми"
@@ -1590,6 +1597,7 @@ private object FrStrings : Strings {
     override fun windowLabel(number: Int) = "Fenêtre $number"
     override val closeTab = "Fermer l'onglet"
     override val sortTabs = "Trier les onglets de cette fenêtre"
+    override val toggleTabWindow = "Replier ou déplier les onglets de cette fenêtre"
     override fun saveTabsHint(count: Int, closing: Boolean) =
         "Enregistrer les onglets de cette fenêtre ($count) dans la collection ouverte, sans groupe — " +
             if (closing) "et les fermer" else "et les laisser ouverts"
@@ -2002,6 +2010,7 @@ private object EsStrings : Strings {
     override fun windowLabel(number: Int) = "Ventana $number"
     override val closeTab = "Cerrar pestaña"
     override val sortTabs = "Ordenar las pestañas de esta ventana"
+    override val toggleTabWindow = "Plegar o desplegar las pestañas de esta ventana"
     override fun saveTabsHint(count: Int, closing: Boolean) =
         "Guardar las pestañas de esta ventana ($count) en la colección abierta, sin grupo — " +
             if (closing) "y cerrarlas" else "y dejarlas abiertas"
@@ -2414,6 +2423,7 @@ private object DeStrings : Strings {
     override fun windowLabel(number: Int) = "Fenster $number"
     override val closeTab = "Tab schließen"
     override val sortTabs = "Tabs dieses Fensters sortieren"
+    override val toggleTabWindow = "Tabs dieses Fensters ein- oder ausklappen"
     override fun saveTabsHint(count: Int, closing: Boolean) =
         "Tabs dieses Fensters ($count) in die geöffnete Sammlung speichern, ohne Gruppe — " +
             if (closing) "und sie schließen" else "und sie offen lassen"
@@ -2826,6 +2836,7 @@ private object PtBrStrings : Strings {
     override fun windowLabel(number: Int) = "Janela $number"
     override val closeTab = "Fechar aba"
     override val sortTabs = "Ordenar as abas desta janela"
+    override val toggleTabWindow = "Recolher ou expandir as abas desta janela"
     override fun saveTabsHint(count: Int, closing: Boolean) =
         "Salvar as abas desta janela ($count) na coleção aberta, sem grupo — " +
             if (closing) "e fechá-las" else "e deixá-las abertas"
@@ -3231,6 +3242,7 @@ private object ZhCnStrings : Strings {
     override fun windowLabel(number: Int) = "窗口 $number"
     override val closeTab = "关闭标签页"
     override val sortTabs = "对此窗口的标签页排序"
+    override val toggleTabWindow = "折叠或展开此窗口的标签页"
     override fun saveTabsHint(count: Int, closing: Boolean) =
         "将此窗口的标签页（$count 个）保存到已打开的收藏夹中，不分组——" +
             if (closing) "并关闭它们" else "并保持打开"
@@ -3638,6 +3650,7 @@ private object JaStrings : Strings {
     override fun windowLabel(number: Int) = "ウィンドウ $number"
     override val closeTab = "タブを閉じる"
     override val sortTabs = "このウィンドウのタブを並べ替え"
+    override val toggleTabWindow = "このウィンドウのタブを折りたたむ／展開する"
     override fun saveTabsHint(count: Int, closing: Boolean) =
         "このウィンドウのタブ（$count 個）を開いているコレクションにグループなしで保存——" +
             if (closing) "して閉じます" else "して開いたままにします"
@@ -4048,6 +4061,7 @@ private object KoStrings : Strings {
     override fun windowLabel(number: Int) = "창 $number"
     override val closeTab = "탭 닫기"
     override val sortTabs = "이 창의 탭 정렬"
+    override val toggleTabWindow = "이 창의 탭 접기 또는 펼치기"
     override fun saveTabsHint(count: Int, closing: Boolean) =
         "이 창의 탭（$count 개）을 열려 있는 컬렉션에 그룹 없이 저장——" +
             if (closing) "하고 닫기" else "하고 열어 두기"
@@ -4460,6 +4474,7 @@ private object ItStrings : Strings {
     override fun windowLabel(number: Int) = "Finestra $number"
     override val closeTab = "Chiudi scheda"
     override val sortTabs = "Ordina le schede di questa finestra"
+    override val toggleTabWindow = "Comprimi o espandi le schede di questa finestra"
     override fun saveTabsHint(count: Int, closing: Boolean) =
         "Salva le schede di questa finestra ($count) nella raccolta aperta, senza gruppo — " +
             if (closing) "e chiudile" else "e lasciale aperte"
@@ -4871,6 +4886,7 @@ private object TrStrings : Strings {
     override fun windowLabel(number: Int) = "Pencere $number"
     override val closeTab = "Sekmeyi kapat"
     override val sortTabs = "Bu pencerenin sekmelerini sırala"
+    override val toggleTabWindow = "Bu pencerenin sekmelerini daralt veya genişlet"
     override fun saveTabsHint(count: Int, closing: Boolean) =
         "Bu pencerenin sekmelerini ($count) açık koleksiyona, grupsuz olarak kaydet — " +
             if (closing) "ve kapat" else "ve açık bırak"
