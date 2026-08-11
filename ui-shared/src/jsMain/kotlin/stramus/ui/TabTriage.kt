@@ -139,13 +139,27 @@ private data class TriageCatalog(
 private data class RelatedCard(val title: String, val collectionTitle: String)
 
 /**
+ * Everything a row can be made to do, gathered up rather than handed down one argument at a time: it
+ * is the same seven for every row on screen, always in the same order, and none of them is ever read
+ * on its own by whatever is passing them along.
+ */
+private data class RowActions(
+    val targetOf: (CapturedTab) -> Target?,
+    val sectionsIn: (String) -> List<String>,
+    val setTicked: (Int, Boolean) -> Unit,
+    val setCollection: (Int, String) -> Unit,
+    val setSection: (Int, String) -> Unit,
+    /** Save this row now, on its own — see `saveOne`. */
+    val saveOne: (CapturedTab) -> Unit,
+    /** Close this row's tab, saving nothing — see `closeOne`. */
+    val closeOne: (CapturedTab) -> Unit,
+)
+
+/**
  * The store's collections, read into the shape the model is shown — name, sidebar group, sections, and
  * a few saved cards as what the collection actually holds (see [TriageCollection.examples]).
  *
- * Shared between [TabTriageModal], which reads it once when the plan is asked for, and the App's
- * background pre-evaluation, which reads it again whenever the collections themselves change — the same
- * computation either way, so the catalog a tab is judged against in the background is never a different
- * shape from the one it would be judged against in the modal.
+ * Read once by [TabTriageModal], when the plan is asked for.
  */
 suspend fun knownCollections(
     collections: List<Collection>,
@@ -227,14 +241,6 @@ external interface TabTriageProps : Props {
     var newCollectionsIn: String
 
     /**
-     * What the App's background pre-evaluation already worked out for some of [tabs], keyed by tab id —
-     * null for one it confidently found no place for. Skips asking the model about these all over
-     * again; see [triage]'s own `precomputed` for how a stale or since-superseded guess here is caught
-     * rather than trusted.
-     */
-    var precomputed: Map<Int, TriageAssignment?>
-
-    /**
      * True where the run should ask the cloud model rather than the one on this machine — a wholly
      * different run, `cloudTriage` over [api] rather than `triage` over [assistant]: the cloud model's
      * whole catalog lives on the server, so there is no local [TriageCollection] list to pre-summarise
@@ -245,8 +251,18 @@ external interface TabTriageProps : Props {
     /** True where the setting says a saved tab is closed — the button has to say which it will do. */
     var closesTabs: Boolean
 
-    /** Close these tabs — what the two pre-steps act with, before the model ever sees the window. */
+    /**
+     * Close these tabs — what the two pre-steps act with, before the model ever sees the window, and
+     * what a single row's × acts with once the plan is up.
+     */
     var onCloseTabs: (List<Int>) -> Unit
+
+    /**
+     * Save this one row now, the modal staying open — the row's own ✓, as against [onApply], which is
+     * the whole plan and the end of the run. Closes the tab afterwards on the same setting [closesTabs]
+     * reports, so one row dealt with by hand means exactly what the same row would have meant at the end.
+     */
+    var onSaveOne: (TriageAssignment) -> Unit
 
     var onApply: (List<TriageAssignment>) -> Unit
     var onClose: () -> Unit
@@ -306,12 +322,23 @@ val TabTriageModal = FC<TabTriageProps> { props ->
     // the next one's unrelated list of tabs.
     var keptOpen by useState<Set<Int>>(emptySet())
 
+    // Rows already dealt with one at a time — saved by their own ✓, or closed by their own ×. They
+    // leave the plan the moment they are acted on, which is what keeps the remaining list a list of
+    // what is still to decide, and what keeps a row saved by hand out of the final apply a second time.
+    //
+    // Held here rather than left to the tab list to sort out, because it does not always: a saved row
+    // whose tab stays open (the setting says so) is gone from the plan all the same, and a closed one
+    // must go now rather than whenever the browser's own event comes back.
+    var settled by useState<Set<Int>>(emptySet())
+
     // The window's pages, gathered by site and with the duplicates already collapsed. Derived from the
     // props rather than held: it is what the tabs *are*, and the run has no say in it.
     val groups = useMemo(props.tabs) { preGroup(props.tabs.map { TriageTab(it.id, it.title, it.url) }) }
     val byId = useMemo(props.tabs) { props.tabs.associateBy { it.id } }
     // One row per page — not per tab: the same page open twice was two identical rows to read.
-    val rows = useMemo(groups, byId) { groups.flatMap { group -> group.tabs.mapNotNull { byId[it.id] } } }
+    val rows = useMemo(groups, byId, settled) {
+        groups.flatMap { group -> group.tabs.mapNotNull { byId[it.id] } }.filterNot { it.id in settled }
+    }
 
     // The same page, open more than once — the second pre-step's business. A free, certain check, over
     // `props.tabs` rather than `rows`: `rows` has already collapsed these for the model (see `preGroup`),
@@ -411,7 +438,6 @@ val TabTriageModal = FC<TabTriageProps> { props ->
                     known = known,
                     sidebarGroups = props.sidebarSections.map { it.title },
                     newCollectionsIn = props.newCollectionsIn,
-                    precomputed = props.precomputed,
                     // The browser's `monitor` fires a progress event even for a model that is already
                     // on the machine — nothing is actually being fetched, and the number means nothing.
                     // Rather than try to tell a real download from that one apart by its numbers,
@@ -613,16 +639,20 @@ val TabTriageModal = FC<TabTriageProps> { props ->
         setDropped { it - tabId }
     }
 
-    /** The plan as it now stands, ready to be applied — the unticked and the unplaced left out. */
-    val chosen = rows.mapNotNull { tab ->
-        val target = targetOf(tab) ?: return@mapNotNull null
+    /**
+     * One row as the store would carry it out, or null for a row that is going nowhere — unticked, or
+     * not placed yet. The one place a [Target] becomes a [TriageAssignment], so a row saved on its own
+     * lands exactly where the same row would have landed at the end of the plan.
+     */
+    fun assignmentFor(tab: CapturedTab): TriageAssignment? {
+        val target = targetOf(tab) ?: return null
         val collection = existing(target.collection)
         val section = target.section?.let { wanted ->
             collection?.sections?.firstOrNull { it.title.trim().equals(wanted.trim(), ignoreCase = true) }
         }
         // The group travels with the plan: `applyTriage` needs it to know where to *make* a collection
         // that does not exist. For one that does, it is where it already is and changes nothing.
-        TriageAssignment(
+        return TriageAssignment(
             tabId = tab.id,
             collectionTitle = target.collection,
             // What the run resolved wins; the local lookup is the fallback for a title that only this
@@ -633,6 +663,32 @@ val TabTriageModal = FC<TabTriageProps> { props ->
             groupTitle = groupOf(target.collection),
         )
     }
+
+    /** The plan as it now stands, ready to be applied — the unticked and the unplaced left out. */
+    val chosen = rows.mapNotNull { assignmentFor(it) }
+
+    /**
+     * This row, now, into the collection the plan has it going to — and out of the plan afterwards, so
+     * the button that ends the run does not save it a second time.
+     *
+     * Why a row has its own button at all: a plan of forty rows is read from the top, and the ones the
+     * user is already sure about are in the way of the ones they are not. Dealing with one where they
+     * are looking beats scrolling back to a single "apply everything" once they have thought about all
+     * of it — and a run interrupted halfway has still saved what it saved.
+     */
+    fun saveOne(tab: CapturedTab) {
+        val assignment = assignmentFor(tab) ?: return
+        props.onSaveOne(assignment)
+        settled = settled + tab.id
+    }
+
+    /** This row's tab closed, and nothing saved — the row's own answer to "not this one, and not later". */
+    fun closeOne(tab: CapturedTab) {
+        props.onCloseTabs(listOf(tab.id))
+        settled = settled + tab.id
+    }
+
+    val actions = RowActions(::targetOf, ::sectionsIn, ::setTicked, ::setCollection, ::setSection, ::saveOne, ::closeOne)
     val running = plan.total > 0 && plan.done < plan.total && error == null
 
     modalShell(props.onClose, "modal triage-modal") {
@@ -755,16 +811,16 @@ val TabTriageModal = FC<TabTriageProps> { props ->
                             // A collection with no sections in the plan is just its rows: a lone
                             // "Ungrouped" heading over all of them divides nothing.
                             if (sections.isEmpty()) {
-                                triageRows(s, "u:$title", ungrouped, catalog, titlesByGroup, ::targetOf, ::sectionsIn, ::setTicked, ::setCollection, ::setSection)
+                                triageRows(s, "u:$title", ungrouped, catalog, titlesByGroup, actions)
                             } else {
                                 if (ungrouped.isNotEmpty()) {
                                     triageSectionHead(s.ungrouped, isNew = false, count = ungrouped.size, strings = s, section = null)
-                                    triageRows(s, "u:$title", ungrouped, catalog, titlesByGroup, ::targetOf, ::sectionsIn, ::setTicked, ::setCollection, ::setSection)
+                                    triageRows(s, "u:$title", ungrouped, catalog, titlesByGroup, actions)
                                 }
                                 sections.forEach { section ->
                                     val under = going.filter { targetOf(it)?.section == section }
                                     triageSectionHead(section, isNewSection(title, section), under.size, s, section)
-                                    triageRows(s, "s:$title/$section", under, catalog, titlesByGroup, ::targetOf, ::sectionsIn, ::setTicked, ::setCollection, ::setSection)
+                                    triageRows(s, "s:$title/$section", under, catalog, titlesByGroup, actions)
                                 }
                             }
                         }
@@ -785,7 +841,7 @@ val TabTriageModal = FC<TabTriageProps> { props ->
                         span { className = ClassName("count"); +leftOut.size.toString() }
                     }
                     if (!running) div { className = ClassName("empty small"); +s.triageUnsortedHint }
-                    triageRows(s, "left", leftOut, catalog, titlesByGroup, ::targetOf, ::sectionsIn, ::setTicked, ::setCollection, ::setSection)
+                    triageRows(s, "left", leftOut, catalog, titlesByGroup, actions)
                 }
             }
         }
@@ -905,11 +961,7 @@ private fun ChildrenBuilder.triageRows(
     rows: List<CapturedTab>,
     catalog: TriageCatalog,
     titlesByGroup: List<Pair<String, List<String>>>,
-    targetOf: (CapturedTab) -> Target?,
-    sectionsIn: (String) -> List<String>,
-    setTicked: (Int, Boolean) -> Unit,
-    setCollection: (Int, String) -> Unit,
-    setSection: (Int, String) -> Unit,
+    actions: RowActions,
 ) {
     ul {
         key = rowsKey.unsafeCast<Key>()
@@ -921,7 +973,7 @@ private fun ChildrenBuilder.triageRows(
         val firstOfHost = hosts.withIndex().distinctBy { it.value }.map { it.index }.toSet()
 
         rows.forEachIndexed { index, tab ->
-            val target = targetOf(tab)
+            val target = actions.targetOf(tab)
             li {
                 key = tab.id.toString().unsafeCast<Key>()
                 className = ClassName(if (target == null) "triage-tab skipped" else "triage-tab")
@@ -932,7 +984,7 @@ private fun ChildrenBuilder.triageRows(
                         checked = target != null
                         // Where a ticked-back row goes is the run's business, not this row's: see
                         // `setTicked`, which still has what the model said about it.
-                        onChange = { e -> setTicked(tab.id, e.target.checked) }
+                        onChange = { e -> actions.setTicked(tab.id, e.target.checked) }
                     }
                     Favicon {
                         url = tab.url
@@ -951,7 +1003,7 @@ private fun ChildrenBuilder.triageRows(
                     className = ClassName("triage-target")
                     hint(s.triageMoveHint)
                     value = target?.collection ?: NONE
-                    onChange = { e -> setCollection(tab.id, e.target.value) }
+                    onChange = { e -> actions.setCollection(tab.id, e.target.value) }
                     option { value = NONE; +s.triageSkip }
                     // Grouped by sidebar section, as the plan above is: "Поиск" under "Работа" and
                     // "Поиск" under "Личное" are different collections, and a flat menu of names
@@ -968,18 +1020,40 @@ private fun ChildrenBuilder.triageRows(
                 }
                 // Only where the row is going somewhere, and only where that somewhere has dividers:
                 // a picker offering nothing but "no section" is a control that cannot be used.
-                val sections = target?.let { sectionsIn(it.collection) }.orEmpty()
+                val sections = target?.let { actions.sectionsIn(it.collection) }.orEmpty()
                 if (target != null && sections.isNotEmpty()) {
                     select {
                         className = ClassName("triage-target triage-section-pick")
                         hint(s.triageSectionHint)
                         value = target.section ?: NONE
-                        onChange = { e -> setSection(tab.id, e.target.value) }
+                        onChange = { e -> actions.setSection(tab.id, e.target.value) }
                         option { value = NONE; +s.triageNoSection }
                         sections.forEach { section ->
                             option { key = section.unsafeCast<Key>(); value = section; +section }
                         }
                     }
+                }
+                // The two ways to be done with this one row without waiting for the rest of the plan.
+                // Both leave the list the moment they are pressed (see `saveOne` and `closeOne`), which
+                // is what makes them worth pressing: the plan shrinks to what is still undecided.
+                //
+                // Saving is offered only where the row is actually going somewhere — a row nobody has
+                // placed has no collection to be saved into, and a ✓ that does nothing is worse than
+                // no ✓ at all. Closing is offered on every row: "not this one, and not later" is an
+                // answer about a tab, and a tab is there either way.
+                if (target != null) {
+                    button {
+                        className = ClassName("icon triage-act")
+                        hint(s.triageSaveOneHint)
+                        onClick = { actions.saveOne(tab) }
+                        icon("check")
+                    }
+                }
+                button {
+                    className = ClassName("icon del triage-act")
+                    hint(s.triageCloseOneHint)
+                    onClick = { actions.closeOne(tab) }
+                    icon("x")
                 }
             }
             catalog.related[hosts[index]]?.takeIf { index in firstOfHost }?.let { found ->

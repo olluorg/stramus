@@ -12,7 +12,6 @@ import stramus.core.platform.AiQuotaExceededException
 import stramus.core.platform.AiSession
 import stramus.core.sync.ApiException
 import stramus.core.sync.StramusApi
-import stramus.core.url.hostOf
 import stramus.protocol.AiInventedCollection
 import stramus.protocol.AiTriageRequest
 import stramus.protocol.AiTriageTab
@@ -80,13 +79,6 @@ sealed interface TriageStep {
  * is what a collection's name means (see [TriageCollection.inSection]), and an invented one shown
  * groupless would be the one collection in the list the model cannot read properly.
  *
- * [precomputed] is what [BackgroundTriage] already worked out while the user was merely looking at a
- * tab, keyed by tab id — null for one it looked at and confidently left unassigned, absent for one it
- * never saw. Either way costs this run nothing: an id present in the map is never asked about, its
- * batch shrinking to whatever is left. It is still folded through [OfferedCatalog.reconcile] like
- * everything else, so a collection the background made up before the user created one of the same name
- * by hand — or before an earlier batch of *this* run invented it — is not saved as a second copy of it.
- *
  * Cancelling the collection — the user closed the window — stops the run and gives back every session.
  *
  * This is the local model's run. A cloud one is a different shape entirely — see [cloudTriage] — because
@@ -99,7 +91,6 @@ fun triage(
     known: List<TriageCollection>,
     sidebarGroups: List<String>,
     newCollectionsIn: String?,
-    precomputed: Map<Int, TriageAssignment?> = emptyMap(),
     onDownloadProgress: (Double) -> Unit = {},
 ): Flow<TriageStep> = flow {
     val batches = batches(groups)
@@ -112,22 +103,11 @@ fun triage(
         var doneTabs = 0
 
         batches.forEach { batch ->
-            // Whatever [BackgroundTriage] already settled for a tab is not asked about again — its
-            // batch shrinks to the rest. Folded first, so a collection it made up is in [catalog]
-            // before the rest of this very batch is asked, exactly as an earlier batch's would be.
-            val (ready, pending) = batch.tabs.partition { it.id in precomputed }
-            val cached = ready.mapNotNull { precomputed[it.id] }.map(catalog::reconcile)
-            cached.forEach(catalog::fold)
-
-            val fresh = if (pending.isEmpty()) {
-                emptyList()
-            } else {
-                resolveBatch(base, TabBatch(batch.host, pending), catalog.asked(), sidebarGroups).map(catalog::reconcile)
-            }
-            fresh.forEach(catalog::fold)
+            val placed = resolveBatch(base, batch, catalog.asked(), sidebarGroups).map(catalog::reconcile)
+            placed.forEach(catalog::fold)
 
             doneTabs += batch.tabs.size
-            emit(TriageStep.Placed(batch.host, doneTabs, totalTabs, cached + fresh))
+            emit(TriageStep.Placed(batch.host, doneTabs, totalTabs, placed))
         }
     } finally {
         base.close()
@@ -257,9 +237,8 @@ private fun foldInvented(invented: List<AiInventedCollection>, assignments: List
 /**
  * The catalog a run offers back to itself as it goes, growing to include whatever the model has invented
  * so far — collections and the sections inside them alike — so the next question sees them as reusable
- * rather than inventing a second spelling of the same thing. Shared by [triage], [cloudTriage] and
- * [BackgroundTriage], which each grow one of these across a different span: one run, one run, or a whole
- * page's lifetime.
+ * rather than inventing a second spelling of the same thing. Shared by [triage] and [cloudTriage],
+ * which each grow one of these across a single run.
  */
 private class OfferedCatalog(known: List<TriageCollection>, private val newCollectionsIn: String?) {
     private val offered = known.toMutableList()
@@ -308,25 +287,11 @@ private class OfferedCatalog(known: List<TriageCollection>, private val newColle
             }
         }
     }
-
-    /**
-     * Refresh [asked] from the store's real collections — [BackgroundTriage.seed]'s own doing. Whatever
-     * this has invented since the last call and the store still does not have survives; an invention the
-     * store *has* since gained (the user made one by hand, or an applied plan did) is dropped, so the
-     * next question is offered the real one and not a copy of it under a different id.
-     */
-    fun reset(known: List<TriageCollection>) {
-        val invented = offered.filter { it.id == null && known.none { k -> k.title.equals(it.title, ignoreCase = true) } }
-        offered.clear()
-        offered += known
-        offered += invented
-    }
 }
 
 /**
  * What a batch resolves to: asked twice, only what agrees kept (see [agreed]), and a leftover section
- * disagreement settled by [adjudicateSections] rather than dropped. The one piece of [triage] that
- * [BackgroundTriage] also runs, one tab at a time, ahead of the user asking for a plan at all.
+ * disagreement settled by [adjudicateSections] rather than dropped.
  */
 internal suspend fun resolveBatch(
     base: AiSession,
@@ -386,75 +351,6 @@ private suspend fun adjudicateSections(base: AiSession, disagreements: List<Sect
     base.clone().use { session ->
         adjudicatedSame(session.askJson(sectionAdjudicationPrompt(disagreements), sectionAdjudicationSchema()), disagreements)
     }
-
-/**
- * What each open tab would be triaged to, worked out while the user is merely looking at it rather than
- * when they finally ask for a plan — so that by the time they do, most of the wait is already spent.
- *
- * One long-lived session, cloned per tab exactly as [triage] clones per batch: opening a fresh one for
- * every tab activated in an ordinary session of browsing would be the expensive thing this exists to
- * avoid. [evaluate] is safe to call as often as a tab is merely re-activated — the cache is keyed on the
- * tab's id *and* its current url and title, so nothing is asked twice about a tab that has not changed,
- * and a tab that has (a navigation, not a new id) is asked about again rather than answered from stale
- * memory.
- *
- * A collection this cache invents is offered back to the next tab it looks at, the same reason [triage]
- * grows its own list batch to batch — spread here across the whole page's lifetime instead of one run,
- * because two tabs of one site opened minutes apart must still join one collection, not found two. See
- * [seed] for how that list is kept from drifting too far from what the store actually holds.
- *
- * Never the source of truth for a plan: [triage]'s own `reconcile` re-derives every id this hands it
- * against the catalog as it stands *then*, so a stale guess here costs at most a wasted invention, never
- * a wrong save.
- */
-class BackgroundTriage(private val ai: AiAssistant, private val systemPrompt: String) {
-    private var base: AiSession? = null
-    private val catalog = OfferedCatalog(emptyList(), newCollectionsIn = null)
-    private val cache = mutableMapOf<Int, CachedVerdict>()
-
-    // Set once a quota-backed assistant says its month is spent, and never asked again this page's
-    // lifetime: the next tab would fail exactly the same way, and a background feature that is meant to
-    // be invisible must not spend the rest of the session finding that out one tab at a time. The local
-    // model has no such ceiling and never sets this.
-    private var quotaExceeded = false
-
-    private data class CachedVerdict(val url: String, val title: String, val assignment: TriageAssignment?)
-
-    /** See [OfferedCatalog.reset]. */
-    fun seed(known: List<TriageCollection>) = catalog.reset(known)
-
-    /** What is already known about [tab], or null for one never looked at or looked at when it read differently. */
-    fun verdict(tab: TriageTab): TriageAssignment? {
-        val cached = cache[tab.id] ?: return null
-        return cached.assignment.takeIf { cached.url == tab.url && cached.title == tab.title }
-    }
-
-    /** [tabs] filtered to what this cache can answer for right now — [triage]'s `precomputed`. */
-    fun snapshot(tabs: List<TriageTab>): Map<Int, TriageAssignment?> = buildMap {
-        tabs.forEach { tab ->
-            val cached = cache[tab.id] ?: return@forEach
-            if (cached.url == tab.url && cached.title == tab.title) put(tab.id, cached.assignment)
-        }
-    }
-
-    /** Work out where [tab] would go, unless this cache already knows — see [verdict]. */
-    suspend fun evaluate(tab: TriageTab, sidebarGroups: List<String>) {
-        if (quotaExceeded) return
-        if (verdict(tab) != null) return
-        if (cache[tab.id]?.let { it.url == tab.url && it.title == tab.title } == true) return // already asked, and confidently unsure
-        val session = base ?: ai.start(systemPrompt).also { base = it }
-        val assignment = try {
-            resolveBatch(session, TabBatch(hostOf(tab.url), listOf(tab)), catalog.asked(), sidebarGroups).firstOrNull()
-        } catch (e: AiQuotaExceededException) {
-            quotaExceeded = true
-            null
-        } catch (e: Throwable) {
-            null
-        }
-        assignment?.let(catalog::fold)
-        cache[tab.id] = CachedVerdict(tab.url, tab.title, assignment)
-    }
-}
 
 /**
  * [known], with a summary in place of a title dump wherever a collection or section holds more than

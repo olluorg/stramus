@@ -234,6 +234,10 @@ interface Strings {
     /** Move past a pre-step without closing anything. */
     val triageSkipStep: String
 
+    /** The two buttons a row of the plan carries: save this one now, or close its tab and save nothing. */
+    val triageSaveOneHint: String
+    val triageCloseOneHint: String
+
     /** What the model is told before it is shown the sites: what it is sorting, and into what. */
     val aiTriageSystemPrompt: String
 
@@ -681,6 +685,8 @@ private object EnStrings : Strings {
     override val triageDupesHint = "The same page is open more than once. Close the extra copies before sorting."
     override fun triageCloseStep(count: Int) = "Close ($count) and continue"
     override val triageSkipStep = "Continue without closing"
+    override val triageSaveOneHint = "Save this tab now, into the collection shown"
+    override val triageCloseOneHint = "Close this tab without saving it"
     override val aiTriageSystemPrompt = "You sort a user's open browser tabs into their collections. " +
         "You are given tabs and the collections that exist. For every tab, answer with the one " +
         "collection it belongs in — reuse an existing name wherever the tab fits it, and only invent " +
@@ -1095,6 +1101,8 @@ private object RuStrings : Strings {
     override val triageDupesHint = "Одна и та же страница открыта не в одной вкладке. Закройте лишние перед разбором."
     override fun triageCloseStep(count: Int) = "Закрыть ($count) и продолжить"
     override val triageSkipStep = "Продолжить, не закрывая"
+    override val triageSaveOneHint = "Сохранить эту вкладку сейчас — в показанную коллекцию"
+    override val triageCloseOneHint = "Закрыть эту вкладку, не сохраняя"
     override val aiTriageSystemPrompt = "Ты раскладываешь открытые вкладки браузера по коллекциям " +
         "пользователя. Тебе дают вкладки и список существующих коллекций. Для каждой вкладки назови одну " +
         "коллекцию, которой он принадлежит: переиспользуй существующее название везде, где сайт в него " +
@@ -1508,6 +1516,8 @@ private object FrStrings : Strings {
     override val triageDupesHint = "La même page est ouverte plusieurs fois. Fermez les copies en trop avant le tri."
     override fun triageCloseStep(count: Int) = "Fermer ($count) et continuer"
     override val triageSkipStep = "Continuer sans fermer"
+    override val triageSaveOneHint = "Enregistrer cet onglet maintenant, dans la collection indiquée"
+    override val triageCloseOneHint = "Fermer cet onglet sans l'enregistrer"
     override val aiTriageSystemPrompt = "Tu tries les onglets ouverts d'un utilisateur dans ses collections. " +
         "On te donne les onglets et les collections existantes. Pour chaque onglet, réponds avec l'unique " +
         "collection à laquelle il appartient — réutilise un nom existant partout où l'onglet lui correspond, " +
@@ -1921,6 +1931,8 @@ private object EsStrings : Strings {
     override val triageDupesHint = "La misma página está abierta más de una vez. Cierre las copias de más antes de ordenar."
     override fun triageCloseStep(count: Int) = "Cerrar ($count) y continuar"
     override val triageSkipStep = "Continuar sin cerrar"
+    override val triageSaveOneHint = "Guardar esta pestaña ahora, en la colección indicada"
+    override val triageCloseOneHint = "Cerrar esta pestaña sin guardarla"
     override val aiTriageSystemPrompt = "Ordenas las pestañas abiertas del navegador de un usuario en sus " +
         "colecciones. Se te dan las pestañas y las colecciones que existen. Para cada pestaña, responde con " +
         "la única colección a la que pertenece — reutiliza un nombre existente siempre que la pestaña encaje, " +
@@ -2334,6 +2346,8 @@ private object DeStrings : Strings {
     override val triageDupesHint = "Dieselbe Seite ist mehrfach geöffnet. Schließen Sie die zusätzlichen Kopien vor dem Sortieren."
     override fun triageCloseStep(count: Int) = "Schließen ($count) und weiter"
     override val triageSkipStep = "Weiter, ohne zu schließen"
+    override val triageSaveOneHint = "Diesen Tab jetzt speichern, in der gezeigten Sammlung"
+    override val triageCloseOneHint = "Diesen Tab schließen, ohne ihn zu speichern"
     override val aiTriageSystemPrompt = "Du sortierst die offenen Browser-Tabs eines Nutzers in dessen Sammlungen. " +
         "Du bekommst die Tabs und die vorhandenen Sammlungen. Antworte für jeden Tab mit der einen Sammlung, " +
         "zu der er gehört — nutze einen vorhandenen Namen, wo immer der Tab dazu passt, und erfinde nur dann " +
@@ -2747,6 +2761,8 @@ private object PtBrStrings : Strings {
     override val triageDupesHint = "A mesma página está aberta mais de uma vez. Feche as cópias extras antes de organizar."
     override fun triageCloseStep(count: Int) = "Fechar ($count) e continuar"
     override val triageSkipStep = "Continuar sem fechar"
+    override val triageSaveOneHint = "Salvar esta aba agora, na coleção indicada"
+    override val triageCloseOneHint = "Fechar esta aba sem salvá-la"
     override val aiTriageSystemPrompt = "Você organiza as abas abertas do navegador de um usuário em suas " +
         "coleções. Você recebe as abas e as coleções existentes. Para cada aba, responda com a única " +
         "coleção a que ela pertence — reutilize um nome existente sempre que a aba se encaixar nele, e só " +
@@ -3156,6 +3172,8 @@ private object ZhCnStrings : Strings {
     override val triageDupesHint = "同一页面打开了不止一次。整理前请先关闭多余的副本。"
     override fun triageCloseStep(count: Int) = "关闭（$count）并继续"
     override val triageSkipStep = "不关闭，继续"
+    override val triageSaveOneHint = "立即把该标签页保存到所示收藏夹"
+    override val triageCloseOneHint = "不保存，直接关闭该标签页"
     override val aiTriageSystemPrompt = "你需要把用户浏览器中打开的标签页整理到他们的收藏夹中。系统会给你提供" +
         "标签页列表和现有的收藏夹。对每个标签页，回答它所属的唯一一个收藏夹——只要合适就复用已有的名称，" +
         "只有在都不合适时才发明一个简短的新名称（一到两个词）。在收藏夹内，你也可以指定一个分组，同样优先" +
@@ -3563,6 +3581,8 @@ private object JaStrings : Strings {
     override val triageDupesHint = "同じページが複数開かれています。整理する前に余分なタブを閉じてください。"
     override fun triageCloseStep(count: Int) = "閉じて続ける（$count）"
     override val triageSkipStep = "閉じずに続ける"
+    override val triageSaveOneHint = "このタブを今すぐ、表示されているコレクションに保存"
+    override val triageCloseOneHint = "このタブを保存せずに閉じる"
     override val aiTriageSystemPrompt = "あなたはユーザーのブラウザで開いているタブを、そのコレクションに整理します。" +
         "タブと既存のコレクションが与えられます。各タブについて、それが属する唯一のコレクションを答えてください——" +
         "タブに合う既存の名前があればそれを使い、どれにも合わない場合のみ短い新しい名前（1、2語）を考えてください。" +
@@ -3973,6 +3993,8 @@ private object KoStrings : Strings {
     override val triageDupesHint = "같은 페이지가 여러 개 열려 있습니다. 정리하기 전에 여분의 탭을 닫으세요."
     override fun triageCloseStep(count: Int) = "닫고 계속（$count）"
     override val triageSkipStep = "닫지 않고 계속"
+    override val triageSaveOneHint = "이 탭을 표시된 컬렉션에 지금 저장"
+    override val triageCloseOneHint = "저장하지 않고 이 탭 닫기"
     override val aiTriageSystemPrompt = "당신은 사용자의 브라우저에 열려 있는 탭을 그의 컬렉션으로 정리합니다. " +
         "탭 목록과 기존 컬렉션이 주어집니다. 각 탭에 대해 그 탭이 속하는 단 하나의 컬렉션으로 답하세요——" +
         "탭에 맞는 기존 이름이 있으면 그것을 재사용하고, 어느 것에도 맞지 않을 때만 짧은 새 이름(한두 단어)을 " +
@@ -4385,6 +4407,8 @@ private object ItStrings : Strings {
     override val triageDupesHint = "La stessa pagina è aperta più di una volta. Chiudi le copie in più prima di ordinare."
     override fun triageCloseStep(count: Int) = "Chiudi ($count) e continua"
     override val triageSkipStep = "Continua senza chiudere"
+    override val triageSaveOneHint = "Salva questa scheda ora, nella raccolta indicata"
+    override val triageCloseOneHint = "Chiudi questa scheda senza salvarla"
     override val aiTriageSystemPrompt = "Ordini le schede aperte nel browser di un utente nelle sue raccolte. " +
         "Ti vengono fornite le schede e le raccolte esistenti. Per ogni scheda, rispondi con l'unica " +
         "raccolta a cui appartiene — riusa un nome esistente ovunque la scheda vi si adatti, e inventa " +
@@ -4798,6 +4822,8 @@ private object TrStrings : Strings {
     override val triageDupesHint = "Aynı sayfa birden fazla kez açık. Sıralamadan önce fazladan kopyaları kapatın."
     override fun triageCloseStep(count: Int) = "Kapat ($count) ve devam et"
     override val triageSkipStep = "Kapatmadan devam et"
+    override val triageSaveOneHint = "Bu sekmeyi şimdi, gösterilen koleksiyona kaydet"
+    override val triageCloseOneHint = "Bu sekmeyi kaydetmeden kapat"
     override val aiTriageSystemPrompt = "Bir kullanıcının tarayıcısında açık olan sekmeleri onun koleksiyonlarına " +
         "ayırıyorsun. Sana sekmeler ve mevcut koleksiyonlar veriliyor. Her sekme için, ait olduğu tek " +
         "koleksiyonla cevap ver — sekme uyduğu her yerde mevcut bir adı yeniden kullan, ve hiçbirine " +

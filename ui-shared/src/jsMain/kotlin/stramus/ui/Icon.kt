@@ -29,6 +29,7 @@ private val ICONS: Map<String, String> = mapOf(
         """<path d="M4 20l1-4L16 5l3 3L8 19l-4 1z"/><path d="M14 6l3 3"/>""",
     ),
     "x" to svg("""<path d="M6 6l12 12M18 6L6 18"/>"""),
+    "check" to svg("""<path d="M5 12.5l4.5 4.5L19 7"/>"""),
     "settings" to svg(
         """<polygon points="12,3 19,7.5 19,16.5 12,21 5,16.5 5,7.5"/><circle cx="12" cy="12" r="3"/>""",
     ),

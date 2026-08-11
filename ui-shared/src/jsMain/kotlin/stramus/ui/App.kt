@@ -28,9 +28,7 @@ import react.useEffectOnce
 import react.useMemo
 import react.useRef
 import react.useState
-import stramus.core.ai.BackgroundTriage
 import stramus.core.ai.TriageAssignment
-import stramus.core.ai.TriageTab
 import stramus.core.db.StramusStore
 import stramus.core.db.openStramusStore
 import stramus.core.platform.GoogleSignIn
@@ -1177,47 +1175,6 @@ val App = FC<AppProps> { props ->
         tc.onTabsChanged { scope.launch { openTabs = tc.currentTabs() } }
     }
 
-    // The tab triage's background half: while this page is open, work out where the tab the user is
-    // currently looking at would be sorted, before they ever ask for a plan — see `BackgroundTriage`.
-    // One cache for the page's whole lifetime, the same reason `openTabs` above is not rebuilt per
-    // effect: opening a session per tile the user happens to glance at would spend exactly the time
-    // this exists to save.
-    val backgroundTriage = useRef<BackgroundTriage>(null)
-
-    // Kept current with what the store actually holds, so a collection this cache goes on to invent is
-    // never a second copy of one the user already has — see `BackgroundTriage.seed`. Read out of
-    // `collections`/`sections` rather than the props `TabTriageModal` builds for itself, because there
-    // is no modal open yet for this to be a prop of.
-    useEffect(collections, sections, ai, aiTriage) {
-        val assistant = ai
-        if (!aiTriage || assistant == null) return@useEffect
-        val cache = backgroundTriage.current ?: BackgroundTriage(assistant, t.aiTriageSystemPrompt).also { backgroundTriage.current = it }
-        val targets = collections.filter { it.id !in hiddenCollectionIds && !it.readOnly }
-        val sidebar = sections.filter { it.id !in lockedSectionIds }
-        scope.launch {
-            val s = store ?: return@launch
-            cache.seed(knownCollections(targets, sidebar, s.cardSections, s.cards))
-        }
-    }
-
-    // The tab the user is looking at, in every window — evaluated the moment it changes. `evaluate`
-    // itself is what keeps this cheap: asked again about a tab it already has a fresh answer for, it
-    // does nothing, so a coarse "something changed" signal like `openTabs` firing on every tab event is
-    // fine to react to directly rather than working out which event this was.
-    useEffect(openTabs, aiTriage, aiLocalAvailable, ai) {
-        val assistant = ai
-        if (!aiTriage || aiLocalAvailable != true || assistant == null) return@useEffect
-        val cache = backgroundTriage.current ?: BackgroundTriage(assistant, t.aiTriageSystemPrompt).also { backgroundTriage.current = it }
-        // Only real pages: the extension's own new-tab page and the browser's internal pages have
-        // nothing a collection would mean, and are not what this feature is for.
-        val active = openTabs.filter { it.active && it.url.startsWith("http") }
-        if (active.isEmpty()) return@useEffect
-        val sidebarGroups = sections.filter { it.id !in lockedSectionIds }.map { it.title }
-        scope.launch {
-            active.forEach { tab -> cache.evaluate(TriageTab(tab.id, tab.title, tab.url), sidebarGroups) }
-        }
-    }
-
     // The history pane, live in the same way — but only while it is the pane on screen, and re-read
     // whenever the query changes: the search is the browser's own, over every visit it kept, not a
     // filter over the few hundred entries held here.
@@ -1563,6 +1520,108 @@ val App = FC<AppProps> { props ->
     }
 
     /**
+     * One row of a plan, carried out: the collection it names and the section inside it, created where
+     * the plan invented them, and a card made of the tab. Gives back the card's id, or null for a [tab]
+     * that is gone — the user closed it in the browser while reading the plan, and a proposal about a
+     * tab that is not there any more is not carried out.
+     *
+     * A collection the plan invents is created in the sidebar section the plan names for it — what the
+     * preview drew it under, and what the user could overrule there. [fallbackSectionId] is only for
+     * when the plan names none. A card section it invents is created inside its collection: the model
+     * names them, it cannot make them, and the names have already survived `cleanName` and the user's eye.
+     *
+     * The three maps are the caller's memory of what it has already made, so a plan sending twenty tabs
+     * to one invented collection creates it once — `madeCollections` is what keeps the second tab of a
+     * new "Kotlin" out of a second collection called "Kotlin", `madeSections` does the same for the
+     * dividers (keyed by collection as well as name: two collections may both have a "Docs", and they
+     * are not the same divider), and `existingSections` is one read of a collection's real dividers
+     * rather than one per card. A single row saved on its own passes fresh maps and remembers nothing.
+     */
+    suspend fun saveTriageRow(
+        s: StramusStore,
+        assignment: TriageAssignment,
+        tab: CapturedTab?,
+        fallbackSectionId: Uuid,
+        madeCollections: MutableMap<String, Uuid>,
+        madeSections: MutableMap<Pair<Uuid, String>, Uuid>,
+        existingSections: MutableMap<Uuid, List<CardSection>>,
+    ): Uuid? {
+        if (tab == null) return null
+        val wantedTitle = assignment.collectionTitle.trim()
+        val collectionId = assignment.collectionId
+            ?: madeCollections[assignment.collectionTitle]
+            // Last look before making one: a collection of this name that a card could actually go
+            // into. Creating is irreversible in the way that matters — the user ends up with two
+            // collections of one name and has to merge them by hand — so it must be the thing that
+            // happens when nothing else could have been meant, not the first resort. The plan is
+            // *supposed* to have settled this already (see `Target`), and this catches the case where
+            // the two sides disagreed about identity anyway.
+            ?: collections.firstOrNull {
+                it.id !in hiddenCollectionIds && !it.readOnly &&
+                    it.title.trim().equals(wantedTitle, ignoreCase = true)
+            }?.id
+            // Created in the section the plan says, which is the one the user saw it drawn under and
+            // could change. [fallbackSectionId] is only the fallback now — it used to be the rule, and
+            // that is how a new "Электроника" ended up under "Работа" merely because a work collection
+            // happened to be open.
+            ?: s.collections.create(
+                assignment.collectionTitle,
+                sections.firstOrNull { it.title == assignment.groupTitle }?.id ?: fallbackSectionId,
+            ).id.also { madeCollections[assignment.collectionTitle] = it }
+        val cardSectionId = assignment.sectionId
+            ?: assignment.sectionTitle?.let { title ->
+                madeSections[collectionId to title]
+                    // The same last look the collection above gets, for the same reason: a divider of
+                    // this name already under this collection is the one meant. Read per collection and
+                    // remembered, so a plan filling one collection with twenty cards asks once rather
+                    // than twenty times.
+                    ?: existingSections.getOrPut(collectionId) {
+                        runCatching { s.cardSections.byCollection(collectionId) }.getOrDefault(emptyList())
+                    }.firstOrNull { it.title.trim().equals(title.trim(), ignoreCase = true) }?.id
+                    ?: s.cardSections.create(collectionId, title, null).id
+                        .also { madeSections[collectionId to title] = it }
+            }
+        return s.cards.add(
+            collectionId,
+            tab.title.ifBlank { hostOf(tab.url) },
+            tab.url,
+            tab.favicon ?: faviconFor(tab.url),
+            cardSectionId,
+            aiCreated = true,
+        ).id
+    }
+
+    /**
+     * One row of a plan saved on its own, from the ✓ the row itself carries — the same save
+     * [applyTriage] would do for it, and the same closing of the tab afterwards where the setting says
+     * a saved tab is closed.
+     *
+     * The modal stays open, and that is the whole point of the row's own button: dealing with one tab
+     * the user is already sure about is not a reason to end the run and lose the rest of the plan.
+     *
+     * No undo toast, unlike [applyTriage]: it is drawn over the page, and the modal is still standing
+     * over that — an offer nobody can see is worse than none. What this makes is one card, in a
+     * collection the user picked, deleted from there like any other.
+     */
+    fun saveTriageOne(assignment: TriageAssignment, sectionId: Uuid) {
+        val s = store ?: return
+        val tc = tabCapture ?: return
+        val tab = openTabs.firstOrNull { it.id == assignment.tabId } ?: return
+        scope.launch {
+            saveTriageRow(s, assignment, tab, sectionId, mutableMapOf(), mutableMapOf(), mutableMapOf())
+            // Closed by URL, exactly as a whole plan is (see [applyTriage]): a row stands for a *page*,
+            // the duplicates of it having been collapsed into it, and the second tab of a page that has
+            // just been saved is as saved as the first.
+            if (closeSavedTabs) openTabs.filter { it.url == tab.url }.forEach { tc.closeTab(it.id) }
+            // Read back rather than checked first: one row may well have invented the collection it
+            // went into, and one query on a button the user pressed themselves is not worth guarding.
+            collections = s.collections.all()
+            selectedId?.let { reloadCards(it) }
+            openTabs = tc.currentTabs()
+        }
+    }
+
+    /**
      * Carry out a plan the user has read: what [TabTriageModal] proposed, corrected as they saw fit.
      *
      * There is no confirmation here, unlike [saveTabs] — the preview *was* the question, and asking
@@ -1570,14 +1629,8 @@ val App = FC<AppProps> { props ->
      * The tabs are closed on the same standing setting (`closeSavedTabs`) that the ⤓ obeys: what the
      * plan changes is where a tab lands, not what saving one means.
      *
-     * A collection the plan invents is created in the sidebar section the plan names for it — what
-     * the preview drew it under, and what the user could overrule there. [sectionId] is the fallback
-     * for when the plan names none. A card section the plan invents is created inside its collection — the model names them, it cannot make them, and the
-     * names have already survived `cleanName` and the user's eye. Each is created once however many
-     * tabs were sent to it: `madeCollections` is what keeps the second tab of a new "Kotlin" out of a
-     * second collection called "Kotlin", and `madeSections` does the same for the dividers. A section
-     * is keyed by its collection as well as its name, because a section belongs to its collection —
-     * two collections may both have a "Docs", and they are not the same divider.
+     * Every row is [saveTriageRow]'s doing, sharing the one memory of what has been created so far —
+     * see it for what [sectionId] is the fallback for.
      *
      * Offered back on the undo toast, same as a deletion is: what it takes back is everything the plan
      * did, not merely the cards — a collection or section it invented goes with them, and a tab it
@@ -1597,53 +1650,16 @@ val App = FC<AppProps> { props ->
             val madeSections = mutableMapOf<Pair<Uuid, String>, Uuid>()
             /** Card sections already in a collection, read once per collection — see their use below. */
             val existingSections = mutableMapOf<Uuid, List<CardSection>>()
-            val createdCardIds = mutableListOf<Uuid>()
-            plan.forEach { assignment ->
-                // A tab the user closed in the browser while reading the plan is simply not saved: the
-                // plan is a proposal about tabs, and this one is not there any more.
-                val tab = byId[assignment.tabId] ?: return@forEach
-                val wantedTitle = assignment.collectionTitle.trim()
-                val collectionId = assignment.collectionId
-                    ?: madeCollections[assignment.collectionTitle]
-                    // Last look before making one: a collection of this name that a card could actually
-                    // go into. Creating is irreversible in the way that matters — the user ends up with
-                    // two collections of one name and has to merge them by hand — so it must be the
-                    // thing that happens when nothing else could have been meant, not the first
-                    // resort. The plan is *supposed* to have settled this already (see `Target`), and
-                    // this catches the case where the two sides disagreed about identity anyway.
-                    ?: collections.firstOrNull {
-                        it.id !in hiddenCollectionIds && !it.readOnly &&
-                            it.title.trim().equals(wantedTitle, ignoreCase = true)
-                    }?.id
-                    // Created in the section the plan says, which is the one the user saw it drawn
-                    // under and could change. [sectionId] is only the fallback now — it used to be
-                    // the rule, and that is how a new "Электроника" ended up under "Работа" merely
-                    // because a work collection happened to be open.
-                    ?: s.collections.create(
-                        assignment.collectionTitle,
-                        sections.firstOrNull { it.title == assignment.groupTitle }?.id ?: sectionId,
-                    ).id.also { madeCollections[assignment.collectionTitle] = it }
-                val cardSectionId = assignment.sectionId
-                    ?: assignment.sectionTitle?.let { title ->
-                        madeSections[collectionId to title]
-                            // The same last look the collection above gets, for the same reason: a
-                            // divider of this name already under this collection is the one meant.
-                            // Read per collection and remembered, so a plan filling one collection with
-                            // twenty cards asks once rather than twenty times.
-                            ?: existingSections.getOrPut(collectionId) {
-                                runCatching { s.cardSections.byCollection(collectionId) }.getOrDefault(emptyList())
-                            }.firstOrNull { it.title.trim().equals(title.trim(), ignoreCase = true) }?.id
-                            ?: s.cardSections.create(collectionId, title, null).id
-                                .also { madeSections[collectionId to title] = it }
-                    }
-                createdCardIds += s.cards.add(
-                    collectionId,
-                    tab.title.ifBlank { hostOf(tab.url) },
-                    tab.url,
-                    tab.favicon ?: faviconFor(tab.url),
-                    cardSectionId,
-                    aiCreated = true,
-                ).id
+            val createdCardIds = plan.mapNotNull { assignment ->
+                saveTriageRow(
+                    s,
+                    assignment,
+                    byId[assignment.tabId],
+                    sectionId,
+                    madeCollections,
+                    madeSections,
+                    existingSections,
+                )
             }
             // Closed by URL, not by the ids in the plan: the plan holds one row per *page*, the
             // duplicates having been collapsed into it (see `preGroup`), and the second tab of a page
@@ -3977,20 +3993,6 @@ val App = FC<AppProps> { props ->
                     savedSections = triageStore.cardSections
                     sidebarSections = triageSidebarSections
                     newCollectionsIn = triageSection.title
-                    // Whatever the background half already worked out for these tabs — see the
-                    // effects above. Empty is the correct fallback too: a modal opened before the
-                    // cache warmed up simply asks about everything itself, as it always did. Empty is
-                    // also what a cloud run gets on purpose: the background cache is always the local
-                    // model's own doing (it must stay free to run unattended — see those effects), and
-                    // mixing its answers into a paid, deliberately-asked cloud plan would spend money
-                    // on consistency the cloud model was the one being asked for in the first place.
-                    precomputed = if (aiTriageCloud && signedIn) {
-                        emptyMap()
-                    } else {
-                        backgroundTriage.current
-                            ?.snapshot(triageTabs.map { TriageTab(it.id, it.title, it.url) })
-                            .orEmpty()
-                    }
                     closesTabs = closeSavedTabs
                     // The two pre-steps' own "close and continue" — nothing here for the model to see,
                     // so nothing waits on a plan to close these.
@@ -4003,6 +4005,7 @@ val App = FC<AppProps> { props ->
                             }
                         }
                     }
+                    onSaveOne = { assignment -> saveTriageOne(assignment, triageSection.id) }
                     onApply = { plan -> applyTriage(plan, triageSection.id) }
                     onClose = { triageWindowId = null }
                 }

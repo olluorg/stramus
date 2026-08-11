@@ -529,6 +529,14 @@
         .triage-pick { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; cursor: pointer; }
         .triage-tab-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
         .triage-dup { flex: none; font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 1px 5px; }
+        /* The two things a single row can be made to do without waiting for the rest of the plan: save
+           it where it is going, or close its tab and save nothing. Quiet until the row is under the
+           pointer — every row carries both, and forty pairs of live buttons would read as a toolbar
+           rather than as a plan. The × is .icon.del and takes its danger colour from there. */
+        .triage-act { flex: none; border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 3px; opacity: 0; }
+        .triage-tab:hover .triage-act, .triage-tab:focus-within .triage-act { opacity: .8; }
+        .triage-tab .triage-act:hover { opacity: 1; color: var(--accent); }
+        .triage-tab .icon.del.triage-act:hover { color: var(--danger); }
         /* Two pickers on a row — the collection, then the section within it — so both are narrow, and
            the title beside them keeps what is left. The section one is only there where the collection
            has dividers at all. */
