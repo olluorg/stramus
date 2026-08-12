@@ -14,6 +14,7 @@ private external interface BrowserWindow {
     fun alert(message: String)
     fun open(url: String, target: String)
     fun getSelection(): JsSelection?
+    fun matchMedia(query: String): JsMediaQuery
     val localStorage: JsStorage
     val document: JsDocument
     val navigator: JsNavigator
@@ -41,6 +42,11 @@ internal fun copyToClipboard(text: String) {
 }
 
 private external interface JsSelection
+
+/** A media query being watched — "is the OS in dark mode", and nothing else so far. */
+private external interface JsMediaQuery {
+    val matches: Boolean
+}
 
 private external interface JsStorage {
     fun getItem(key: String): String?
@@ -420,25 +426,52 @@ internal fun navigateTo(url: String) {
 /** Read a persisted UI preference (theme, sort, sidebar state) from localStorage. */
 internal fun prefGet(key: String): String? = runCatching { browserWindow().localStorage.getItem(key) }.getOrNull()
 
-/** Persist a UI preference to localStorage. */
-internal fun prefSet(key: String, value: String) {
-    runCatching { browserWindow().localStorage.setItem(key, value) }
-}
+/**
+ * Persist a UI preference to localStorage. Returns whether it was actually stored — which all but one
+ * caller ignores, since a theme or a sidebar fold that failed to save is not worth a word to anyone.
+ * The wallpaper is the exception: it is the one preference big enough to be turned away for want of
+ * room, and the user has to be told that the picture they picked did not stay.
+ */
+internal fun prefSet(key: String, value: String): Boolean =
+    runCatching { browserWindow().localStorage.setItem(key, value) }.isSuccess
 
 /** Forget a persisted value — a note draft that has been saved or discarded (see `Drafts.kt`). */
 internal fun prefRemove(key: String) {
     runCatching { browserWindow().localStorage.removeItem(key) }
 }
 
-/** Apply an explicit theme by stamping `data-theme` on <html>; "auto" clears it (OS decides). */
-internal fun applyTheme(theme: String) {
-    browserWindow().document.documentElement.setAttribute("data-theme", theme)
+/**
+ * Stamp a CSS custom property on `<html>` — the one way a theme picked at runtime reaches a stylesheet
+ * written months earlier. An inline property on the root beats every rule in the sheet, so index.html's
+ * own palette stands only until this runs. See `Theme.kt`.
+ */
+internal fun setRootVar(name: String, value: String) {
+    runCatching { js("document.documentElement").style.setProperty(name, value) }
 }
 
-/** Apply an accent-color preset by stamping `data-accent` on <html>; "blue" matches no preset rule in
- *  index.html, which is exactly the base palette every other colour already falls back to. */
-internal fun applyAccent(accent: String) {
-    browserWindow().document.documentElement.setAttribute("data-accent", accent)
+/** Stamp — or, with a null [value], clear — a `data-*` attribute on `<html>`. */
+internal fun setRootAttribute(name: String, value: String?) {
+    runCatching {
+        val root = js("document.documentElement")
+        if (value == null) root.removeAttribute(name) else root.setAttribute(name, value)
+    }
+}
+
+/** The OS's own answer to light or dark — what the "auto" theme follows. See [Appearance.isDark]. */
+internal fun systemPrefersDark(): Boolean =
+    runCatching { browserWindow().matchMedia("(prefers-color-scheme: dark)").matches }.getOrDefault(false)
+
+/**
+ * Call [onChange] whenever the OS switches between light and dark, and hand back the way to stop
+ * listening. Only "auto" subscribes: a theme the user picked outright does not care what the OS is
+ * doing, and a listener left running would repaint for nothing.
+ */
+internal fun onSystemThemeChange(onChange: () -> Unit): () -> Unit {
+    val media = runCatching { browserWindow().matchMedia("(prefers-color-scheme: dark)") }.getOrNull()
+        ?: return {}
+    val handler: (dynamic) -> Unit = { onChange() }
+    media.asDynamic().addEventListener("change", handler)
+    return { runCatching { media.asDynamic().removeEventListener("change", handler) } }
 }
 
 /** The browser's preferred language tag ("ru-RU", "en-US", …), lowercased; "" if unavailable. */

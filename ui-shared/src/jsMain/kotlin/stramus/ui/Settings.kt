@@ -16,25 +16,33 @@ import react.dom.html.ReactHTML.span
 import react.useState
 import stramus.core.platform.AiAvailability
 import web.cssom.ClassName
+import web.html.InputType
 
 /** The idle timeouts offered for auto-locking a section; 0 = never lock on its own. */
 private val AUTO_LOCK_CHOICES = listOf(1, 5, 15, 30, 60, 0)
 
-/** The accent-color presets offered in Appearance, in swatch order. "blue" is the default and needs
- *  no `data-accent` override of its own — see the `:root[data-accent="…"]` rules in index.html. */
-private val ACCENT_COLORS = listOf("blue", "purple", "green", "orange", "rose")
-
 /** The default: five minutes away from the machine and an unlocked section shuts itself again. */
 const val DEFAULT_AUTO_LOCK_MINUTES = 5
 
+/** An `<input type="color">` — the same unsafeCast the file picker needs, for the same reason. */
+private val COLOR_INPUT_TYPE: InputType = "color".unsafeCast<InputType>()
+
 external interface SettingsModalProps : Props {
     var strings: Strings
-    /** Current theme id: "auto" | "light" | "dark". */
-    var theme: String
-    var onThemeChange: (String) -> Unit
-    /** Current accent-color preset id: "blue" | "purple" | "green" | "orange" | "rose". */
-    var accentColor: String
-    var onAccentColorChange: (String) -> Unit
+
+    /** How the app looks, whole — see [Appearance]. Every control in the Appearance pane changes one
+     *  field of it and hands the result back through [onAppearanceChange]. */
+    var appearance: Appearance
+    var onAppearanceChange: (Appearance) -> Unit
+
+    /** A picture the user picked to stand behind the app, as the browser handed it over. It is scaled
+     *  down and stored by the app, not here — see `makeWallpaper`. */
+    var onWallpaperPick: (mime: String, dataUri: String) -> Unit
+    var onWallpaperClear: () -> Unit
+
+    /** Whether the last picture picked was too large to keep even after being scaled down. */
+    var wallpaperRejected: Boolean
+
     /** Current language id: "en" | "ru". */
     var lang: String
     var onLangChange: (String) -> Unit
@@ -208,33 +216,228 @@ private fun <T> ChildrenBuilder.toggleRow(
 }
 
 /**
- * The accent-color picker: a row of round swatches, one per [ACCENT_COLORS] entry, each carrying its
- * own colour as a CSS class (`accent-swatch-blue`, …) rather than as a label — unlike [toggleRow]'s
- * text buttons, the choice here *is* a color, so showing it beats naming it.
+ * One tile of the theme grid. A tile is not quite a palette: the first two are the default palette in
+ * one lighting or the other, which is what "Light" and "Dark" have always meant here, while the rest
+ * are palettes that keep whichever lighting the switch above is set to. [mode] is null for those.
  */
-private fun ChildrenBuilder.accentRow(
-    title: String,
-    hint: String,
-    current: String,
-    labels: Map<String, String>,
-    onPick: (String) -> Unit,
-) {
+private class ThemeTile(val palette: ThemePalette, val mode: String?, val label: (Strings) -> String)
+
+private val THEME_TILES = listOf(
+    ThemeTile(ThemePalette.DEFAULT, "light") { it.themeLight },
+    ThemeTile(ThemePalette.DEFAULT, "dark") { it.themeDark },
+    // Proper nouns, and so the same word in every language the app speaks.
+    ThemeTile(ThemePalette.NORD, null) { "Nord" },
+    ThemeTile(ThemePalette.SOLARIZED, null) { "Solarized" },
+    ThemeTile(ThemePalette.TOKYO, null) { "Tokyo Night" },
+    ThemeTile(ThemePalette.CUSTOM, null) { it.themeCustom },
+)
+
+/** Whether [tile] is the one the app is wearing right now. */
+private fun ThemeTile.isCurrent(a: Appearance): Boolean = when {
+    palette != a.palette -> false
+    // The two default tiles are told apart by the lighting, and "auto" lands on whichever one the OS
+    // has actually produced — the grid shows what is on screen, not what was typed into a preference.
+    mode != null -> (mode == "dark") == a.isDark()
+    else -> true
+}
+
+/**
+ * The theme grid: one tile per [THEME_TILES] entry, each a miniature of the app drawn in the colours it
+ * would bring. A palette is a thing to look at, not a word to read — six names in a row would say
+ * nothing at all about what picking one does.
+ *
+ * The miniature is the palette's own colours handed to CSS as custom properties; the shapes it draws
+ * them as (`.tt-*`) live in index.html with the rest of the app's look.
+ */
+private fun ChildrenBuilder.themeGrid(a: Appearance, onPick: (Appearance) -> Unit, s: Strings) {
+    div {
+        className = ClassName("theme-grid")
+        THEME_TILES.forEach { tile ->
+            val dark = tile.mode?.let { it == "dark" } ?: a.isDark()
+            // Custom has no colours of its own beyond the default's, so its tile shows what it *would*
+            // be: the neutrals plus the colour the user has mixed.
+            val colors = when (tile.palette) {
+                ThemePalette.CUSTOM -> a.copy(palette = ThemePalette.CUSTOM, mode = if (dark) "dark" else "light").colors()
+                else -> tile.palette.variant(dark)
+            }
+            button {
+                className = ClassName(if (tile.isCurrent(a)) "theme-tile active" else "theme-tile")
+                onClick = {
+                    onPick(a.copy(palette = tile.palette, mode = tile.mode ?: a.mode))
+                }
+                val css = js("({})")
+                css["--t-bg"] = colors.bg
+                css["--t-panel"] = colors.panel
+                css["--t-border"] = colors.border
+                css["--t-accent"] = colors.accent
+                css["--t-muted"] = colors.muted
+                asDynamic().style = css
+                span {
+                    className = ClassName("theme-tile-art")
+                    span {
+                        className = ClassName("tt-side")
+                        span { className = ClassName("tt-dot") }
+                        span { className = ClassName("tt-line") }
+                        span { className = ClassName("tt-line short") }
+                    }
+                    span {
+                        className = ClassName("tt-main")
+                        span { className = ClassName("tt-bar") }
+                        span {
+                            className = ClassName("tt-cards")
+                            repeat(4) { span { className = ClassName("tt-card") } }
+                        }
+                    }
+                }
+                span { className = ClassName("theme-tile-name"); +tile.label(s) }
+            }
+        }
+    }
+}
+
+/**
+ * The accent picker: a row of round swatches, one per [AccentColor], each drawn in its own colour
+ * rather than named — unlike [toggleRow]'s text buttons, the choice here *is* a colour, so showing it
+ * beats spelling it. The first swatch is the theme's own accent, which is what a palette picked for
+ * its colours should keep until something else is asked for.
+ */
+private fun ChildrenBuilder.accentRow(a: Appearance, onPick: (Appearance) -> Unit, s: Strings) {
     div {
         className = ClassName("settings-row")
         div {
             className = ClassName("settings-label")
-            span { className = ClassName("settings-title"); +title }
-            span { className = ClassName("settings-hint"); +hint }
+            span { className = ClassName("settings-title"); +s.accentColor }
+            span { className = ClassName("settings-hint"); +s.accentColorHint }
         }
         div {
             className = ClassName("accent-swatches")
-            ACCENT_COLORS.forEach { id ->
+            val dark = a.isDark()
+            AccentColor.entries.forEach { color ->
                 button {
-                    className = ClassName(
-                        "accent-swatch accent-swatch-$id" + if (current == id) " active" else ""
-                    )
-                    hint(labels[id] ?: id)
-                    onClick = { onPick(id) }
+                    className = ClassName(if (a.accent == color) "accent-swatch active" else "accent-swatch")
+                    hint(color.label(s))
+                    val css = js("({})")
+                    css.background = when (color) {
+                        // The theme's own: whatever the chosen palette brought with it.
+                        AccentColor.AUTO -> a.palette.variant(dark).accent
+                        else -> (if (dark) color.dark else color.light)
+                    }
+                    asDynamic().style = css
+                    onClick = { onPick(a.copy(accent = color)) }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The one control that is not a choice among things we picked: the colour behind a custom theme, as a
+ * native colour well. Only offered for [ThemePalette.CUSTOM] — anywhere else it would quietly do
+ * nothing, since a palette's accent is either its own or one of the swatches above.
+ */
+private fun ChildrenBuilder.customAccentRow(a: Appearance, onPick: (Appearance) -> Unit, s: Strings) {
+    div {
+        className = ClassName("settings-row")
+        div {
+            className = ClassName("settings-label")
+            span { className = ClassName("settings-title"); +s.accentCustom }
+            span { className = ClassName("settings-hint"); +s.accentCustomHint }
+        }
+        div {
+            className = ClassName("color-well")
+            input {
+                type = COLOR_INPUT_TYPE
+                className = ClassName("color-input")
+                value = a.customAccent
+                onChange = { e ->
+                    val picked = e.target.value
+                    if (isHexColor(picked)) onPick(a.copy(customAccent = picked))
+                }
+            }
+            span { className = ClassName("color-hex"); +a.customAccent.uppercase() }
+        }
+    }
+}
+
+/**
+ * What stands behind the app: nothing, one of the gradients, or a picture of the user's own. The
+ * choice comes first, and only what it needs is drawn under it — a row of gradients nobody is using,
+ * or the file picker and whatever is currently up.
+ */
+private fun ChildrenBuilder.backgroundRows(props: SettingsModalProps, s: Strings) {
+    val a = props.appearance
+    val onPick = props.onAppearanceChange
+
+    toggleRow(
+        s.background, s.backgroundHint, a.background,
+        BackgroundKind.entries.map { it to it.label(s) },
+        { kind ->
+            // Choosing "Image" with no picture yet is a request to pick one, not a background: it is
+            // kept as the chosen kind so the picker below appears, and `hasWallpaper()` still says no.
+            onPick(a.copy(background = kind))
+        },
+    )
+
+    if (a.background == BackgroundKind.GRADIENT) {
+        div {
+            className = ClassName("settings-row")
+            div {
+                className = ClassName("gradient-swatches")
+                Gradient.entries.forEach { gradient ->
+                    button {
+                        className = ClassName(
+                            if (a.gradient == gradient) "gradient-swatch active" else "gradient-swatch"
+                        )
+                        val css = js("({})")
+                        css.backgroundImage = gradient.css
+                        asDynamic().style = css
+                        onClick = { onPick(a.copy(gradient = gradient)) }
+                    }
+                }
+            }
+        }
+    }
+
+    if (a.background == BackgroundKind.IMAGE) {
+        div {
+            className = ClassName("settings-row")
+            div {
+                className = ClassName("settings-label")
+                span { className = ClassName("settings-title"); +s.backgroundPicture }
+                span {
+                    className = ClassName("settings-hint")
+                    +(if (props.wallpaperRejected) s.backgroundTooLarge else s.backgroundPictureHint)
+                }
+            }
+            div {
+                className = ClassName("settings-actions wallpaper-actions")
+                a.image?.let { image ->
+                    span {
+                        className = ClassName("wallpaper-preview")
+                        val css = js("({})")
+                        css.backgroundImage = "url(\"$image\")"
+                        asDynamic().style = css
+                    }
+                }
+                label {
+                    className = ClassName("btn")
+                    icon("upload")
+                    +" ${if (a.image == null) s.backgroundPick else s.backgroundReplace}"
+                    input {
+                        type = FILE_INPUT_TYPE
+                        className = ClassName("hidden-file-input")
+                        accept = "image/*"
+                        onChange = { e ->
+                            readPickedFile(e.target) { _, mime, dataUri -> props.onWallpaperPick(mime, dataUri) }
+                        }
+                    }
+                }
+                if (a.image != null) {
+                    button {
+                        className = ClassName("btn")
+                        onClick = { props.onWallpaperClear() }
+                        +s.backgroundRemove
+                    }
                 }
             }
         }
@@ -242,25 +445,44 @@ private fun ChildrenBuilder.accentRow(
 }
 
 private fun ChildrenBuilder.appearancePane(props: SettingsModalProps, s: Strings) {
+    val a = props.appearance
+    val onPick = props.onAppearanceChange
+
     div {
         className = ClassName("settings-section")
-        h4 { +s.appearance }
+        h4 { +s.theme }
 
         toggleRow(
-            s.theme, s.themeHint, props.theme,
+            s.themeMode, s.themeHint, a.mode,
             listOf("auto" to s.themeAuto, "light" to s.themeLight, "dark" to s.themeDark),
-            props.onThemeChange,
+            { mode -> onPick(a.copy(mode = mode)) },
             icons = listOf("circle-half", "sun", "moon"),
         )
 
-        accentRow(
-            s.accentColor, s.accentColorHint, props.accentColor,
-            mapOf(
-                "blue" to s.accentBlue, "purple" to s.accentPurple, "green" to s.accentGreen,
-                "orange" to s.accentOrange, "rose" to s.accentRose,
-            ),
-            props.onAccentColorChange,
+        themeGrid(a, onPick, s)
+
+        // One or the other, never both: a custom theme *is* its accent, so a row of swatches beside
+        // the colour well would be nine buttons that quietly do nothing.
+        if (a.palette == ThemePalette.CUSTOM) customAccentRow(a, onPick, s) else accentRow(a, onPick, s)
+
+        toggleRow(
+            s.cardStyle, s.cardStyleHint, a.density,
+            CardDensity.entries.map { it to it.label(s) },
+            { density -> onPick(a.copy(density = density)) },
         )
+
+        toggleRow(
+            s.cornerRadius, s.cornerRadiusHint, a.radius,
+            CornerRadius.entries.map { it to it.label(s) },
+            { radius -> onPick(a.copy(radius = radius)) },
+        )
+
+        backgroundRows(props, s)
+    }
+
+    div {
+        className = ClassName("settings-section")
+        h4 { +s.appearance }
 
         toggleRow(
             s.language, s.languageHint, props.lang,

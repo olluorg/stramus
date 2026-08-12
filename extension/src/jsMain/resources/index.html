@@ -17,6 +17,9 @@
             --accent: #3b82f6;
             --accent-soft: #eaf1fe;
             --danger: #ef4444;
+            /* The wordmark, and the chip the mark beside it sits on. See Theme.kt. */
+            --brand: #50219B;
+            --brand-chip: #50219B;
         }
         /* Dark palette, shared by the OS "auto" default and the explicit night theme. */
         @media (prefers-color-scheme: dark) {
@@ -29,6 +32,8 @@
                 --accent: #4b8bf5;
                 --accent-soft: #22304d;
                 --danger: #f26060;
+                --brand: #b39cee;
+                --brand-chip: transparent;
             }
         }
         /* Explicit theme choice from the toolbar wins over the OS preference. */
@@ -41,6 +46,8 @@
             --accent: #4b8bf5;
             --accent-soft: #22304d;
             --danger: #f26060;
+            --brand: #b39cee;
+            --brand-chip: transparent;
         }
         :root[data-theme="light"] {
             --bg: #f6f7f9;
@@ -51,45 +58,82 @@
             --accent: #3b82f6;
             --accent-soft: #eaf1fe;
             --danger: #ef4444;
+            --brand: #50219B;
+            --brand-chip: #50219B;
         }
-        /* Accent-color presets (Settings → Appearance). Blue is the base palette above and needs no
-           override here. Each preset repeats the same shape the theme itself uses just above: a bare
-           base for the light/OS-default case, a dark-OS media query, and the two explicit `data-theme`
-           cases — so a preset wins over the theme's own accent no matter which of the four applies. */
-        :root[data-accent="purple"] { --accent: #8b5cf6; --accent-soft: #f1ecfe; }
-        @media (prefers-color-scheme: dark) {
-            :root[data-accent="purple"]:not([data-theme="light"]) { --accent: #a78bfa; --accent-soft: #2e2650; }
+        /* ---- Shape: how round the app is, and how much room a card takes ---------------------
+           Two scales, both set in Settings → Theme and stamped on <html> as data-radius/data-density
+           (see Theme.kt). Every rule below that draws a corner or lays out a card reads these rather
+           than carrying a number of its own, so the choice reaches the whole app at once. */
+        :root {
+            --r-card: 10px;   /* cards, tiles, folders, dropdowns — the surfaces things sit on */
+            --r-ctl: 8px;     /* buttons, fields, list rows, chips — the things that are clicked */
+            --r-modal: 14px;  /* windows over the page */
+            --r-pill: 6px;    /* badges, favicons, the small square glyph buttons */
+            --card-pad: 12px;
+            --card-gap: 12px;
+            --card-min: 220px;
+            --card-icon: 24px;
+            --row-pad: 8px 10px;
         }
-        :root[data-theme="dark"][data-accent="purple"] { --accent: #a78bfa; --accent-soft: #2e2650; }
-        :root[data-theme="light"][data-accent="purple"] { --accent: #8b5cf6; --accent-soft: #f1ecfe; }
+        :root[data-radius="medium"] { --r-card: 6px; --r-ctl: 5px; --r-modal: 9px; --r-pill: 4px; }
+        :root[data-radius="sharp"] { --r-card: 0; --r-ctl: 0; --r-modal: 2px; --r-pill: 0; }
+        :root[data-density="compact"] {
+            --card-pad: 8px 10px; --card-gap: 8px; --card-min: 190px; --card-icon: 18px;
+            --row-pad: 5px 10px;
+        }
 
-        :root[data-accent="green"] { --accent: #16a34a; --accent-soft: #e7f7ed; }
-        @media (prefers-color-scheme: dark) {
-            :root[data-accent="green"]:not([data-theme="light"]) { --accent: #4ade80; --accent-soft: #16321f; }
+        /* ---- The wallpaper -------------------------------------------------------------------
+           A gradient or a picture of the user's own behind the whole app (`--page-bg`, set from
+           Theme.kt). Everything that floats over it turns to glass at the same time: the palette
+           hands `--panel` and `--bg` over as translucent colours, and the blur here is what keeps
+           text on a busy photograph readable rather than merely visible. */
+        :root[data-wallpaper] .sidebar,
+        :root[data-wallpaper] .tabs,
+        :root[data-wallpaper] .card,
+        :root[data-wallpaper] .modal,
+        :root[data-wallpaper] .search-field,
+        :root[data-wallpaper] .search-drop,
+        :root[data-wallpaper] .menu-dropdown,
+        :root[data-wallpaper] .undo-toast,
+        :root[data-wallpaper] .card-group.folder:not(.open) > .card-section-head {
+            backdrop-filter: blur(14px) saturate(1.2);
+            -webkit-backdrop-filter: blur(14px) saturate(1.2);
         }
-        :root[data-theme="dark"][data-accent="green"] { --accent: #4ade80; --accent-soft: #16321f; }
-        :root[data-theme="light"][data-accent="green"] { --accent: #16a34a; --accent-soft: #e7f7ed; }
-
-        :root[data-accent="orange"] { --accent: #ea580c; --accent-soft: #fdece0; }
-        @media (prefers-color-scheme: dark) {
-            :root[data-accent="orange"]:not([data-theme="light"]) { --accent: #fb923c; --accent-soft: #3a2b12; }
+        /* A wallpaper is also a floor the app's own shadows have to land on: over a photograph the
+           resting shadow of a card is the only thing separating it from what is behind it. */
+        :root[data-wallpaper] .card { box-shadow: 0 2px 10px rgba(0, 0, 0, .18); }
+        /* The middle pane is the one surface the app deliberately does not paint — a collection's
+           cards float on whatever is behind them. That is fine over a flat colour and not fine over a
+           photograph: the words the pane draws itself (a heading, a divider's title and count, the
+           "drag links here" hint) would be muted grey on somebody's holiday snap. So with a wallpaper
+           up the pane wears a wash of the theme's own background, and every word in it is given a halo
+           in that same colour — text-shadow inherits, so one declaration reaches all of them, and the
+           halo is dark behind light text and light behind dark text whatever the picture is doing. */
+        :root[data-wallpaper] .content {
+            background: var(--bg);
+            backdrop-filter: blur(14px) saturate(1.2);
+            -webkit-backdrop-filter: blur(14px) saturate(1.2);
+            text-shadow: 0 1px 3px var(--bg-solid);
         }
-        :root[data-theme="dark"][data-accent="orange"] { --accent: #fb923c; --accent-soft: #3a2b12; }
-        :root[data-theme="light"][data-accent="orange"] { --accent: #ea580c; --accent-soft: #fdece0; }
-
-        :root[data-accent="rose"] { --accent: #e11d48; --accent-soft: #fce7ec; }
-        @media (prefers-color-scheme: dark) {
-            :root[data-accent="rose"]:not([data-theme="light"]) { --accent: #fb7185; --accent-soft: #3a1f28; }
-        }
-        :root[data-theme="dark"][data-accent="rose"] { --accent: #fb7185; --accent-soft: #3a1f28; }
-        :root[data-theme="light"][data-accent="rose"] { --accent: #e11d48; --accent-soft: #fce7ec; }
+        /* Anything in the pane that brought its own surface has no picture to be read against, and a
+           halo there would only make the text look softly out of focus. */
+        :root[data-wallpaper] .content .card,
+        :root[data-wallpaper] .content .card-group.folder:not(.open) > .card-section-head { text-shadow: none; }
+        /* The hint that invites a drag is the one line of the pane that is *only* ever read against
+           the wallpaper, and muted is too quiet a colour for that: it speaks up to the text colour,
+           held back a little so it still reads as a hint and not as content. */
+        :root[data-wallpaper] .content .empty { color: var(--text); opacity: .8; }
+        /* Restated because the wash above is the more specific rule: a drag over the pane must still
+           light it up, as it does everywhere else. */
+        :root[data-wallpaper] .content.drop-active { background: var(--accent-soft); }
         * { box-sizing: border-box; }
         /* Native scrollbar colors, not an emulated overlay — the thumb/track just follow the theme's own
            palette instead of the browser's default gray, which is what stood out against a dark panel. */
         * { scrollbar-color: var(--border) transparent; scrollbar-width: thin; }
         *::-webkit-scrollbar { width: 10px; height: 10px; }
         *::-webkit-scrollbar-track { background: transparent; }
-        *::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
+        *::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--r-pill); border: 2px solid transparent; background-clip: padding-box; }
         *::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: padding-box; }
         /* Rows that stand in for a button (a collection, an open tab, a card, a collapsible title) are
            focusable so the keyboard can reach them, but native `<button>`/`<a>` elsewhere already have
@@ -104,7 +148,16 @@
         body {
             font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             color: var(--text);
-            background: var(--bg);
+            /* The opaque palette colour, not `--bg`: with a wallpaper up that one is deliberately
+               translucent (it is a hover wash over the picture), and the page itself must not be. */
+            background-color: var(--bg-solid, var(--bg));
+            /* The wallpaper, where there is one. Fixed to the viewport so that no pane scrolls it,
+               and cover-sized so a photograph fills the window whatever shape the window is. */
+            background-image: var(--page-bg, none);
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
         }
         #root, .app { height: 100vh; }
         .app { display: flex; }
@@ -163,7 +216,7 @@
             border: 1px solid var(--border);
             background: var(--panel);
             color: var(--text);
-            border-radius: 8px;
+            border-radius: var(--r-ctl);
             padding: 8px 12px;
             cursor: pointer;
             font-size: 13px;
@@ -186,7 +239,7 @@
         .collections { list-style: none; margin: 2px 0 4px 15px; padding: 0 0 0 9px; border-left: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
         .col {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 8px 10px; border-radius: 8px; cursor: pointer;
+            padding: var(--row-pad); border-radius: var(--r-ctl); cursor: pointer;
             min-width: 0;
         }
         .col:hover { background: var(--bg); }
@@ -218,8 +271,8 @@
 
         .grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-            gap: 12px;
+            grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+            gap: var(--card-gap);
         }
         /* --card-accent is the card's own colour: the kinds that carry one (see .card.kind-*) override
            it, so the stripe and the hover highlight of a note are yellow where a link's stay blue. */
@@ -231,8 +284,8 @@
             display: flex; align-items: center; gap: 10px;
             background: var(--panel);
             border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 12px;
+            border-radius: var(--r-card);
+            padding: var(--card-pad);
             cursor: pointer;
             color: inherit; text-decoration: none;
             /* A resting shadow lifts the card off the page, so the grid reads as objects rather than
@@ -243,7 +296,7 @@
         .card:hover, .card:focus-within { border-color: var(--card-accent); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(16, 24, 40, .12); }
         /* No chip behind the favicon: it sits straight on the card, so the tile is lighter and the eye
            lands on the title, not on a row of grey squares. */
-        .fav { width: 24px; height: 24px; flex: 0 0 24px; border-radius: 5px; }
+        .fav { width: var(--card-icon); height: var(--card-icon); flex: 0 0 var(--card-icon); border-radius: var(--r-pill); }
         .card-body { min-width: 0; flex: 1; }
         .card-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 40px; }
         /* A card with no second line (a link whose address is hidden) gives that line to the title:
@@ -257,7 +310,7 @@
         .card-tools { position: absolute; top: 6px; right: 6px; display: flex; align-items: center; gap: 2px; }
         .card:hover .icon.edit, .card:focus-within .icon.edit { opacity: 1; }
         /* On hover the tools sit over the title's tail; a chip behind each keeps them a clear target. */
-        .card-tools .icon:hover { background: var(--bg); border-radius: 5px; }
+        .card-tools .icon:hover { background: var(--bg); border-radius: var(--r-pill); }
 
         /* Right sidebar: live open-tabs list (extension only), one group per browser window */
         .tabs {
@@ -270,11 +323,11 @@
            the two [.content, .tabs.cards-view] are then simply two equal flex:1 children of .app. */
         .tabs.cards-view { width: auto; flex: 1; }
         .tabs-head { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 4px 8px; }
-        .tab-search { width: 100%; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+        .tab-search { width: 100%; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: var(--r-ctl); padding: 6px 10px; font-size: 13px; }
         .tab-search:focus { outline: none; border-color: var(--accent); }
         /* The scroll lives here, so the header and the search box stay put above it. */
         .tabs-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
-        .tab-window { border-radius: 10px; padding: 0 4px 4px; outline: 2px dashed transparent; outline-offset: -2px; transition: background .12s; }
+        .tab-window { border-radius: var(--r-card); padding: 0 4px 4px; outline: 2px dashed transparent; outline-offset: -2px; transition: background .12s; }
         .tab-window.drop-active { outline-color: var(--accent); background: var(--accent-soft); }
         .tab-window-head { display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 6px 6px 4px; }
         .tab-window-head .count { font-weight: 500; }
@@ -296,8 +349,8 @@
         .hint-pop {
             position: fixed; z-index: 300;
             max-width: 280px; width: max-content;
-            padding: 6px 8px; border-radius: 8px;
-            background: var(--text); color: var(--panel);
+            padding: 6px 8px; border-radius: var(--r-ctl);
+            background: var(--text); color: var(--panel-solid, var(--panel));
             box-shadow: 0 6px 18px rgba(0, 0, 0, .22);
             /* Its own voice: the headers it may stand over are uppercase and letter-spaced, a sentence
                is not. A URL (the history's rows carry one) has nowhere to break, so it breaks anywhere. */
@@ -319,7 +372,7 @@
             appearance: none; -webkit-appearance: none;
             box-sizing: border-box; width: 20px; height: 20px;
             border: 1px solid transparent; background: transparent; color: var(--muted);
-            border-radius: 6px; padding: 0; font-size: 12px; line-height: 1;
+            border-radius: var(--r-pill); padding: 0; font-size: 12px; line-height: 1;
             text-align: center; text-align-last: center;
             cursor: pointer; opacity: 0; transition: opacity .12s, color .12s;
         }
@@ -332,7 +385,7 @@
         .tab-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
         .tab {
             display: flex; align-items: center; gap: 8px;
-            padding: 8px 10px; border-radius: 8px; cursor: pointer;
+            padding: var(--row-pad); border-radius: var(--r-ctl); cursor: pointer;
             border: 1px solid transparent;
         }
         /* One hover language across every list row — a tab here, a collection in the sidebar, a search
@@ -351,8 +404,8 @@
         .empty.small { padding: 16px 8px; font-size: 13px; text-align: left; }
 
         /* The right sidebar's pane switch: the open tabs, or the browsing history */
-        .pane-switch { display: flex; gap: 2px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
-        .pane-tab { border: none; background: transparent; color: var(--muted); font: inherit; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 4px 8px; border-radius: 6px; cursor: pointer; }
+        .pane-switch { display: flex; gap: 2px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-ctl); padding: 2px; }
+        .pane-tab { border: none; background: transparent; color: var(--muted); font: inherit; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 4px 8px; border-radius: var(--r-pill); cursor: pointer; }
         .pane-tab:hover { color: var(--text); }
         .pane-tab.active { background: var(--panel); color: var(--text); }
         /* A history row is a tab row plus the time of the visit: same look, same drag, no drop target. */
@@ -360,8 +413,17 @@
 
         /* Brand row + sidebar collapse controls */
         .brand { display: flex; align-items: center; gap: 8px; }
-        .brand-logo { width: 22px; height: 22px; flex: 0 0 22px; border-radius: 5px; }
-        .brand-name { flex: 1; min-width: 0; color: #50219B; }
+        /* The mark is a pale gradient star: it stands out on a dark panel and all but dissolves into
+           a light one, so light themes give it a chip of the brand's own purple to sit on and dark
+           ones leave it to speak for itself (--brand-chip is transparent there). The padding keeps
+           the star off the edge of that chip; box-sizing keeps the 22px square a 22px square. */
+        .brand-logo {
+            width: 22px; height: 22px; flex: 0 0 22px; padding: 2px;
+            border-radius: var(--r-pill); background: var(--brand-chip, transparent);
+        }
+        /* The name is one colour in both lightings — the same purple, lightened where it would
+           otherwise be a deep violet word written on a near-black panel. */
+        .brand-name { flex: 1; min-width: 0; color: var(--brand, #50219B); }
         .icon.collapse-btn { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px; opacity: .7; }
         .icon.collapse-btn:hover { color: var(--accent); opacity: 1; }
         /* The Tabs pane's quick list/cards switch, beside the collapse button — the same choice as the
@@ -369,7 +431,7 @@
         .icon.view-toggle { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 4px; opacity: .7; }
         .icon.view-toggle:hover { color: var(--accent); opacity: 1; }
         .sidebar.collapsed, .tabs.collapsed { width: 40px; flex: 0 0 40px; padding: 12px 5px; align-items: center; }
-        .rail-toggle { border: 1px solid var(--border); background: var(--panel); color: var(--muted); border-radius: 8px; cursor: pointer; padding: 8px 4px; width: 100%; }
+        .rail-toggle { border: 1px solid var(--border); background: var(--panel); color: var(--muted); border-radius: var(--r-ctl); cursor: pointer; padding: 8px 4px; width: 100%; }
         .rail-toggle:hover { color: var(--accent); border-color: var(--accent); }
         /* The collapsed sidebar's miniature tree: one square per section, one per collection under it. */
         .rail-tree { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; margin-top: 4px; }
@@ -378,7 +440,7 @@
         .rail-chip {
             display: flex; align-items: center; justify-content: center;
             width: 28px; height: 28px; flex: 0 0 28px; padding: 0;
-            border: 1px solid var(--border); border-radius: 8px;
+            border: 1px solid var(--border); border-radius: var(--r-ctl);
             background: var(--panel); color: var(--muted);
             font-size: 12px; font-weight: 700; text-transform: uppercase;
             cursor: pointer;
@@ -410,7 +472,7 @@
         @media (prefers-reduced-motion: reduce) {
             .collapsible, .chevron { transition: none; }
         }
-        .section.drop-section { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 8px; }
+        .section.drop-section { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: var(--r-ctl); }
         /* A section is dragged by its header, and fades while it is being carried somewhere else. */
         .section-head { cursor: grab; }
         .section-head:active { cursor: grabbing; }
@@ -432,21 +494,21 @@
            the model. The wrapper is the positioning context for the dropdown, which hangs over the
            content below rather than pushing it down. */
         .searchbox { position: relative; flex: 1; }
-        .search-field { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--panel); border-radius: 8px; padding: 0 10px; }
+        .search-field { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--panel); border-radius: var(--r-ctl); padding: 0 10px; }
         .search-field:focus-within { border-color: var(--accent); }
         .search { flex: 1; min-width: 0; border: none; background: transparent; color: var(--text); padding: 8px 2px; font-size: 14px; }
         .search:focus { outline: none; }
 
-        .search-drop { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; right: 0; padding: 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 14px 34px rgba(0, 0, 0, .18); max-height: 70vh; overflow: auto; }
+        .search-drop { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; right: 0; padding: 6px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-card); box-shadow: 0 14px 34px rgba(0, 0, 0, .18); max-height: 70vh; overflow: auto; }
         .hit-group-label { padding: 6px 8px 4px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
         .hit-list { list-style: none; margin: 0; padding: 0; }
-        .hit { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; cursor: pointer; }
+        .hit { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: var(--r-ctl); cursor: pointer; }
         .hit.selected { background: var(--accent-soft); }
         .hit-icon, .hit-glyph { flex: 0 0 18px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
         .hit-text { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
         .hit-title { flex: 0 1 auto; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .hit-sub { flex: 0 1 auto; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .hit-action { flex: 0 0 auto; color: var(--muted); font-size: 11px; border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; }
+        .hit-action { flex: 0 0 auto; color: var(--muted); font-size: 11px; border: 1px solid var(--border); border-radius: var(--r-pill); padding: 1px 6px; }
         .hit-forget { opacity: 0; }
         .hit:hover .hit-forget, .hit.selected .hit-forget { opacity: 1; }
         .hit-hints { margin-top: 6px; padding: 6px 8px 2px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
@@ -458,10 +520,10 @@
            so the field the next question is typed in stays where it is. */
         .ai-modal { max-width: 720px; }
         .ai-title { display: flex; align-items: center; gap: 8px; }
-        .ai-badge { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 2px 6px; }
+        .ai-badge { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--accent); background: var(--accent-soft); border-radius: var(--r-pill); padding: 2px 6px; }
         .ai-log { flex: 1; min-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; }
-        .ai-download { padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); font-size: 13px; }
-        .ai-turn { position: relative; min-width: 0; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; }
+        .ai-download { padding: 10px 12px; border: 1px dashed var(--border); border-radius: var(--r-card); color: var(--muted); font-size: 13px; }
+        .ai-turn { position: relative; min-width: 0; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-card); }
         /* An address the model wrote out in full is longer than this window is wide: it wraps mid-word
            rather than pushing the conversation sideways. Code is the exception — it scrolls instead. */
         .ai-question, .ai-answer { min-width: 0; overflow-wrap: anywhere; }
@@ -482,7 +544,7 @@
         .ai-turn:hover .ai-turn-tools, .ai-turn-tools:focus-within { opacity: 1; }
         .icon.ai-tool:hover { color: var(--accent); }
         .ai-ask { justify-content: stretch; }
-        .ai-input { flex: 1; min-width: 0; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 8px; padding: 9px 12px; font-size: 14px; }
+        .ai-input { flex: 1; min-width: 0; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: var(--r-ctl); padding: 9px 12px; font-size: 14px; }
         .ai-input:focus { outline: none; border-color: var(--accent); }
         .ai-input:disabled { opacity: .6; }
 
@@ -496,16 +558,16 @@
         /* The two pre-steps — already-saved tabs, then duplicate open tabs — offered before the model
            is asked anything at all, so neither wastes a question on it. flex: none, the same reason
            the tabs list below it needs it: a column flex child shrinks before its parent scrolls. */
-        .triage-step { flex: none; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; }
+        .triage-step { flex: none; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-card); }
         .triage-step-head { margin-bottom: 2px; font-weight: 700; font-size: 13px; }
         .triage-step-hint { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
         /* How far down the sites the run has got. A line rather than a spinner: the groups below fill
            in under it as each site lands, so there is always something to read while it works. */
-        .triage-progress { flex: none; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); font-size: 13px; }
+        .triage-progress { flex: none; padding: 10px 12px; border: 1px dashed var(--border); border-radius: var(--r-card); color: var(--muted); font-size: 13px; }
         /* The plan is drawn as the sidebar's own tree — section, collection, divider — so the three
            levels must read as depth, not as three kinds of identical box. The outermost carries the
            frame; the ones inside it are marked by indent and a rule running down the branch. */
-        .triage-branch { flex: none; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+        .triage-branch { flex: none; border: 1px solid var(--border); border-radius: var(--r-card); overflow: hidden; }
         .triage-branch-head { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: var(--bg); border-bottom: 1px solid var(--border); }
         .triage-branch-title { font-weight: 700; font-size: 13px; letter-spacing: .03em; text-transform: uppercase; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .triage-branch-head .count { margin-left: auto; }
@@ -516,19 +578,19 @@
         .triage-group-title { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         /* A collection that does not exist yet: the one thing in a plan that unticking a row cannot
            take back, so it is marked rather than left to be discovered afterwards. */
-        .triage-new { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 1px 5px; }
+        .triage-new { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--accent); background: var(--accent-soft); border-radius: var(--r-pill); padding: 1px 5px; }
         .triage-group-head .count { margin-left: auto; }
         /* The tabs the model had nothing to say about. Not an error — they are simply the user's to place. */
-        .triage-unsorted { flex: none; margin: 0; border: 1px dashed var(--border); border-radius: 10px; overflow: hidden; }
+        .triage-unsorted { flex: none; margin: 0; border: 1px dashed var(--border); border-radius: var(--r-card); overflow: hidden; }
         .triage-unsorted > .triage-group-head { padding: 9px 12px; background: var(--bg); border-bottom: 1px dashed var(--border); }
         .triage-tabs { list-style: none; margin: 0; padding: 2px 6px 6px 10px; display: flex; flex-direction: column; gap: 2px; }
-        .triage-tab { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 8px; }
+        .triage-tab { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: var(--r-ctl); }
         .triage-tab:hover { background: var(--bg); }
         /* Out of the plan, but still on screen: a row the user can see they are not saving, and tick back. */
         .triage-tab.skipped { opacity: .5; }
         .triage-pick { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; cursor: pointer; }
         .triage-tab-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-        .triage-dup { flex: none; font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 1px 5px; }
+        .triage-dup { flex: none; font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: var(--r-pill); padding: 1px 5px; }
         /* The two things a single row can be made to do without waiting for the rest of the plan: save
            it where it is going, or close its tab and save nothing. Quiet until the row is under the
            pointer — every row carries both, and forty pairs of live buttons would read as a toolbar
@@ -540,7 +602,7 @@
         /* Two pickers on a row — the collection, then the section within it — so both are narrow, and
            the title beside them keeps what is left. The section one is only there where the collection
            has dividers at all. */
-        .triage-target { flex: none; max-width: 150px; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 6px; padding: 3px 6px; font-size: 12px; }
+        .triage-target { flex: none; max-width: 150px; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: var(--r-pill); padding: 3px 6px; font-size: 12px; }
         .triage-target:focus { outline: none; border-color: var(--accent); }
         .triage-section-pick { max-width: 120px; color: var(--muted); }
         /* On a collection the plan would create: which sidebar section to create it in. It is the
@@ -555,15 +617,15 @@
         /* What is saved from this site already, said once per site: the reason a row may not be worth
            ticking. It reads as a footnote to the rows above it, not as one of them. */
         .triage-related { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 6px 6px 30px; color: var(--muted); font-size: 11px; }
-        .triage-related-card { border: 1px solid var(--border); border-radius: 6px; padding: 1px 5px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .triage-related-card { border: 1px solid var(--border); border-radius: var(--r-pill); padding: 1px 5px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         /* Editing a card: the title in a field and, for a link, its address behind a toggle. */
         .rename-modal { max-width: 560px; }
         .rename-url-toggle { align-self: flex-start; margin: 8px 18px; border: none; background: none; padding: 0; color: var(--muted); font-size: 12px; cursor: pointer; }
         .rename-url-toggle:hover { color: var(--accent); }
-        .rename-url { margin: 4px 18px 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 8px; padding: 8px 12px; font-size: 13px; }
+        .rename-url { margin: 4px 18px 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: var(--r-ctl); padding: 8px 12px; font-size: 13px; }
 
-        .control { border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 8px; padding: 7px 8px; font-size: 13px; cursor: pointer; }
+        .control { border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: var(--r-ctl); padding: 7px 8px; font-size: 13px; cursor: pointer; }
         .control:hover { border-color: var(--accent); }
         .content-head .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
@@ -578,7 +640,7 @@
            the whole block, header and grid alike, so the drop never has to hit the header strip.
            outline-color is deliberately not transitioned: it starts out as currentColor, so on the
            first paint the browser would animate a black dashed outline away over the transition. */
-        .card-group { border-radius: 10px; padding: 4px 8px; margin: 0 -8px; outline: 2px dashed transparent; outline-offset: -2px; transition: background .12s; }
+        .card-group { border-radius: var(--r-card); padding: 4px 8px; margin: 0 -8px; outline: 2px dashed transparent; outline-offset: -2px; transition: background .12s; }
         .card-group.drop-active { outline-color: var(--accent); background: var(--accent-soft); }
         .card-group.drop-active .empty.small { color: var(--accent); }
         /* A card section is dragged by its header, and fades while it is being carried up or down. */
@@ -595,7 +657,7 @@
         .folder-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-            gap: 12px; align-items: start; margin-top: 18px;
+            gap: var(--card-gap); align-items: start; margin-top: 18px;
         }
         /* An open folder takes the whole row and is, from there down, an ordinary section. */
         .folder-grid > .card-group.folder.open { grid-column: 1 / -1; }
@@ -606,8 +668,8 @@
         .card-group.folder:not(.open) > .card-section-head {
             position: relative;
             flex-direction: column; align-items: flex-start; justify-content: flex-start;
-            margin: 0; padding: 12px;
-            border: 1px solid var(--border); border-radius: 10px; background: var(--panel);
+            margin: 0; padding: var(--card-pad);
+            border: 1px solid var(--border); border-radius: var(--r-card); background: var(--panel);
             box-shadow: 0 1px 2px rgba(16, 24, 40, .05);
             transition: border-color .12s, transform .12s, box-shadow .12s;
         }
@@ -653,7 +715,7 @@
         .tabs-head { display: flex; align-items: center; justify-content: space-between; }
 
         /* Card kinds: note/file glyphs + image thumbnails */
-        .glyph { width: 24px; height: 24px; flex: 0 0 24px; display: flex; align-items: center; justify-content: center; font-size: 18px; border-radius: 5px; background: var(--bg); }
+        .glyph { width: var(--card-icon); height: var(--card-icon); flex: 0 0 var(--card-icon); display: flex; align-items: center; justify-content: center; font-size: 18px; border-radius: var(--r-pill); background: var(--bg); }
         .fav.thumb { object-fit: cover; }
         .card.kind-note { --card-accent: #f5c451; border-left: 3px solid var(--card-accent); }
         .card.kind-file { --card-accent: #7c9cf5; border-left: 3px solid var(--card-accent); }
@@ -669,7 +731,7 @@
             width: 14px; height: 14px; font-size: 8px;
             display: flex; align-items: center; justify-content: center;
             border-radius: 50%; background: var(--accent); color: #fff;
-            border: 2px solid var(--panel);
+            border: 2px solid var(--panel-solid, var(--panel));
         }
 
         /* The hover menus of a card-section header: "+" adds a card, "⇅" sorts the section. Both drop a
@@ -692,13 +754,13 @@
             position: absolute; top: 100%; right: 0; z-index: 20; display: none;
             padding: 4px; min-width: 176px;
             background: var(--panel); border: 1px solid var(--border);
-            border-radius: 10px; box-shadow: 0 10px 28px rgba(0,0,0,.16);
+            border-radius: var(--r-card); box-shadow: 0 10px 28px rgba(0,0,0,.16);
         }
         .menu:hover .menu-dropdown, .menu:focus-within .menu-dropdown { display: block; }
         .menu-item {
             display: block; width: 100%; text-align: left;
             border: none; background: transparent; color: var(--text);
-            padding: 7px 10px; border-radius: 7px; cursor: pointer;
+            padding: 7px 10px; border-radius: var(--r-ctl); cursor: pointer;
             font-size: 13px; line-height: 1.3; white-space: nowrap;
         }
         .menu-item:hover { background: var(--accent-soft); color: var(--accent); }
@@ -729,16 +791,16 @@
 
         /* Modals */
         .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 24px; }
-        .modal { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.35); width: 100%; max-width: 820px; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
+        .modal { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-modal); box-shadow: 0 20px 60px rgba(0,0,0,.35); width: 100%; max-width: 820px; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
         .file-modal { max-width: 640px; }
         .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--border); }
         .modal-head h3 { margin: 0; font-size: 16px; }
         .modal-head .icon.del { opacity: 1; position: static; }
-        .modal-title-input { margin: 14px 18px 0; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 8px; padding: 9px 12px; font-size: 15px; font-weight: 600; }
+        .modal-title-input { margin: 14px 18px 0; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: var(--r-ctl); padding: 9px 12px; font-size: 15px; font-weight: 600; }
         .note-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 14px 18px; flex: 1; min-height: 320px; overflow: hidden; }
-        .note-editor { resize: none; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 8px; padding: 12px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+        .note-editor { resize: none; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: var(--r-ctl); padding: 12px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
         .note-editor:focus { outline: none; border-color: var(--accent); }
-        .note-preview { border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-y: auto; background: var(--panel); }
+        .note-preview { border: 1px solid var(--border); border-radius: var(--r-ctl); padding: 12px; overflow-y: auto; background: var(--panel); }
         .note-preview h2 { font-size: 18px; margin: 8px 0; }
         .note-preview h3 { font-size: 16px; margin: 8px 0; }
         .note-preview h4 { font-size: 14px; margin: 6px 0; }
@@ -750,25 +812,25 @@
         .btn:disabled { opacity: .5; cursor: default; }
 
         /* File modal */
-        .file-picker { display: inline-block; margin: 16px 18px 0; border: 1px dashed var(--border); border-radius: 10px; padding: 14px 18px; cursor: pointer; color: var(--muted); text-align: center; }
+        .file-picker { display: inline-block; margin: 16px 18px 0; border: 1px dashed var(--border); border-radius: var(--r-card); padding: 14px 18px; cursor: pointer; color: var(--muted); text-align: center; }
         .file-picker:hover { border-color: var(--accent); color: var(--accent); }
         .hidden-file-input { display: none; }
         .file-preview { padding: 16px 18px; display: flex; justify-content: center; overflow: auto; }
-        .preview-media { max-width: 100%; max-height: 60vh; border-radius: 8px; }
+        .preview-media { max-width: 100%; max-height: 60vh; border-radius: var(--r-ctl); }
 
         @media (max-width: 680px) { .note-split { grid-template-columns: 1fr; } }
 
 
         /* The strip saying the text on screen is an unsaved draft put back, not the saved note. */
-        .draft-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 18px -2px; padding: 7px 11px; border: 1px solid #f5c451; border-radius: 8px; background: rgba(245, 196, 81, 0.12); font-size: 12px; color: var(--text); }
+        .draft-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 18px -2px; padding: 7px 11px; border: 1px solid #f5c451; border-radius: var(--r-ctl); background: rgba(245, 196, 81, 0.12); font-size: 12px; color: var(--text); }
         .draft-discard { border: none; background: none; padding: 0; color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; }
         .draft-discard:hover { text-decoration: underline; }
 
         /* WYSIWYG note editor */
         .wysiwyg-toolbar { display: flex; flex-wrap: wrap; gap: 4px; padding: 10px 18px 0; }
-        .tool { border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 7px; padding: 5px 9px; font-size: 13px; cursor: pointer; min-width: 30px; }
+        .tool { border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: var(--r-ctl); padding: 5px 9px; font-size: 13px; cursor: pointer; min-width: 30px; }
         .tool:hover { border-color: var(--accent); color: var(--accent); }
-        .wysiwyg { margin: 12px 18px; flex: 1; min-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; background: var(--bg); font-size: 14px; line-height: 1.6; }
+        .wysiwyg { margin: 12px 18px; flex: 1; min-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--r-ctl); padding: 14px 16px; background: var(--bg); font-size: 14px; line-height: 1.6; }
         .wysiwyg:focus { outline: none; border-color: var(--accent); }
         .wysiwyg:empty::before { content: attr(data-placeholder); color: var(--muted); }
         /* A note being read: a page, not a field — and an empty one prompts nobody to write in it. */
@@ -798,7 +860,7 @@
         .section.locked .section-title { cursor: pointer; color: var(--muted); }
         .section.locked .chevron { font-size: 12px; }
         /* The collection's read-only badge, next to its name in the header. */
-        .ro-badge { margin-left: 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; vertical-align: middle; }
+        .ro-badge { margin-left: 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border: 1px solid var(--border); border-radius: var(--r-pill); padding: 2px 6px; vertical-align: middle; }
         .lock-action { width: 220px; }
         .lock-action.danger { color: var(--danger); border-color: var(--border); }
         .lock-action.danger:hover { border-color: var(--danger); color: var(--danger); }
@@ -806,7 +868,7 @@
         .lock-icon { font-size: 38px; line-height: 1; }
         .lock-title { font-size: 18px; font-weight: 700; }
         .lock-hint { color: var(--muted); font-size: 13px; margin: 0; }
-        .pin-input { width: 220px; border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 8px; padding: 10px 12px; font-size: 16px; text-align: center; letter-spacing: .3em; }
+        .pin-input { width: 220px; border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: var(--r-ctl); padding: 10px 12px; font-size: 16px; text-align: center; letter-spacing: .3em; }
         .pin-input:focus { outline: none; border-color: var(--accent); }
         .pin-input::placeholder { letter-spacing: normal; }
         .pin-error { color: var(--danger); font-size: 13px; min-height: 18px; }
@@ -818,7 +880,7 @@
             position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 200;
             display: flex; align-items: center; gap: 12px;
             background: var(--panel); color: var(--text);
-            border: 1px solid var(--border); border-radius: 10px;
+            border: 1px solid var(--border); border-radius: var(--r-card);
             box-shadow: 0 12px 32px rgba(0,0,0,.35); padding: 10px 12px 10px 16px;
         }
         .undo-msg { font-size: 13px; }
@@ -830,7 +892,7 @@
         .settings-modal { max-width: 880px; }
         .settings-layout { display: flex; flex: 1; min-height: 0; }
         .settings-nav { flex: 0 0 208px; border-right: 1px solid var(--border); padding: 12px 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
-        .settings-nav-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: none; background: transparent; color: var(--text); padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; }
+        .settings-nav-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: none; background: transparent; color: var(--text); padding: 9px 12px; border-radius: var(--r-ctl); cursor: pointer; font-size: 13px; font-weight: 500; }
         .settings-nav-item:hover { background: var(--bg); }
         .settings-nav-item.active { background: var(--accent); color: #fff; }
         .settings-nav-icon { font-size: 15px; width: 20px; text-align: center; flex: 0 0 auto; }
@@ -845,29 +907,86 @@
         .settings-hint { color: var(--muted); font-size: 12px; margin: 0; }
         /* On a setting that turns on something unfinished. Beside the name, not inside the hint: it is
            part of what the switch is, and the hint is where the reading stops. */
-        .settings-badge { margin-left: 8px; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; vertical-align: 2px; }
+        .settings-badge { margin-left: 8px; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--border); border-radius: var(--r-pill); padding: 1px 5px; vertical-align: 2px; }
         .settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-        .theme-toggle { display: inline-flex; flex: 0 0 auto; max-width: 100%; margin-left: auto; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+        .theme-toggle { display: inline-flex; flex: 0 0 auto; max-width: 100%; margin-left: auto; border: 1px solid var(--border); border-radius: var(--r-ctl); overflow: hidden; }
         .theme-opt { border: none; background: var(--panel); color: var(--text); padding: 7px 12px; cursor: pointer; font-size: 13px; white-space: nowrap; border-left: 1px solid var(--border); }
         .theme-opt:first-child { border-left: none; }
         .theme-opt:hover { color: var(--accent); }
         .theme-opt.active { background: var(--accent); color: #fff; }
         .theme-opt:disabled { opacity: .45; cursor: default; }
         .theme-opt:disabled:hover { color: var(--text); }
-        /* Accent-color picker: a row of round swatches, one per preset, in the preset's own light-mode
-           colour — so the choice reads the same regardless of which theme is active while picking it. */
-        .accent-swatches { display: inline-flex; flex: 0 0 auto; gap: 8px; margin-left: auto; }
+        /* Accent-color picker: a row of round swatches, each drawn in the colour it would actually
+           give the app in the lighting that is on right now (the swatches themselves are coloured from
+           Kotlin — see `accentRow` — since that is where the palettes live). Nine of them against a
+           narrow settings pane, so they wrap to a second line rather than squeezing the label off. */
+        .accent-swatches { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; flex: 0 1 auto; gap: 8px; margin-left: auto; }
         .accent-swatch {
             width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; padding: 0;
             cursor: pointer;
         }
         .accent-swatch:hover { transform: scale(1.1); }
         .accent-swatch.active { border-color: var(--text); }
-        .accent-swatch-blue { background: #3b82f6; }
-        .accent-swatch-purple { background: #8b5cf6; }
-        .accent-swatch-green { background: #16a34a; }
-        .accent-swatch-orange { background: #ea580c; }
-        .accent-swatch-rose { background: #e11d48; }
+        /* The theme grid: one miniature of the app per palette on offer. A tile is drawn in that
+           palette's own colours, handed to it as --t-* custom properties (see `themeGrid` in
+           Settings.kt) — so it is not a picture *of* a theme, it is the theme, at a twelfth of the
+           size. Six names in a row would say nothing at all about what picking one does. */
+        .theme-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+            gap: 10px; margin-top: 14px;
+        }
+        .theme-tile {
+            display: flex; flex-direction: column; gap: 6px;
+            padding: 6px; cursor: pointer;
+            border: 2px solid var(--border); border-radius: var(--r-card);
+            background: var(--panel); color: var(--text);
+        }
+        .theme-tile:hover { border-color: var(--accent); }
+        .theme-tile.active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+        .theme-tile-art {
+            display: flex; gap: 3px; height: 52px; padding: 4px; overflow: hidden;
+            border-radius: calc(var(--r-card) / 1.5); background: var(--t-bg);
+        }
+        .tt-side {
+            flex: 0 0 26%; display: flex; flex-direction: column; gap: 4px;
+            padding: 4px 3px; border-radius: 3px; background: var(--t-panel);
+        }
+        .tt-dot { height: 5px; border-radius: 2px; background: var(--t-accent); }
+        .tt-line { height: 3px; border-radius: 2px; background: var(--t-muted); opacity: .5; }
+        .tt-line.short { width: 60%; }
+        .tt-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+        .tt-bar { height: 8px; border-radius: 3px; background: var(--t-panel); border: 1px solid var(--t-border); }
+        .tt-cards { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+        .tt-card { border-radius: 3px; background: var(--t-panel); border: 1px solid var(--t-border); }
+        .theme-tile-name {
+            font-size: 11px; font-weight: 600; text-align: center;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+
+        /* The custom theme's colour well: the native picker, and the value it holds spelled out —
+           a colour someone chose deliberately is a colour they may want to write down. */
+        .color-well { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+        .color-input {
+            width: 42px; height: 28px; padding: 0; cursor: pointer;
+            border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--panel);
+        }
+        .color-hex { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); }
+
+        /* The wallpapers that need no file, and the one that does. Both are shown rather than named,
+           for the reason the accent swatches are. */
+        .gradient-swatches { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; }
+        .gradient-swatch {
+            flex: 1 1 92px; height: 44px; padding: 0; cursor: pointer;
+            border: 2px solid var(--border); border-radius: var(--r-ctl);
+        }
+        .gradient-swatch:hover { border-color: var(--accent); }
+        .gradient-swatch.active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+        .wallpaper-actions { align-items: center; margin-left: auto; }
+        .wallpaper-preview {
+            flex: none; width: 76px; height: 44px;
+            border: 1px solid var(--border); border-radius: var(--r-ctl);
+            background-size: cover; background-position: center;
+        }
         /* Too narrow for a side rail (a small extension popup, a phone): the nav lies down into a
            horizontal strip that scrolls, and the pane takes the full width beneath it. */
         @media (max-width: 620px) {
@@ -884,7 +1003,7 @@
         .account-modal p.error { color: var(--danger, #f85149); }
         .account-modal .btn.danger { margin: 0 18px 16px; color: var(--danger, #f85149); }
         .account-modal .btn.google { display: block; width: calc(100% - 36px); margin: 14px 18px 18px;
-            padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel);
+            padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--panel);
             color: var(--fg); cursor: pointer; font-size: 14px; }
         .account-modal .btn.google:hover { background: var(--bg); }
         .account-modal .row { display: flex; gap: 8px; padding: 12px 18px; }
@@ -926,11 +1045,11 @@
            uses, at a size that fits inside a modal instead of a hero section. */
         .onboarding-illus {
             width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 10px;
-            padding: 16px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg);
+            padding: 16px 14px; border: 1px solid var(--border); border-radius: var(--r-card); background: var(--bg);
         }
         .ob-skel { display: block; height: 7px; border-radius: 4px; background: var(--border); }
 
-        .ob-tab-chip { position: relative; display: flex; align-items: center; gap: 7px; flex: 0 0 auto; border: 1px solid var(--border); background: var(--panel); border-radius: 9px; padding: 8px 10px; }
+        .ob-tab-chip { position: relative; display: flex; align-items: center; gap: 7px; flex: 0 0 auto; border: 1px solid var(--border); background: var(--panel); border-radius: var(--r-ctl); padding: 8px 10px; }
         .ob-tab-dot { width: 14px; height: 14px; border-radius: 4px; background: var(--accent-soft); flex: 0 0 auto; }
         .ob-tab-lines { width: 46px; display: flex; flex-direction: column; gap: 5px; }
         .ob-tab-lines .ob-skel.sub { width: 60%; opacity: .6; }
@@ -974,13 +1093,13 @@
         .ob-sidebar { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; text-align: left; }
         .ob-sidebar-sec { padding: 4px 6px 1px; }
         .ob-sidebar-sec .ob-skel { width: 22px; opacity: .55; }
-        .ob-sidebar-col { display: flex; padding: 5px 7px; border-radius: 7px; }
+        .ob-sidebar-col { display: flex; padding: 5px 7px; border-radius: var(--r-ctl); }
         .ob-sidebar-col .ob-skel { width: 68%; }
         .ob-sidebar-col.on { background: var(--accent-soft); }
         .ob-sidebar-col.on .ob-skel { background: var(--accent); opacity: .85; }
 
         .ob-search-wrap { display: flex; flex-direction: column; gap: 9px; width: 100%; text-align: left; }
-        .ob-search-bar { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--panel); border-radius: 9px; padding: 8px 10px; color: var(--muted, #8b949e); }
+        .ob-search-bar { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--panel); border-radius: var(--r-ctl); padding: 8px 10px; color: var(--muted, #8b949e); }
         .ob-search-bar .icon-glyph { width: 15px; height: 15px; flex: 0 0 auto; }
         .ob-search-bar .ob-skel { width: 74px; }
         .ob-search-row { display: flex; align-items: center; gap: 8px; padding: 4px 3px; }
@@ -998,8 +1117,8 @@
 
         /* ---- About (a settings pane) ------------------------------------------------------------ */
         .about-pane { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding-top: 8px; }
-        .about-pane .brand-logo { width: 56px; height: 56px; border-radius: 12px; margin: 4px 0; }
-        .about-name { font-size: 18px; font-weight: 600; color: #50219B; }
+        .about-pane .brand-logo { width: 56px; height: 56px; padding: 5px; border-radius: var(--r-card); margin: 4px 0; }
+        .about-name { font-size: 18px; font-weight: 600; color: var(--brand, #50219B); }
         .about-version, .about-copyright { font-size: 13px; color: var(--muted, #8b949e); }
         .about-link { font-size: 13px; color: var(--accent); margin-top: 6px; }
     </style>

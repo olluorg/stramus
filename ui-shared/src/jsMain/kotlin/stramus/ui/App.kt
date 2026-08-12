@@ -834,10 +834,14 @@ val App = FC<AppProps> { props ->
 
     // Persisted UI preferences (localStorage): theme, language, and sidebar collapse state. Card order
     // is not among them — a sort writes the cards' own order (see [CardSort]), it does not remember one.
-    var theme by useState(prefGet("theme") ?: "auto")
-    // Which brand-colour preset stands in for the default blue; see the `accent-swatch-*` rules and
-    // `:root[data-accent="…"]` blocks in index.html for the full set.
-    var accentColor by useState(prefGet("accent") ?: "blue")
+    // How the app looks — theme, accent, corners, card density, and whatever stands behind it. One
+    // value rather than eight loose strings: not one of them can be put on the page on its own (see
+    // [Appearance]), since the accent depends on the theme, the theme on the lighting, and how solid a
+    // panel is on whether there is a wallpaper behind it.
+    var appearance by useState { loadAppearance() }
+    // A wallpaper the browser would not keep — a picture still too large for `localStorage` even after
+    // it was downscaled. Said in Settings, and cleared the moment another one is picked.
+    var wallpaperRejected by useState(false)
     var lang by useState(Lang.from(prefGet("lang")))
     // A card is its title, not its address: the URL under it says the same thing twice for most links
     // and pushes the ones it does not to a second line of noise. Hidden unless asked for.
@@ -1004,14 +1008,22 @@ val App = FC<AppProps> { props ->
         if (prefGet(ONBOARDING_SEEN_PREF) != "1") onboardingOpen = true
     }
 
-    useEffect(theme) {
-        applyTheme(theme)
-        prefSet("theme", theme)
+    useEffect(appearance) {
+        applyAppearance(appearance)
+        saveAppearance(appearance)
     }
 
-    useEffect(accentColor) {
-        applyAccent(accentColor)
-        prefSet("accent", accentColor)
+    // The one theme that changes without anyone touching the app: "auto" is the OS's choice, and the
+    // OS makes it again at sunset. Only that one subscribes — a theme picked outright does not care
+    // what the system is doing, and a listener left running would repaint the page for nothing.
+    useEffect(appearance) {
+        if (appearance.mode != "auto") return@useEffect
+        val stopWatching = onSystemThemeChange { applyAppearance(appearance) }
+        try {
+            awaitCancellation()
+        } finally {
+            stopWatching()
+        }
     }
 
     useEffect(lang) {
@@ -3761,10 +3773,29 @@ val App = FC<AppProps> { props ->
         if (settingsOpen) {
             SettingsModal {
                 strings = t
-                this.theme = theme
-                onThemeChange = { theme = it }
-                this.accentColor = accentColor
-                onAccentColorChange = { accentColor = it }
+                this.appearance = appearance
+                onAppearanceChange = { appearance = it }
+                this.wallpaperRejected = wallpaperRejected
+                // A picture is not stored as it was picked: a phone photograph is a dozen megabytes,
+                // and what stands behind the app under a translucent panel needs none of them. It is
+                // downscaled first ([makeWallpaper]), and only then offered to a storage that may still
+                // say no — which is the one preference failing to save that the user has to hear about.
+                onWallpaperPick = { mime, dataUri ->
+                    scope.launch {
+                        val scaled = makeWallpaper(dataUri, mime)
+                        if (scaled == null || !saveWallpaper(scaled)) {
+                            wallpaperRejected = true
+                        } else {
+                            wallpaperRejected = false
+                            appearance = appearance.copy(image = scaled, background = BackgroundKind.IMAGE)
+                        }
+                    }
+                }
+                onWallpaperClear = {
+                    wallpaperRejected = false
+                    saveWallpaper(null)
+                    appearance = appearance.copy(image = null, background = BackgroundKind.NONE)
+                }
                 this.lang = lang.id
                 onLangChange = { lang = Lang.from(it) }
                 this.showCardUrls = showCardUrls
