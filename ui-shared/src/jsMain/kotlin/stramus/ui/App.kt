@@ -384,12 +384,22 @@ private fun ChildrenBuilder.menuTitle(label: String) {
  * which is to say the memo would never hold and a drag would redraw the whole grid on every mouse
  * move. The tile passes its own card back instead, and `App` keeps these steady with `useCallback`.
  */
+/**
+ * Whether [cards] holds anything that will wear a picture, which is what decides between the two
+ * layouts — see the note in [cardGrid]. Asked per grid rather than per collection: a collection's
+ * groups are separate grids and pack separately, so one group having a video says nothing about another.
+ */
+private fun hasCovers(cards: List<Card>, previews: CardPreviews): Boolean =
+    previews == CardPreviews.INLINE &&
+        cards.any { it.kind == CardKind.LINK && videoThumbUrl(it.url) != null }
+
 private fun ChildrenBuilder.cardGrid(
     strings: Strings,
     cards: List<Card>,
     draggingCardId: Uuid?,
     readOnly: Boolean,
     showUrls: Boolean,
+    previews: CardPreviews,
     onOpen: (Card) -> Unit,
     onRename: (Card) -> Unit,
     onDelete: (Card) -> Unit,
@@ -398,13 +408,18 @@ private fun ChildrenBuilder.cardGrid(
     onDropOnTile: (Card) -> Unit,
 ) {
     div {
-        className = ClassName("grid")
+        // `covers` only where a card in *this* grid is actually wearing a picture. The class swaps the
+        // plain row-by-row grid for columns, and columns run top to bottom: a group with nothing tall in
+        // it would stack its cards two-deep for no reason at all, which is not a layout anybody asked
+        // for. See `.grid.covers` in index.html.
+        className = ClassName(if (hasCovers(cards, previews)) "grid covers" else "grid")
         cards.forEach { card ->
             CardTile {
                 key = key(card.id)
                 this.strings = strings
                 this.card = card
                 this.showUrl = showUrls
+                this.previews = previews
                 this.isDraggable = !readOnly
                 this.readOnly = readOnly
                 this.isDragging = draggingCardId == card.id
@@ -846,6 +861,9 @@ val App = FC<AppProps> { props ->
     // A card is its title, not its address: the URL under it says the same thing twice for most links
     // and pushes the ones it does not to a second line of noise. Hidden unless asked for.
     var showCardUrls by useState(prefGet("showCardUrls") == "1")
+    // Off unless asked for: a still frame comes from Google's servers, so showing one tells Google which
+    // video is saved here. See [CardPreviews], and the setting's own wording, which says so outright.
+    var cardPreviews by useState(CardPreviews.from(prefGet("cardPreviews")))
     var leftCollapsed by useState(prefGet("leftCollapsed") == "1")
     var rightCollapsed by useState(prefGet("rightCollapsed") == "1")
     // Whether the sections sidebar and the tabs/history sidebar have traded sides. Purely a layout
@@ -998,6 +1016,10 @@ val App = FC<AppProps> { props ->
             // card: make each one a preview, once. Behind the first paint — it reads whole files, and
             // nothing on screen is waiting for it.
             if (backfillThumbs(s)) thumbsVersion += 1
+
+            // A database that went through the build which cached video frames is still carrying them.
+            // Drop them once: they are somebody else's pictures, and this app no longer keeps any.
+            if (runCatching { s.cards.clearLinkThumbs() }.getOrDefault(false)) thumbsVersion += 1
         }
     }
 
@@ -1077,6 +1099,19 @@ val App = FC<AppProps> { props ->
                 }
             }
         }
+    }
+
+    // Correct `--card-h` from a card that is actually on the page. The stylesheet's value is a guess
+    // made from the tokens a card is built out of, and a guess is all it can be — the two lines of text
+    // in a card are as tall as the font this machine happened to load. Too small a value and every card
+    // hangs a few pixels over the row below it; too large and the rows carry slack. Either way the
+    // covered card stops being exactly two plain ones, which is the one thing this layout promises.
+    //
+    // Only while covers are on, since nothing reads `--card-h` otherwise, and it cannot chase its own
+    // tail: what is measured is the content, which no row height of ours changes.
+    useEffect(cards, cardPreviews, appearance.density) {
+        if (cardPreviews != CardPreviews.INLINE) return@useEffect
+        measureCardHeight()?.let { setRootVar("--card-h", "${it}px") }
     }
 
     // What the next open paints before it can read the real database — see [cachedPaint]. Gated on
@@ -3087,7 +3122,7 @@ val App = FC<AppProps> { props ->
                     div { className = ClassName("empty"); +t.noMatchingLinks }
                 } else {
                     div {
-                        className = ClassName("grid")
+                        className = ClassName(if (hasCovers(visibleResults, cardPreviews)) "grid covers" else "grid")
                         // In the order the search gives them back. There is no ⇅ over the results: a
                         // sort here would have to rewrite the order of every collection a match came
                         // from, and the results are a view of the cards, not a place they live in.
@@ -3097,6 +3132,7 @@ val App = FC<AppProps> { props ->
                                 strings = t
                                 this.card = card
                                 showUrl = showCardUrls
+                                previews = cardPreviews
                                 isDraggable = false
                                 // A card found by a search is still a card of its collection: if that
                                 // one is read-only, the result carries no rename or delete either.
@@ -3277,6 +3313,7 @@ val App = FC<AppProps> { props ->
                                     draggingCardId = draggingCardId,
                                     readOnly = !editable,
                                     showUrls = showCardUrls,
+                                    previews = cardPreviews,
                                     onOpen = onCardOpen,
                                     onRename = onCardRenameRequest,
                                     onDelete = onCardDelete,
@@ -3452,6 +3489,7 @@ val App = FC<AppProps> { props ->
                                                 draggingCardId = draggingCardId,
                                                 readOnly = !editable,
                                                 showUrls = showCardUrls,
+                                                previews = cardPreviews,
                                                 onOpen = onCardOpen,
                                                 onRename = onCardRenameRequest,
                                                 onDelete = onCardDelete,
@@ -3803,6 +3841,11 @@ val App = FC<AppProps> { props ->
                     showCardUrls = show
                     prefSet("showCardUrls", if (show) "1" else "0")
                 }
+                this.cardPreviews = cardPreviews.id
+                onCardPreviewsChange = { id ->
+                    cardPreviews = CardPreviews.from(id)
+                    prefSet("cardPreviews", id)
+                }
                 this.hasRightSidebar = hasRightSidebar
                 this.swapSidebars = swapSidebars
                 onSwapSidebarsChange = { swap ->
@@ -4046,6 +4089,9 @@ val App = FC<AppProps> { props ->
         // Every tooltip in the app, drawn here rather than inside the controls they belong to: the
         // panels all scroll, and a scroll box clips what leaves it. See [HintLayer].
         HintLayer()
+
+        // The still frame of a hovered video card, drawn at the root for exactly the same reason.
+        PreviewLayer()
 
         // What was just deleted, and the way back from it — for [UNDO_MS], then it fades of its own
         // accord. It stands over the page rather than in it: a deletion is undone from wherever the

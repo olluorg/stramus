@@ -51,6 +51,10 @@ external interface SettingsModalProps : Props {
     var showCardUrls: Boolean
     var onShowCardUrlsChange: (Boolean) -> Unit
 
+    /** Whether a saved video shows its still frame, and where — [CardPreviews.id]. Off by default. */
+    var cardPreviews: String
+    var onCardPreviewsChange: (String) -> Unit
+
     /** Whether the sections sidebar sits on the right instead of its usual left, and the tabs/history
      *  sidebar on the left instead of its usual right. Only worth offering where there is a second
      *  sidebar to swap places with. */
@@ -494,6 +498,12 @@ private fun ChildrenBuilder.appearancePane(props: SettingsModalProps, s: Strings
             s.cardUrls, s.cardUrlsHint, props.showCardUrls,
             listOf(false to s.cardUrlsHide, true to s.cardUrlsShow),
             props.onShowCardUrlsChange,
+        )
+
+        toggleRow(
+            s.cardPreviews, s.cardPreviewsHint, props.cardPreviews,
+            CardPreviews.entries.map { it.id to it.label(s) },
+            props.onCardPreviewsChange,
         )
 
         toggleRow(

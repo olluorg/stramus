@@ -174,6 +174,15 @@ rather than data collection, and both of which are described in the privacy poli
   asked it there — and nothing else does. The default, where the browser has an on-device model, is
   that model, which answers locally and sends nothing.
 - A web search from the search box goes to the user's own default search engine.
+- **Video previews** are off unless the user turns them on (Settings → Appearance → "Video previews").
+  Turned on, a card standing for a YouTube video draws the still frame YouTube publishes for it, by
+  pointing an `<img>` at `i.ytimg.com` — the address YouTube's own public oEmbed endpoint hands out for
+  that video, and the one every embed of it on the web loads. That request is the user's browser asking
+  Google for a picture, so Google sees the video id and the user's IP address, and the setting says so
+  in as many words before it is switched on. Nothing is collected by us and nothing is stored: the
+  frame is not kept with the card, not re-encoded and not carried to our server — only displayed, at
+  whatever size the card is, on a card that is itself a link to the video. `referrerpolicy="no-referrer"`
+  keeps the page the card sits on out of the request.
 
 ## After the review
 

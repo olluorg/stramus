@@ -201,7 +201,10 @@ interface CardRepository {
     /** The bytes of a file card as a `data:` URI, or null if [id] is no file card. */
     suspend fun blob(id: Uuid): String?
 
-    /** Attach the grid's preview image to a file card. */
+    /**
+     * Attach a preview image to a card: the downscaled picture of a file card, or the still frame of a
+     * link card that points at a video (see `Thumbs.kt`).
+     */
     suspend fun setThumb(id: Uuid, thumb: String)
 
     /**
@@ -209,6 +212,19 @@ interface CardRepository {
      * bytes the grid can no longer reach for. The UI regenerates a preview for each, once.
      */
     suspend fun imageFilesWithoutThumb(): List<Card>
+
+    /**
+     * Drop the preview from every link card that has one, and say whether any did.
+     *
+     * A build that no longer exists kept a copy of a saved video's still frame here. Keeping somebody
+     * else's picture — re-encoded, and carried to our own server by sync — is exactly what the terms
+     * covering those frames disallow, so a database that went through that build has to be cleaned
+     * rather than merely stopped from growing. A link's preview is now an address drawn straight from
+     * the site that publishes it and is never stored at all; see `Thumbs.kt`.
+     *
+     * File cards are untouched: their preview is the file's own, made here, and is what the grid draws.
+     */
+    suspend fun clearLinkThumbs(): Boolean
 
     /** Update a note card's title and markdown body. */
     suspend fun updateNote(id: Uuid, title: String, content: String)

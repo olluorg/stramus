@@ -1,6 +1,7 @@
 package stramus.ui
 
 import react.dom.html.HTMLAttributes
+import kotlin.math.abs
 import stramus.core.url.hostOf
 
 // Minimal typed view of the global `window` — the wrappers' web.window.Window is strict about
@@ -255,6 +256,18 @@ internal fun moveCardFocus(current: dynamic, currentId: String, key: String): Bo
         }
     }
     if (idx < 0) return false
+
+    // A group laid out in columns (see `.grid.covers`) is not filled row by row: cards run top to
+    // bottom and how many fit in a column is whatever the browser's balancing decided. No arithmetic on
+    // the index can name the card below, so that layout is navigated by where the cards actually are.
+    if ((grid.classList?.contains("covers") as? Boolean) == true) {
+        if (focusNearestCard(cards, idx, key)) return true
+        // Nothing further this way inside the group. Only up and down carry on into the next one.
+        if (key != "ArrowDown" && key != "ArrowUp") return false
+        val group = current.closest(".card-group, .tab-window") ?: return false
+        return focusAdjacentGroup(group, 0, forward = key == "ArrowDown")
+    }
+
     val columns = gridColumnCount(grid)
     when (key) {
         "ArrowRight" -> if (idx + 1 < n) { cards.item(idx + 1).focus(); return true }
@@ -273,6 +286,48 @@ internal fun moveCardFocus(current: dynamic, currentId: String, key: String): Bo
         }
     }
     return false
+}
+
+/**
+ * Focus the card nearest to the one at [idx] in the direction [key] points, by where the cards are drawn.
+ *
+ * The arithmetic in [moveCardFocus] assumes a grid filled row by row, where "down" is a fixed number of
+ * cards along. This makes no assumption about the layout at all, which is what a column-balanced group
+ * needs. Returns false when there is nothing that way, leaving the caller to decide what that means.
+ */
+private fun focusNearestCard(cards: dynamic, idx: Int, key: String): Boolean {
+    val from = cards.item(idx).getBoundingClientRect()
+    val fromX = ((from.left as Double) + (from.right as Double)) / 2
+    val fromY = ((from.top as Double) + (from.bottom as Double)) / 2
+    var best: dynamic = null
+    var bestScore = Double.MAX_VALUE
+    for (i in 0 until (cards.length as Int)) {
+        if (i == idx) continue
+        val box = cards.item(i).getBoundingClientRect()
+        val dx = ((box.left as Double) + (box.right as Double)) / 2 - fromX
+        val dy = ((box.top as Double) + (box.bottom as Double)) / 2 - fromY
+        // `along` is how far the candidate lies the way the key points, `across` how far it drifts off
+        // that line. A candidate not ahead at all is not a candidate, and the threshold rather than zero
+        // keeps two cards sharing a row from counting as being above one another.
+        val (along, across) = when (key) {
+            "ArrowRight" -> dx to dy
+            "ArrowLeft" -> -dx to dy
+            "ArrowDown" -> dy to dx
+            "ArrowUp" -> -dy to dx
+            else -> return false
+        }
+        if (along <= 1.0) continue
+        // Of two cards equally far ahead, the one more nearly straight ahead is the one meant — hence
+        // the drift counting for more than the distance does.
+        val score = along + 2.0 * abs(across)
+        if (score < bestScore) {
+            bestScore = score
+            best = cards.item(i)
+        }
+    }
+    if (best == null) return false
+    best.focus()
+    return true
 }
 
 /**
@@ -326,13 +381,20 @@ internal fun HTMLAttributes<*>.hint(text: String) {
     asDynamic()["aria-label"] = text
 }
 
-/** The box a tooltip belongs to, in viewport coordinates, and what it should say. */
+/**
+ * The box a hovered element occupies, in viewport coordinates, and what the thing drawn over it says.
+ *
+ * [text] is whichever attribute was watched for — the words for a tooltip, the picture for a preview —
+ * and [caption] is always the element's `data-hint`, so a preview can put the tooltip's own words under
+ * the picture instead of leaving the two to fight over the same corner of the screen.
+ */
 internal data class HintTarget(
     val text: String,
     val left: Double,
     val right: Double,
     val top: Double,
     val bottom: Double,
+    val caption: String? = null,
 )
 
 /** The viewport, which is what a tooltip has to stay inside of. */
@@ -349,8 +411,29 @@ internal fun viewportHeight(): Double = browserWindow().innerHeight.toDouble()
  * A tooltip drawn *inside* the control it belongs to is drawn inside whatever scrolls that control —
  * the tabs list, the sidebar, the content area — and a scroll box clips what leaves it, however high
  * the z-index. Only an element outside all of them, positioned against the viewport, escapes.
+ *
+ * An element that also carries a `data-preview` is passed over: it has a picture to show (see
+ * `PreviewLayer`), and the words go under that picture rather than into a second popup beside it.
  */
-internal fun onHintTarget(delayMs: Int, onTarget: (HintTarget?) -> Unit): () -> Unit {
+internal fun onHintTarget(delayMs: Int, onTarget: (HintTarget?) -> Unit): () -> Unit =
+    onHoverTarget(delayMs, HINT_ATTR, skipAttr = PREVIEW_ATTR, onTarget = onTarget)
+
+/** The attribute [hint] writes the tooltip's words into, and the one a hover preview's picture goes in. */
+internal const val HINT_ATTR = "data-hint"
+internal const val PREVIEW_ATTR = "data-preview"
+
+/**
+ * As [onHintTarget], but for any attribute: [attr] is what makes an element worth watching and what its
+ * [HintTarget.text] is read from, and an element carrying [skipAttr] is ignored as though it carried
+ * nothing at all. The one watch behind both the tooltips and the hover previews — same delay-then-measure
+ * shape, same reasons for living at the document rather than on the elements.
+ */
+internal fun onHoverTarget(
+    delayMs: Int,
+    attr: String,
+    skipAttr: String? = null,
+    onTarget: (HintTarget?) -> Unit,
+): () -> Unit {
     val doc = js("document")
     var pending: Int? = null
 
@@ -368,8 +451,12 @@ internal fun onHintTarget(delayMs: Int, onTarget: (HintTarget?) -> Unit): () -> 
     // title inside a row) to the element that carries the hint.
     val over: (dynamic) -> Unit = { event ->
         val target = event.target
-        val el = if (target != null && target.closest != undefined) target.closest("[data-hint]") else null
-        val text = el?.getAttribute("data-hint") as? String
+        val found = if (target != null && target.closest != undefined) target.closest("[$attr]") else null
+        // Ignored rather than merely unmatched: `closest` would otherwise walk past it to an ancestor
+        // that does carry the attribute, and answer with a box the pointer is nowhere near.
+        val skipped = found != null && skipAttr != null && found.hasAttribute(skipAttr) as Boolean
+        val el = if (skipped) null else found
+        val text = el?.getAttribute(attr) as? String
         cancelPending()
         if (el == null || text.isNullOrBlank()) {
             onTarget(null)
@@ -386,6 +473,7 @@ internal fun onHintTarget(delayMs: Int, onTarget: (HintTarget?) -> Unit): () -> 
                         right = box.right as Double,
                         top = box.top as Double,
                         bottom = box.bottom as Double,
+                        caption = (el.getAttribute(HINT_ATTR) as? String)?.takeIf { it != text },
                     ),
                 )
             }
@@ -448,6 +536,30 @@ internal fun prefRemove(key: String) {
 internal fun setRootVar(name: String, value: String) {
     runCatching { js("document.documentElement").style.setProperty(name, value) }
 }
+
+/**
+ * How tall a plain card actually comes out, measured from one on the page. This is what `--card-h` —
+ * the number the covers grid divides its rows by — ought to be, and index.html's value is only a
+ * considered guess at it: a card is padding, a border and two lines of text, and how tall those two
+ * lines are depends on the font the machine actually had. Null where there is no card to measure.
+ *
+ * `scrollHeight`, not the card's box: in a covers grid the card is already being held to whatever
+ * `--card-h` currently says, so measuring the box would only read the guess back. The content extent is
+ * how tall the card would be if nothing held it, which is the question. The border is added back on
+ * because `scrollHeight` leaves it out and the card is `border-box`.
+ */
+internal fun measureCardHeight(): Double? = runCatching {
+    // Any plain card in the content area, not only one in a covers grid: a group made entirely of
+    // videos has no plain card to measure, and the groups around it do — they are the same card either
+    // way. The sidebar's own card grid is left out of it, being a different shape.
+    val el = js("document.querySelector('.content .grid .card:not(.has-cover)')") ?: return null
+    val content = (el.scrollHeight as? Number)?.toDouble() ?: return null
+    val styles = js("window").getComputedStyle(el)
+    val border = edge(styles.borderTopWidth) + edge(styles.borderBottomWidth)
+    (content + border).takeIf { it > 0.0 }
+}.getOrNull()
+
+private fun edge(value: dynamic): Double = (js("parseFloat")(value) as? Number)?.toDouble() ?: 0.0
 
 /** Stamp — or, with a null [value], clear — a `data-*` attribute on `<html>`. */
 internal fun setRootAttribute(name: String, value: String?) {

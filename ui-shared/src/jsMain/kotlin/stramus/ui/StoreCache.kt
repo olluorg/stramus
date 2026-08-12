@@ -244,7 +244,13 @@ private fun decodeCardSection(d: dynamic): CardSection = CardSection(
 private fun Card.encode() = json(
     "id" to id.toString(), "collectionId" to collectionId.toString(),
     "cardSectionId" to cardSectionId?.toString(), "kind" to kind.id, "title" to title, "url" to url,
-    "favicon" to favicon, "content" to content, "thumb" to thumb, "mime" to mime, "blobSha" to blobSha,
+    "favicon" to favicon, "content" to content,
+    // A file's preview is what the grid draws, so the first paint needs it; a link's is a video's still
+    // frame, shown only once the pointer has rested on the card — long after the real database has
+    // answered. Keeping those here would spend the whole of this cache's few megabytes on pictures
+    // nothing is waiting for, and cost the collections behind them their first paint.
+    "thumb" to thumb.takeIf { kind != CardKind.LINK },
+    "mime" to mime, "blobSha" to blobSha,
     "orderKey" to orderKey, "createdAt" to createdAt.toString(),
 )
 
