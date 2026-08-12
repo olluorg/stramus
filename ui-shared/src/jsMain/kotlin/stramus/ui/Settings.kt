@@ -504,6 +504,7 @@ private fun ChildrenBuilder.appearancePane(props: SettingsModalProps, s: Strings
             s.cardPreviews, s.cardPreviewsHint, props.cardPreviews,
             CardPreviews.entries.map { it.id to it.label(s) },
             props.onCardPreviewsChange,
+            titleExtra = { span { className = ClassName("settings-badge"); +s.experimental } },
         )
 
         toggleRow(
