@@ -791,6 +791,16 @@ internal class KidxCardRepository(
         }
     }
 
+    override suspend fun clearLinkThumbs(): Boolean = db.write(Cards) {
+        val stale = Cards.all().filter { it.kind == CardKind.LINK.id && it.thumb != null }
+        stale.forEach { row ->
+            row.thumb = null
+            row.updatedAt = Clock.System.now()
+            Cards.put(row)
+        }
+        stale.isNotEmpty()
+    }
+
     override suspend fun imageFilesWithoutThumb(): List<Card> = db.read(Cards) {
         Cards.all().filter { it.kind == CardKind.FILE.id && it.deletedAt == null }
     }.map { it.toModel() }.filter { it.thumb == null && (it.mime ?: "").startsWith("image/") }

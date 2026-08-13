@@ -72,7 +72,8 @@ enum class CardKind(val id: String) {
  * One item inside a [Collection] — the Toby "card". [cardSectionId] null = ungrouped.
  *
  * The [kind] decides what carries the card's payload:
- *  - [CardKind.LINK]: [url] is the bookmark, [content] is null.
+ *  - [CardKind.LINK]: [url] is the bookmark, [content] is null. [thumb] is set for the links that have
+ *    a picture standing for them — a video's still frame — and is shown on hover, not in the grid.
  *  - [CardKind.NOTE]: [content] is the markdown body, [url] is empty.
  *  - [CardKind.FILE]: [mime] is its type and [title] the file name, but the bytes are *not* here —
  *    a card is read whenever its collection is drawn, and file bytes have no upper bound. They are

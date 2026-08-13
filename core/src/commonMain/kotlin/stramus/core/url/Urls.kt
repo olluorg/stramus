@@ -11,3 +11,52 @@ fun hostOf(url: String): String {
     val afterProto = if ("://" in url) url.substringAfter("://") else url
     return afterProto.substringBefore('/').substringBefore('?').removePrefix("www.").ifBlank { url }
 }
+
+/** The YouTube hosts a video address is ever written with, once [hostOf] has taken `www.` off. */
+private val YOUTUBE_HOSTS = setOf(
+    "youtube.com",
+    "m.youtube.com",
+    "music.youtube.com",
+    "youtube-nocookie.com",
+    "youtu.be",
+)
+
+/** A video id is eleven characters of URL-safe base64, and nothing else is one. */
+private val VIDEO_ID = Regex("[A-Za-z0-9_-]{11}")
+
+/**
+ * The video a YouTube address points at, or null when it points at anything else — a channel, a
+ * playlist page, the home page, or a site that is not YouTube at all.
+ *
+ * This is what a link card's preview is fetched by: YouTube publishes every video's still frame at a
+ * fixed address built from this id, so a card knows what it shows without anybody being asked. The
+ * several shapes below are all one video: `watch?v=`, the `youtu.be` short form, and the path forms
+ * (`/shorts/`, `/embed/`, `/live/`, `/v/`) that the site itself hands out in its share and embed menus.
+ *
+ * It lives beside [hostOf] rather than next to the card that draws the preview because it is the same
+ * kind of knowledge — reading a URL without a browser to parse it — and, like [hostOf], it is worth
+ * testing away from the DOM.
+ */
+fun youtubeVideoId(url: String): String? {
+    if (hostOf(url) !in YOUTUBE_HOSTS) return null
+
+    val afterProto = if ("://" in url) url.substringAfter("://") else url
+    val afterHost = afterProto.substringAfter('/', "").substringBefore('#')
+    val path = afterHost.substringBefore('?')
+    val query = afterHost.substringAfter('?', "")
+
+    // `watch?v=`, and `youtu.be/x?v=y` too — a `v` parameter names the video wherever it appears.
+    val fromQuery = query.split('&')
+        .firstOrNull { it.startsWith("v=") }
+        ?.removePrefix("v=")
+    if (fromQuery != null) return fromQuery.takeIf { VIDEO_ID.matches(it) }
+
+    val segments = path.split('/').filter { it.isNotBlank() }
+    val candidate = when {
+        // The short form is nothing but the id: `youtu.be/dQw4w9WgXcQ`.
+        hostOf(url) == "youtu.be" -> segments.firstOrNull()
+        segments.size >= 2 && segments[0] in setOf("shorts", "embed", "live", "v") -> segments[1]
+        else -> null
+    }
+    return candidate?.takeIf { VIDEO_ID.matches(it) }
+}

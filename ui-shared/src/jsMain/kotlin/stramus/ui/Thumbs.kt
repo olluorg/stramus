@@ -3,6 +3,7 @@
 package stramus.ui
 
 import stramus.core.db.StramusStore
+import stramus.core.url.youtubeVideoId
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlin.math.max
@@ -96,6 +97,23 @@ private suspend fun downscale(dataUri: String, maxPx: Int, encodeMime: String, q
         image.src = dataUri
     }
 }
+
+/**
+ * Where YouTube publishes the still frame of the video [pageUrl] points at, or null when it points at no
+ * video. An `<img>` is pointed straight at this and nothing is ever kept: see [CardPreviews], the setting
+ * that decides whether a card asks for it at all.
+ *
+ * `mqdefault` and not `hqdefault`: the former is a true 16:9 crop at 320x180, the latter a 4:3 frame with
+ * black bars baked down its sides.
+ *
+ * The bytes are deliberately *not* fetched, cached or re-encoded, which an earlier version of this did.
+ * Storing them meant keeping a copy of somebody else's picture indefinitely, re-encoding it, and — through
+ * sync — serving it from our own machines, all of which the terms covering those frames disallow. Pointing
+ * an `<img>` at the address the site itself publishes is what an embed does, and it is where this stops.
+ */
+internal fun videoThumbUrl(pageUrl: String): String? =
+    youtubeVideoId(pageUrl)?.let { "https://i.ytimg.com/vi/$it/mqdefault.jpg" }
+
 
 /**
  * Give a preview to the image files saved before previews existed — their bytes moved out of the

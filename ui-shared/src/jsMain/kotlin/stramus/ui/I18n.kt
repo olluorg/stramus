@@ -497,6 +497,17 @@ interface Strings {
     val cardUrlsShow: String
     val cardUrlsHide: String
 
+    /**
+     * Settings: whether a saved video shows its still frame, and if so where. Off unless asked for, and
+     * the hint says plainly what turning it on does — the frames come from Google's servers, so asking
+     * for one tells Google which video it is. Nothing here is worth a user finding out afterwards.
+     */
+    val cardPreviews: String
+    val cardPreviewsHint: String
+    val cardPreviewsOff: String
+    val cardPreviewsHover: String
+    val cardPreviewsAlways: String
+
     /** Settings: whether a collection's card sections are stacked open, or shown as folders to open. */
     val groupsView: String
     val groupsViewHint: String
@@ -931,6 +942,12 @@ private object EnStrings : Strings {
     override val cardUrlsHint = "Whether a link card shows its address under the title."
     override val cardUrlsShow = "Show"
     override val cardUrlsHide = "Hide"
+    override val cardPreviews = "Video previews"
+    override val cardPreviewsHint =
+        "Off by default. Turning this on makes your browser ask Google's servers for the still frame of every saved video it shows, which tells Google the video and your address. The app keeps nothing: frames are not stored with your cards and are asked for afresh, your browser's own cache aside. On hover asks only about the video you point at; always asks about every video on screen."
+    override val cardPreviewsOff = "Off"
+    override val cardPreviewsHover = "On hover"
+    override val cardPreviewsAlways = "Always"
     override val groupsView = "Sections view"
     override val groupsViewHint =
         "Show a collection's sections one under another, or as folders that open where they stand."
@@ -1375,6 +1392,12 @@ private object RuStrings : Strings {
     override val cardUrlsHint = "Показывать ли под заголовком карточки-ссылки её адрес."
     override val cardUrlsShow = "Показывать"
     override val cardUrlsHide = "Скрывать"
+    override val cardPreviews = "Превью видео"
+    override val cardPreviewsHint =
+        "По умолчанию выключено. Если включить, браузер будет запрашивать кадр каждого показанного сохранённого видео у серверов Google — и Google узнает, что это за видео и с какого вы адреса. Приложение ничего не сохраняет: кадры не хранятся вместе с карточками и запрашиваются заново, если не считать обычного кэша браузера. «При наведении» спрашивает только про то видео, на которое вы навели; «всегда» — про все на экране."
+    override val cardPreviewsOff = "Выключить"
+    override val cardPreviewsHover = "При наведении"
+    override val cardPreviewsAlways = "Всегда"
     override val groupsView = "Вид секций"
     override val groupsViewHint =
         "Показывать секции коллекции одну под другой или папками, которые раскрываются на месте."
@@ -1818,6 +1841,12 @@ private object FrStrings : Strings {
     override val cardUrlsHint = "Si une carte-lien affiche son adresse sous le titre."
     override val cardUrlsShow = "Afficher"
     override val cardUrlsHide = "Masquer"
+    override val cardPreviews = "Aperçus vidéo"
+    override val cardPreviewsHint =
+        "Désactivé par défaut. Une fois activé, votre navigateur demande aux serveurs de Google l'image de chaque vidéo enregistrée affichée, ce qui indique à Google la vidéo et votre adresse. L'application ne conserve rien : les images ne sont pas stockées avec vos cartes et sont redemandées à chaque fois, au cache du navigateur près. « Au survol » ne demande que la vidéo pointée ; « toujours », toutes celles à l'écran."
+    override val cardPreviewsOff = "Désactivé"
+    override val cardPreviewsHover = "Au survol"
+    override val cardPreviewsAlways = "Toujours"
     override val groupsView = "Vue des sections"
     override val groupsViewHint =
         "Afficher les sections d'une collection les unes sous les autres, ou comme des dossiers qui s'ouvrent sur place."
@@ -2261,6 +2290,12 @@ private object EsStrings : Strings {
     override val cardUrlsHint = "Si una tarjeta de enlace muestra su dirección bajo el título."
     override val cardUrlsShow = "Mostrar"
     override val cardUrlsHide = "Ocultar"
+    override val cardPreviews = "Vistas previas de vídeo"
+    override val cardPreviewsHint =
+        "Desactivado por defecto. Al activarlo, el navegador pide a los servidores de Google el fotograma de cada vídeo guardado que muestra, con lo que Google sabe de qué vídeo se trata y desde qué dirección. La aplicación no guarda nada: los fotogramas no se almacenan con tus tarjetas y se piden de nuevo, salvo la caché propia del navegador. «Al pasar el ratón» pregunta solo por el vídeo señalado; «siempre», por todos los de la pantalla."
+    override val cardPreviewsOff = "Desactivado"
+    override val cardPreviewsHover = "Al pasar el ratón"
+    override val cardPreviewsAlways = "Siempre"
     override val groupsView = "Vista de secciones"
     override val groupsViewHint =
         "Mostrar las secciones de una colección una bajo otra, o como carpetas que se abren donde están."
@@ -2704,6 +2739,12 @@ private object DeStrings : Strings {
     override val cardUrlsHint = "Ob eine Link-Karte ihre Adresse unter dem Titel zeigt."
     override val cardUrlsShow = "Anzeigen"
     override val cardUrlsHide = "Verbergen"
+    override val cardPreviews = "Video-Vorschau"
+    override val cardPreviewsHint =
+        "Standardmäßig aus. Eingeschaltet fragt Ihr Browser die Server von Google nach dem Standbild jedes angezeigten gespeicherten Videos — Google erfährt damit das Video und Ihre Adresse. Die App bewahrt nichts auf: die Bilder werden nicht bei den Karten gespeichert und jedes Mal neu angefragt, vom Cache des Browsers abgesehen. «Beim Überfahren» fragt nur nach dem Video unter dem Zeiger, «immer» nach allen auf dem Bildschirm."
+    override val cardPreviewsOff = "Aus"
+    override val cardPreviewsHover = "Beim Überfahren"
+    override val cardPreviewsAlways = "Immer"
     override val groupsView = "Bereichsansicht"
     override val groupsViewHint =
         "Die Bereiche einer Sammlung untereinander anzeigen, oder als Ordner, die an ihrem Platz aufklappen."
@@ -3147,6 +3188,12 @@ private object PtBrStrings : Strings {
     override val cardUrlsHint = "Se um cartão de link mostra seu endereço abaixo do título."
     override val cardUrlsShow = "Mostrar"
     override val cardUrlsHide = "Ocultar"
+    override val cardPreviews = "Prévias de vídeo"
+    override val cardPreviewsHint =
+        "Desligado por padrão. Ao ligar, seu navegador pede aos servidores do Google o quadro de cada vídeo salvo exibido, o que informa ao Google qual é o vídeo e o seu endereço. O aplicativo não guarda nada: os quadros não são armazenados com os cartões e são pedidos de novo, tirando o cache do próprio navegador. «Ao passar o cursor» pergunta só pelo vídeo apontado; «sempre», por todos os da tela."
+    override val cardPreviewsOff = "Desligado"
+    override val cardPreviewsHover = "Ao passar o cursor"
+    override val cardPreviewsAlways = "Sempre"
     override val groupsView = "Visualização das seções"
     override val groupsViewHint =
         "Mostrar as seções de uma coleção uma abaixo da outra, ou como pastas que abrem onde estão."
@@ -3583,6 +3630,12 @@ private object ZhCnStrings : Strings {
     override val cardUrlsHint = "链接卡片是否在标题下方显示其网址。"
     override val cardUrlsShow = "显示"
     override val cardUrlsHide = "隐藏"
+    override val cardPreviews = "视频预览"
+    override val cardPreviewsHint =
+        "默认关闭。开启后，浏览器会向 Google 的服务器请求所显示的每个已保存视频的画面，Google 由此得知是哪个视频以及您的地址。应用本身不保存任何内容：画面不会随卡片存储，每次都会重新请求，浏览器自身的缓存除外。«悬停时»只请求您指向的那个视频；«始终»会请求屏幕上的全部视频。"
+    override val cardPreviewsOff = "关闭"
+    override val cardPreviewsHover = "悬停时"
+    override val cardPreviewsAlways = "始终"
     override val groupsView = "分组视图"
     override val groupsViewHint =
         "将收藏夹的分组逐个纵向排列显示，或显示为可就地展开的文件夹。"
@@ -4021,6 +4074,12 @@ private object JaStrings : Strings {
     override val cardUrlsHint = "リンクカードにタイトルの下にアドレスを表示するかどうか。"
     override val cardUrlsShow = "表示"
     override val cardUrlsHide = "非表示"
+    override val cardPreviews = "動画のプレビュー"
+    override val cardPreviewsHint =
+        "既定では無効です。有効にすると、表示中の保存済み動画それぞれのサムネイルを Google のサーバーに要求するため、どの動画かとあなたのアドレスが Google に伝わります。アプリ自体は何も保存しません。画像はカードとともに保存されず毎回あらためて要求されます（ブラウザ自身のキャッシュを除く）。«ホバー時»は指した動画だけ、«常に表示»は画面上のすべてを要求します。"
+    override val cardPreviewsOff = "無効"
+    override val cardPreviewsHover = "ホバー時"
+    override val cardPreviewsAlways = "常に表示"
     override val groupsView = "セクション表示"
     override val groupsViewHint =
         "コレクションのセクションを縦に並べて表示するか、その場で開くフォルダーとして表示するか。"
@@ -4462,6 +4521,12 @@ private object KoStrings : Strings {
     override val cardUrlsHint = "링크 카드가 제목 아래에 주소를 표시할지 여부."
     override val cardUrlsShow = "표시"
     override val cardUrlsHide = "숨기기"
+    override val cardPreviews = "동영상 미리보기"
+    override val cardPreviewsHint =
+        "기본값은 꺼짐입니다. 켜면 브라우저가 화면에 보이는 저장된 동영상마다 정지 화면을 Google 서버에 요청하며, 이때 어떤 동영상인지와 사용자의 주소가 Google에 전달됩니다. 앱 자체는 아무것도 보관하지 않습니다. 화면은 카드와 함께 저장되지 않고 매번 새로 요청됩니다(브라우저 자체 캐시는 제외). «마우스 올릴 때»는 가리킨 동영상만, «항상»은 화면의 모든 동영상을 요청합니다."
+    override val cardPreviewsOff = "끔"
+    override val cardPreviewsHover = "마우스 올릴 때"
+    override val cardPreviewsAlways = "항상"
     override val groupsView = "섹션 보기"
     override val groupsViewHint =
         "컬렉션의 섹션을 위아래로 나열해 표시하거나, 제자리에서 펼쳐지는 폴더 형태로 표시합니다."
@@ -4905,6 +4970,12 @@ private object ItStrings : Strings {
     override val cardUrlsHint = "Se una scheda link mostra il suo indirizzo sotto il titolo."
     override val cardUrlsShow = "Mostra"
     override val cardUrlsHide = "Nascondi"
+    override val cardPreviews = "Anteprime video"
+    override val cardPreviewsHint =
+        "Disattivo per impostazione predefinita. Attivandolo, il browser chiede ai server di Google il fotogramma di ogni video salvato mostrato, e Google viene così a sapere quale video e il tuo indirizzo. L'app non conserva nulla: i fotogrammi non sono memorizzati con le schede e vengono richiesti di nuovo ogni volta, a parte la cache del browser stesso. «Al passaggio» chiede solo del video puntato; «sempre», di tutti quelli a schermo."
+    override val cardPreviewsOff = "Disattivo"
+    override val cardPreviewsHover = "Al passaggio"
+    override val cardPreviewsAlways = "Sempre"
     override val groupsView = "Vista delle sezioni"
     override val groupsViewHint =
         "Mostra le sezioni di una raccolta una sotto l'altra, o come cartelle che si aprono dove si trovano."
@@ -5347,6 +5418,12 @@ private object TrStrings : Strings {
     override val cardUrlsHint = "Bir bağlantı kartının başlığın altında adresini gösterip göstermeyeceği."
     override val cardUrlsShow = "Göster"
     override val cardUrlsHide = "Gizle"
+    override val cardPreviews = "Video önizlemeleri"
+    override val cardPreviewsHint =
+        "Varsayılan olarak kapalı. Açtığınızda tarayıcınız gösterilen her kayıtlı videonun karesini Google'ın sunucularından ister; böylece Google hangi video olduğunu ve adresinizi öğrenir. Uygulama hiçbir şey saklamaz: kareler kartlarla birlikte depolanmaz ve tarayıcının kendi önbelleği dışında her seferinde yeniden istenir. «Üzerine gelince» yalnızca işaret ettiğiniz videoyu, «her zaman» ekrandaki tüm videoları ister."
+    override val cardPreviewsOff = "Kapalı"
+    override val cardPreviewsHover = "Üzerine gelince"
+    override val cardPreviewsAlways = "Her zaman"
     override val groupsView = "Bölüm görünümü"
     override val groupsViewHint =
         "Bir koleksiyonun bölümlerini alt alta göster, ya da bulundukları yerde açılan klasörler olarak göster."

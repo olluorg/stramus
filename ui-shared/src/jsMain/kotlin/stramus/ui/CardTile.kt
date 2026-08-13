@@ -11,6 +11,8 @@ import react.dom.html.ReactHTML.div
 import react.dom.html.ReactHTML.img
 import react.dom.html.ReactHTML.span
 import react.memo
+import react.useEffect
+import react.useState
 import stramus.core.model.Card
 import stramus.core.model.CardKind
 import stramus.core.url.hostOf
@@ -21,12 +23,45 @@ import web.data.move
 import web.html.HTMLElement
 import kotlin.uuid.ExperimentalUuidApi
 
+/**
+ * Whether a saved video shows its still frame, and where.
+ *
+ * [OFF] by default, and deliberately: a frame is fetched from Google's own servers, so drawing one tells
+ * Google which video the user saved and from what address. That is a thing to be asked for, not a thing
+ * to be discovered afterwards — see the `cardPreviews` setting, whose wording says exactly this, and
+ * `Thumbs.kt`, which explains why nothing is ever kept.
+ */
+enum class CardPreviews(val id: String) {
+    /** No frames and no requests. Nothing about a saved video leaves the machine. */
+    OFF("off"),
+
+    /** The frame appears over the page while the pointer rests on a card: one video asked about, once. */
+    HOVER("hover"),
+
+    /** Every video card wears its frame — so every video on screen is asked about, on every open. */
+    INLINE("inline"),
+    ;
+
+    fun label(s: Strings): String = when (this) {
+        OFF -> s.cardPreviewsOff
+        HOVER -> s.cardPreviewsHover
+        INLINE -> s.cardPreviewsAlways
+    }
+
+    companion object {
+        fun from(id: String?): CardPreviews = entries.firstOrNull { it.id == id } ?: OFF
+    }
+}
+
 external interface CardTileProps : Props {
     var strings: Strings
     var card: Card
 
     /** Whether a link card spells its address out under the title. See the `cardUrls` setting. */
     var showUrl: Boolean
+
+    /** Whether this card shows a video's still frame, and where. See [CardPreviews]. */
+    var previews: CardPreviews
     var isDraggable: Boolean
     var readOnly: Boolean
     var isDragging: Boolean
@@ -48,7 +83,8 @@ external interface CardTileProps : Props {
 /**
  * One card. Its look depends on [Card.kind]: a link shows its favicon + URL, a note shows a snippet
  * of its markdown, a file shows an image thumbnail (or a file glyph). Its text comes from `strings`,
- * the active translations handed down by `App`. Hovering reveals rename and delete.
+ * the active translations handed down by `App`. Hovering reveals rename and delete — and, for a link
+ * that stands for a video, the still frame saved with it (see [PreviewLayer]).
  *
  * A link card is a real `<a href>`, so the browser opens it in a new tab on a middle-click or a
  * Ctrl/Cmd-click, and offers "open in new tab" in its context menu — exactly as any other link on
@@ -116,11 +152,26 @@ private fun <T : HTMLElement> HTMLAttributes<T>.cardTileBody(props: CardTileProp
         CardKind.FILE -> card.mime ?: strings.fileLabel
     }
 
+    // Where this card's video publishes its still frame, if this card stands for a video at all. Only an
+    // address: nothing is fetched or kept here, and the request happens — if it happens — when a browser
+    // draws the `<img>` below. See [videoThumbUrl].
+    val frame = if (card.kind == CardKind.LINK) videoThumbUrl(card.url) else null
+    val offered = frame?.takeIf { props.previews == CardPreviews.INLINE }
+    // A picture that will not load costs the card the whole cover, `has-cover` and all — the class is
+    // what makes the tile two rows tall, and a card left tall around a picture that never arrived is a
+    // hole in the grid. Kept here rather than inside the image so that the tile itself knows.
+    var coverBroken by useState(false)
+    // A picture *replaced* — the frame arriving to stand in for the address it was drawn from — is a
+    // fresh chance, not a settled failure.
+    useEffect(offered) { coverBroken = false }
+    val cover = offered?.takeUnless { coverBroken }
+
     val elementId = "card-${card.id}"
     asDynamic()["id"] = elementId
     className = ClassName(
         buildString {
             append("card kind-${card.kind.id}")
+            if (cover != null) append(" has-cover")
             if (props.isDragging) append(" dragging")
         },
     )
@@ -129,6 +180,36 @@ private fun <T : HTMLElement> HTMLAttributes<T>.cardTileBody(props: CardTileProp
     // whose address the tile does not show is the exception — then the tooltip is the only
     // place left to see where the card goes.
     hint(if (card.kind == CardKind.LINK && !props.showUrl) "${card.title} — ${card.url}" else card.title)
+    // A link that stands for a video carries its still frame, shown over the page while the pointer
+    // rests here — see [PreviewLayer], which reads this and draws the tooltip's words under it. It is
+    // not drawn in the tile itself: a grid of 16:9 frames is a video site, and this is a page of links.
+    //
+    // The frame saved with the card by preference — it needs no network, so a saved video keeps its
+    // preview offline — and the address it came from otherwise: a card whose bytes have not been
+    // fetched yet, or one whose bytes cannot be fetched at all (an `<img>` needs no CORS headers where
+    // `fetch` does), still has something to show.
+    //
+    // Only in [CardPreviews.HOVER]: with the frame already on the tile a popup of what is under the
+    // pointer answers nothing, and it would cost the card its ordinary tooltip besides.
+    if (props.previews == CardPreviews.HOVER) {
+        frame?.let { asDynamic()[PREVIEW_ATTR] = it }
+    }
+
+    // First in the tile, so the grid places it across the top — see `.card.has-cover` in index.html.
+    if (cover != null) {
+        img {
+            className = ClassName("card-cover")
+            src = cover
+            // The picture *is* the card here, so it is not decoration to be passed over in silence —
+            // but the title is right under it, and repeating it would have a screen reader say it twice.
+            alt = ""
+            draggable = false
+            // Nothing of ours travels with the request: the page this is drawn on is no business of the
+            // server holding the picture.
+            asDynamic()["referrerPolicy"] = "no-referrer"
+            onError = { coverBroken = true }
+        }
+    }
     // Enter opens the tile — except a link, which already opens on Enter as any `<a>` does; handling
     // it again here would fire [CardTileProps.onOpen] twice. Space is not a link's default action
     // (only Enter is, on an `<a>`), so it is handled here for every kind alike. Arrow keys move focus

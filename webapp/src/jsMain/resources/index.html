@@ -87,12 +87,18 @@
             --card-gap: 12px;
             --card-min: 220px;
             --card-icon: 24px;
+            /* One card's height, which the grid needs as a number the moment cards stop all being the
+               same size: a card wearing a picture is two of these tall, and the plain ones pack into
+               the column beside it. Padding + border + the two lines of text (14px/1.45 over 12px/1.45)
+               — border-box, so the whole card. Change it and the covers follow. */
+            --card-h: 64px;
             --row-pad: 8px 10px;
         }
         :root[data-radius="medium"] { --r-card: 6px; --r-ctl: 5px; --r-modal: 9px; --r-pill: 4px; }
         :root[data-radius="sharp"] { --r-card: 0; --r-ctl: 0; --r-modal: 2px; --r-pill: 0; }
         :root[data-density="compact"] {
             --card-pad: 8px 10px; --card-gap: 8px; --card-min: 190px; --card-icon: 18px;
+            --card-h: 56px;
             --row-pad: 5px 10px;
         }
 
@@ -325,6 +331,72 @@
         /* On hover the tools sit over the title's tail; a chip behind each keeps them a clear target. */
         .card-tools .icon:hover { background: var(--bg); border-radius: var(--r-pill); }
 
+        /* A card wearing its picture rather than keeping it for a hover — the `cardPreviews` setting.
+           The tile turns from a row into a two-column grid so the picture can span the top while the
+           favicon and the title keep the row they always had under it. The tools take no part in
+           either layout: they are absolutely positioned and sit in the corner regardless. */
+        .card.has-cover {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            align-items: center;
+            /* The gap between the picture and the title belongs to the card, not to the picture: given
+               to the picture as a margin it would be added on top of a height already equal to the whole
+               cell, and the picture would spill over the title. */
+            column-gap: 10px; row-gap: 8px;
+        }
+        /* Across both columns, and carrying the gap to the row below as its own margin rather than as
+           the grid's row-gap — a picture that fails to load draws nothing at all (see CardCover), and
+           a row-gap would hold a hole open where it would have been.
+
+           No aspect ratio of its own: the card's height is settled by the grid (two rows), so the
+           picture takes whatever is left over the title and is cropped to it. The height is the
+           promise being kept here; the framing gives way to it. */
+        .card-cover {
+            grid-column: 1 / -1;
+            width: 100%; height: 100%; min-height: 0;
+            object-fit: cover;
+            border-radius: var(--r-ctl);
+            background: var(--bg);
+        }
+
+        /* A grid that may hold covers, which is to say one drawn while `cardPreviews` is on.
+
+           Rows become a fixed size so that a tall card can be an exact multiple of a short one, and
+           `dense` is what does the packing: a covered card takes two rows of its column, and the plain
+           cards behind it fall into the cells left over beside it instead of leaving a hole. Without
+           covers on the page this looks exactly like the plain grid, every card being one row tall. */
+        /* Columns, not a grid, and that is the whole point of this mode.
+           
+           A grid fills row by row: put a tall card among short ones and the short ones go on across the
+           row, leaving the space under them empty, because the next cell along comes before the hole in
+           the scan order. `grid-auto-flow: dense` does not change that — it fills holes with *later*
+           items, still row by row. What is wanted here is the other axis: cards running down a column
+           and moving to the next one when it is full, so a pair of short cards stacks beside a tall one.
+           That is what multi-column does, and it balances the column heights itself.
+           
+           The cost is that reading order becomes column-major — the second card is under the first, not
+           beside it. Only this mode pays it; the plain grid above is untouched. */
+        .grid.covers {
+            display: block;
+            column-width: var(--card-min);
+            column-gap: var(--card-gap);
+        }
+        /* A card must not be split down the middle by a column break. The margin is the row gap the
+           grid used to provide, which `display: block` no longer does. */
+        .grid.covers .card {
+            break-inside: avoid;
+            margin-bottom: var(--card-gap);
+        }
+        /* Exactly two plain cards and the gap between them, which is what makes a column of two stand
+           level with one covered card beside it. --card-h is measured from a real card (App.kt), so this
+           holds whatever the font turns out to be. */
+        .grid.covers .card.has-cover {
+            height: calc(2 * var(--card-h) + var(--card-gap));
+            /* The picture takes the slack, the title row only what it needs. */
+            grid-template-rows: 1fr auto;
+        }
+
+
         /* Right sidebar: live open-tabs list (extension only), one group per browser window */
         .tabs {
             width: 280px; flex: 0 0 280px;
@@ -371,6 +443,35 @@
             text-transform: none; letter-spacing: normal; text-align: left;
             white-space: normal; overflow-wrap: anywhere;
             pointer-events: none; /* it is a label, not a thing to hit */
+        }
+
+        /* The still frame of a saved video, shown while the pointer rests on its card. Drawn by
+           `PreviewLayer` at the root of the page, and `fixed` for the same reason .hint-pop is: a
+           picture drawn inside the card is drawn inside the content area that scrolls it, and a scroll
+           box clips what leaves it. It stands in for the tooltip on those cards rather than joining it,
+           so it carries the same words under the picture. */
+        .preview-pop {
+            position: fixed; z-index: 300;
+            width: 288px;
+            padding: 6px; border-radius: var(--r-card);
+            background: var(--panel-solid, var(--panel));
+            border: 1px solid var(--border);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, .28);
+            pointer-events: none; /* it is a label, not a thing to hit */
+        }
+        /* The frame's own aspect ratio, held whatever the picture turns out to be: a thumbnail that
+           failed to decode leaves a card-coloured rectangle rather than collapsing the popup to its
+           caption. `cover` because the ratio is the frame's, not the picture's, to argue with. */
+        .preview-img {
+            display: block; width: 100%; aspect-ratio: 16 / 9;
+            object-fit: cover; border-radius: var(--r-ctl); background: var(--bg);
+        }
+        /* Two lines at most: this is the card's title, and the card it belongs to is right under it. */
+        .preview-caption {
+            padding: 7px 4px 3px;
+            font-size: 12px; line-height: 1.35; color: var(--text);
+            overflow-wrap: anywhere; overflow: hidden;
+            display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
         }
 
         /* The ⇅ menu that sorts the window's tabs, and the ⤓ that saves them into the open collection.
