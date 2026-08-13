@@ -554,6 +554,8 @@
             display: flex; align-items: center; gap: 8px;
             padding: var(--row-pad); border-radius: var(--r-ctl); cursor: pointer;
             border: 1px solid transparent;
+            /* What the × is laid over the row against — see `.tab > .icon.del`. */
+            position: relative;
         }
         /* One hover language across every list row — a tab here, a collection in the sidebar, a search
            hit: the pointer lands the same way in all three panels, so they read as one surface. */
@@ -567,7 +569,19 @@
         .tab.drop-target { outline: 2px solid var(--accent); outline-offset: -1px; }
         .tab .fav { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 4px; }
         .tab-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+        /* The × is taken out of the row and laid over the end of it, exactly as a collection's is (see
+           `.col > .icon.del`): the right sidebar is the narrowest column on the page, and a button held
+           in the row costs every title the button's width for the whole time nobody is reaching for it.
+           It appears on hover or keyboard focus, and the title fades out under it rather than stopping
+           short of a gap kept open the rest of the time. A history row ends in the time of the visit
+           rather than in its title — there it is the time that gives way (see `.history-time`). */
+        .tab > .icon.del { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); }
         .tab:hover .icon.del, .tab:focus-within .icon.del { opacity: 1; }
+        .tab:not(.history):hover .tab-title,
+        .tab:not(.history):focus-within .tab-title {
+            -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 34px), transparent);
+            mask-image: linear-gradient(to right, #000 calc(100% - 34px), transparent);
+        }
         .empty.small { padding: 16px 8px; font-size: 13px; text-align: left; }
 
         /* The right sidebar's pane switch: the open tabs, or the browsing history */
@@ -576,7 +590,11 @@
         .pane-tab:hover { color: var(--text); }
         .pane-tab.active { background: var(--panel); color: var(--text); }
         /* A history row is a tab row plus the time of the visit: same look, same drag, no drop target. */
-        .history-time { color: var(--muted); font-size: 11px; flex: 0 0 auto; }
+        .history-time { color: var(--muted); font-size: 11px; flex: 0 0 auto; transition: opacity .12s; }
+        /* The row's × lands on the time, the last thing in the row — so the time steps aside while the
+           button is there. It is the least urgent thing on the row, and it giving way is what lets the
+           page title keep the width the button would otherwise have taken from it. */
+        .tab.history:hover .history-time, .tab.history:focus-within .history-time { opacity: 0; }
 
         /* Brand row + sidebar collapse controls */
         .brand { display: flex; align-items: center; gap: 8px; }
