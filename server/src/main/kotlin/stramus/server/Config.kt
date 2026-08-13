@@ -125,6 +125,37 @@ data class ServerConfig(
     val faviconMissesPerMinute: Int = 60,
 
     /**
+     * Whether the server reads pages' own Open Graph tags on a signed-in client's behalf ([PreviewService]).
+     * Off means link cards have no previews at all — there is no fallback here, unlike the icon proxy: the
+     * fallback would be the browser fetching whole pages itself, which is exactly what this exists to avoid.
+     */
+    val previewProxyEnabled: Boolean = true,
+
+    /** How long a page's own description of itself is served from the cache before the page is read again. */
+    val previewTtl: Duration = 14.days,
+
+    /**
+     * How long "this page says nothing about itself" is believed. Shorter than [previewTtl] for the reason
+     * [faviconNegativeTtl] is shorter than [faviconTtl]: gaining the tags is the change that happens, and
+     * nothing tells us when it does.
+     */
+    val previewNegativeTtl: Duration = 3.days,
+
+    /**
+     * How much of a page is read. The tags live in `<head>`, so this is generous for the purpose and is
+     * really the ceiling on what an address of somebody else's choosing can make this server hold in memory.
+     */
+    val maxPreviewBytes: Int = 128 * 1024,
+
+    /**
+     * Preview misses one *account* may cause per minute — per account, not per address, because this
+     * endpoint is behind the token and the caller therefore has a name. Lower than
+     * [faviconMissesPerMinute]: a page is a great deal more to fetch than an icon, and a collection is
+     * opened once, not sixty times a minute.
+     */
+    val previewMissesPerMinute: Int = 30,
+
+    /**
      * The key this server authenticates to OpenRouter with, calling the cloud model on an authorised
      * user's behalf ([AiProxyService]). Blank means that door is not there at all — the client's cloud
      * triage setting then has nothing to turn on, the same shape [googleClientId] blank leaves Google
@@ -192,6 +223,7 @@ data class ServerConfig(
                 openrouterContextTokens = env["STRAMUS_OPENROUTER_CONTEXT_TOKENS"]?.toIntOrNull() ?: 200_000,
                 aiMonthlyLimit = env["STRAMUS_AI_MONTHLY_LIMIT"]?.toIntOrNull() ?: 100,
                 faviconProxyEnabled = env["STRAMUS_FAVICON_PROXY"] != "0",
+                previewProxyEnabled = env["STRAMUS_PREVIEW_PROXY"] != "0",
                 allowedOrigins = env["STRAMUS_ALLOWED_ORIGINS"]
                     ?.split(',')
                     ?.map { it.trim() }

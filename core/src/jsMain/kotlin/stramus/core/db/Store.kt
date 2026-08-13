@@ -29,6 +29,7 @@ import stramus.core.order.OrderKey
 import stramus.core.repo.ActionStat
 import stramus.core.repo.ActionUsageRepository
 import stramus.core.repo.CachedIcon
+import stramus.core.repo.CachedPreview
 import stramus.core.repo.CardRepository
 import stramus.core.repo.CardSectionRepository
 import stramus.core.repo.CollectionRepository
@@ -37,6 +38,7 @@ import stramus.core.repo.DeletedCardSection
 import stramus.core.repo.DeletedCollection
 import stramus.core.repo.DeletedSection
 import stramus.core.repo.FaviconRepository
+import stramus.core.repo.LinkPreviewRepository
 import stramus.core.repo.SectionRepository
 import stramus.core.repo.UsageRepository
 import stramus.core.repo.UsageStat
@@ -49,6 +51,7 @@ class StramusStore internal constructor(
     val cardSections: CardSectionRepository,
     val cards: CardRepository,
     val favicons: FaviconRepository,
+    val linkPreviews: LinkPreviewRepository,
     val usage: UsageRepository,
     val actions: ActionUsageRepository,
     /**
@@ -144,6 +147,7 @@ suspend fun openStramusStore(db: Database, seed: StoreSeed = StoreSeed.Default):
         KidxCardSectionRepository(db),
         cards,
         KidxFaviconRepository(db),
+        KidxLinkPreviewRepository(db),
         KidxUsageRepository(db),
         KidxActionUsageRepository(db),
         seeded = fresh,
@@ -973,6 +977,33 @@ internal class KidxFaviconRepository(
 
     override suspend fun remove(host: String) {
         db.write(Favicons) { Favicons.delete(host) }
+    }
+}
+
+internal class KidxLinkPreviewRepository(
+    private val db: Database,
+) : LinkPreviewRepository {
+
+    override suspend fun all(): Map<String, CachedPreview> = db.read(LinkPreviews) {
+        LinkPreviews.all().associate {
+            it.url to CachedPreview(it.title, it.description, it.image, it.updatedAt)
+        }
+    }
+
+    override suspend fun put(url: String, preview: CachedPreview) {
+        val row = LinkPreviewRow().apply {
+            this.url = url
+            this.title = preview.title
+            this.description = preview.description
+            this.image = preview.image
+            this.updatedAt = preview.updatedAt
+        }
+        // One row per address is the whole invariant of the cache; `put` overwrites whatever was there.
+        db.write(LinkPreviews) { LinkPreviews.put(row) }
+    }
+
+    override suspend fun clear() {
+        db.write(LinkPreviews) { LinkPreviews.all().forEach { LinkPreviews.delete(it.url) } }
     }
 }
 

@@ -5,9 +5,11 @@ import react.FC
 import react.Props
 import react.dom.html.ReactHTML.div
 import react.dom.html.ReactHTML.img
+import react.useEffect
 import react.useEffectOnce
 import react.useRef
 import react.useState
+import stramus.core.repo.CachedPreview
 import web.cssom.ClassName
 
 /**
@@ -16,7 +18,7 @@ import web.cssom.ClassName
  * Shorter than a tooltip's [HINT_DELAY_MS]: a preview is what the user came to the card for, not an
  * explanation of a glyph they could not read, and a pointer that lands on a video card is usually asking
  * "which video is this". Long enough, still, that crossing the grid on the way to the sidebar shows
- * nothing at all.
+ * nothing at all — which for a page preview also means that crossing it asks the server nothing.
  */
 private const val PREVIEW_DELAY_MS = 260
 
@@ -35,43 +37,84 @@ private const val PREVIEW_HEIGHT_GUESS = 230.0
 /** The same guess for a popup that has lost its picture and is two lines of text in a box. */
 private const val CAPTION_HEIGHT_GUESS = 60.0
 
+/** And for one that kept the picture and gained a page's own description under the title. */
+private const val NOTE_HEIGHT_GUESS = 48.0
+
 /**
- * The picture shown when the pointer rests on a card that has one — a saved video's still frame, kept
- * with the card since the day it was saved (see `Thumbs.kt`).
+ * The picture shown when the pointer rests on a card that has one, and the words that come with it.
+ *
+ * Two kinds of card have something to show here, and they differ in where it comes from rather than in
+ * what is drawn:
+ *
+ * - **A saved video** carries its still frame in `data-preview` — an address worked out from the video
+ *   id, free to put on every card on screen, kept with nobody (see `Thumbs.kt`).
+ * - **An ordinary saved page** carries only its own address, in `data-preview-url`, and what it says
+ *   about itself has to be *asked* for. The question goes when the pointer settles, not when the card is
+ *   drawn, and the answer is cached — see `LinkPreviews.kt`.
  *
  * A sibling of [HintLayer] in every respect, and for the same reason: one element at the root of the
  * page, pinned to the viewport, because anything drawn inside a card is drawn inside the content area
- * that scrolls it, and a scroll box clips what leaves it however high the z-index. The cards themselves
- * only carry the image (`data-preview`); this watches for one being hovered and draws it.
+ * that scrolls it, and a scroll box clips what leaves it however high the z-index.
  *
- * The two never appear together — a card carrying a preview is passed over by the tooltip watch, and its
- * `data-hint` words are drawn here, under the picture, instead.
+ * It never appears beside a tooltip — a card carrying either attribute is passed over by the tooltip
+ * watch, and its `data-hint` words are drawn here, under the picture, instead.
  *
  * Which is why a picture that will not load does not simply close this: the tooltip cannot step back in
- * for it, the card carrying a `data-preview` at all being what turns the tooltip off. So the popup drops
- * the frame and keeps the words, and a card whose video has been deleted — or whose every frame is
- * unreachable because YouTube is down — reads exactly as a card with no picture ever did.
+ * for it. So the popup drops the frame and keeps the words, and a card whose video has been deleted —
+ * or whose page turned out to have no picture at all — reads exactly as a card with no picture ever did.
  */
 val PreviewLayer = FC<Props> {
-    var target by useState<HintTarget?>(null)
+    // The two watches are separate because the two attributes are: a card carries one or the other, so
+    // only one of these is ever non-null, and neither can clear what the other found.
+    var frameTarget by useState<HintTarget?>(null)
+    var pageTarget by useState<HintTarget?>(null)
+
+    // What the server said about the page under the pointer, once it has said it. Null while the
+    // question is out — the popup then draws the words alone rather than an empty frame.
+    var asked by useState<CachedPreview?>(null)
 
     // The pictures that would not load. Remembered so the frame is not attempted a second time, which
     // would flash an empty rectangle over the card on every hover for as long as the outage lasts.
     val broken = useRef(mutableSetOf<String>())
 
     useEffectOnce {
-        val stopWatching = onHoverTarget(PREVIEW_DELAY_MS, PREVIEW_ATTR) { target = it }
+        val stopFrames = onHoverTarget(PREVIEW_DELAY_MS, PREVIEW_ATTR) { frameTarget = it }
+        val stopPages = onHoverTarget(PREVIEW_DELAY_MS, PREVIEW_URL_ATTR) { pageTarget = it }
         try {
             awaitCancellation()
         } finally {
-            stopWatching()
+            stopFrames()
+            stopPages()
         }
     }
 
-    val shown = target ?: return@FC
-    val hasFrame = shown.text !in broken.current!!
+    // Asking begins here rather than in the watch: the watch is a plain DOM listener, with nothing to
+    // run a suspending call in, and this is where the answer is needed anyway.
+    val pageUrl = pageTarget?.text
+    useEffect(pageUrl) {
+        // Whatever is already known, drawn on the first frame; a card asked about yesterday does not
+        // blink through a caption-only popup on its way to the picture it already has.
+        asked = pageUrl?.let { knownPreview(it) }?.takeUnless { it.isEmpty }
+        val url = pageUrl ?: return@useEffect
+        // The pointer moving to another card changes [pageUrl], which cancels this effect: an answer
+        // that arrives late is dropped rather than drawn over whatever the pointer is on by then.
+        asked = pagePreview(url)
+    }
+
+    val shown = frameTarget ?: pageTarget ?: return@FC
+    val isPage = frameTarget == null
+    val preview = asked.takeIf { isPage }
+
+    // A video's frame is the attribute itself; a page's is whatever came back, if anything did.
+    val frame = (if (isPage) preview?.image else shown.text)?.takeIf { it !in broken.current!! }
+    // The card's own title, always — the words the tooltip would have shown. What a page says about
+    // *itself* goes under it, in [note], rather than in place of it: the title on the card is the user's,
+    // and a preview is not the place to overrule it.
+    val caption = shown.caption
+    val note = preview?.description
+
     // Neither a picture nor anything to say. There is no popup to be made out of that.
-    if (!hasFrame && shown.caption == null) return@FC
+    if (frame == null && caption == null && note == null) return@FC
     val viewW = viewportWidth()
     val viewH = viewportHeight()
 
@@ -89,7 +132,8 @@ val PreviewLayer = FC<Props> {
         }
         // Without the frame there is only a line or two of text left, so the popup no longer needs the
         // room a picture needs — and should not flip above the card pretending that it does.
-        val heightGuess = if (hasFrame) PREVIEW_HEIGHT_GUESS else CAPTION_HEIGHT_GUESS
+        val heightGuess = (if (frame != null) PREVIEW_HEIGHT_GUESS else CAPTION_HEIGHT_GUESS) +
+            (if (note != null) NOTE_HEIGHT_GUESS else 0.0)
         if (shown.bottom + PREVIEW_GAP + heightGuess < viewH) {
             css.top = "${shown.bottom + PREVIEW_GAP}px"
         } else {
@@ -97,24 +141,35 @@ val PreviewLayer = FC<Props> {
         }
         asDynamic().style = css
 
-        if (hasFrame) {
+        if (frame != null) {
             img {
                 className = ClassName("preview-img")
-                src = shown.text
+                src = frame
                 alt = ""
                 draggable = false
+                // Nothing of ours travels with the request: the page this is drawn on is no business of
+                // the server holding the picture.
+                asDynamic()["referrerPolicy"] = "no-referrer"
                 // Redrawn without the picture rather than closed — see the note on this component. The
                 // frame is remembered as broken first, so the redraw does not simply try it again.
                 onError = {
-                    broken.current!! += shown.text
-                    target = shown.copy()
+                    broken.current!! += frame
+                    // Touching one of the two states is enough to redraw, and it must be the one that is
+                    // actually set: the other is null and assigning null to it changes nothing.
+                    if (isPage) pageTarget = shown.copy() else frameTarget = shown.copy()
                 }
             }
         }
-        shown.caption?.let { caption ->
+        caption?.let {
             div {
                 className = ClassName("preview-caption")
-                +caption
+                +it
+            }
+        }
+        note?.let {
+            div {
+                className = ClassName("preview-note")
+                +it
             }
         }
     }

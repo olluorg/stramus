@@ -48,12 +48,14 @@ import stramus.core.platform.HistoryEntry
 import stramus.core.platform.QuickCaptureAccess
 import stramus.core.platform.TabCapture
 import stramus.core.platform.WebSearchAccess
+import stramus.core.repo.CachedPreview
 import stramus.core.repo.CardRepository
 import stramus.core.url.hostOf
 import web.cssom.ClassName
 import web.data.DropEffect
 import web.data.copy
 import web.data.move
+import kotlin.time.Clock
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -411,9 +413,33 @@ private fun ChildrenBuilder.menuTitle(label: String) {
  * layouts — see the note in [cardGrid]. Asked per grid rather than per collection: a collection's
  * groups are separate grids and pack separately, so one group having a video says nothing about another.
  */
-private fun hasCovers(cards: List<Card>, previews: CardPreviews): Boolean =
-    previews == CardPreviews.INLINE &&
-        cards.any { it.kind == CardKind.LINK && videoThumbUrl(it.url) != null }
+/**
+ * Whether this grid needs the columns layout — which is to say whether it mixes tall cards with short
+ * ones (see `.grid.covers` in index.html, and what it costs: reading order down a column rather than
+ * across a row).
+ *
+ * In [CardPreviews.INLINE] every *link* is tall: it wears the picture its page publishes, or a stand-in
+ * in the site's own colour where the page publishes none (see [CardTileProps.blankCover]). So the mix
+ * this asks about is really "links **and** notes or files", and a collection of nothing but links —
+ * which is most collections — keeps the plain grid it always had, every card the same height.
+ */
+private fun needsCoverLayout(cards: List<Card>, previews: CardPreviews): Boolean {
+    if (previews != CardPreviews.INLINE) return false
+    val tall = cards.count { it.kind == CardKind.LINK }
+    return tall > 0 && tall < cards.size
+}
+
+/**
+ * The picture a card wears, or null for a link that has none of its own and will wear the stand-in.
+ *
+ * A video's frame is arithmetic and always available; a page's has to have been asked about already
+ * (see `LinkPreviews.kt`), so this reads the cache rather than filling it — the asking is one effect in
+ * `App`, for a whole grid at once, and this is what draws the answer once it is in.
+ */
+private fun coverFor(card: Card, previews: CardPreviews, pagePreviews: Boolean): String? {
+    if (previews != CardPreviews.INLINE || card.kind != CardKind.LINK) return null
+    return videoThumbUrl(card.url) ?: if (pagePreviews) knownPreview(card.url)?.image else null
+}
 
 private fun ChildrenBuilder.cardGrid(
     strings: Strings,
@@ -422,6 +448,7 @@ private fun ChildrenBuilder.cardGrid(
     readOnly: Boolean,
     showUrls: Boolean,
     previews: CardPreviews,
+    pagePreviews: Boolean,
     onOpen: (Card) -> Unit,
     onRename: (Card) -> Unit,
     onDelete: (Card) -> Unit,
@@ -434,7 +461,7 @@ private fun ChildrenBuilder.cardGrid(
         // plain row-by-row grid for columns, and columns run top to bottom: a group with nothing tall in
         // it would stack its cards two-deep for no reason at all, which is not a layout anybody asked
         // for. See `.grid.covers` in index.html.
-        className = ClassName(if (hasCovers(cards, previews)) "grid covers" else "grid")
+        className = ClassName(if (needsCoverLayout(cards, previews)) "grid covers" else "grid")
         cards.forEach { card ->
             CardTile {
                 key = key(card.id)
@@ -442,6 +469,12 @@ private fun ChildrenBuilder.cardGrid(
                 this.card = card
                 this.showUrl = showUrls
                 this.previews = previews
+                this.pagePreviews = pagePreviews
+                // Only a page's picture: a video's frame the tile works out for itself.
+                this.pageCover = if (videoThumbUrl(card.url) == null) coverFor(card, previews, pagePreviews) else null
+                // Every link is tall in this mode, so one with no picture of its own wears the stand-in
+                // rather than leaving a short card in a grid of tall ones.
+                this.blankCover = previews == CardPreviews.INLINE && card.kind == CardKind.LINK
                 this.isDraggable = !readOnly
                 this.readOnly = readOnly
                 this.isDragging = draggingCardId == card.id
@@ -888,6 +921,9 @@ val App = FC<AppProps> { props ->
     // Off unless asked for: a still frame comes from Google's servers, so showing one tells Google which
     // video is saved here. See [CardPreviews], and the setting's own wording, which says so outright.
     var cardPreviews by useState(CardPreviews.from(prefGet("cardPreviews")))
+    // Off unless asked for, and worth nothing without an account: what a saved page says about itself is
+    // read by our server, which has to be told the address to read it. See `LinkPreviews.kt`.
+    var pagePreviews by useState(prefGet("pagePreviews") == "1")
     var leftCollapsed by useState(prefGet("leftCollapsed") == "1")
     var rightCollapsed by useState(prefGet("rightCollapsed") == "1")
     // How wide each sidebar has been dragged by its seam ([ResizeHandle]), kept per browser like the
@@ -1019,6 +1055,9 @@ val App = FC<AppProps> { props ->
             val s = openStramusStore(seed = t.seed)
             // Before the first card is drawn, so a cached icon is there from the very first paint.
             initFaviconCache(s.favicons)
+            // The same, for what pages say about themselves: read before the first hover, so a card
+            // asked about yesterday draws its picture without asking anybody again.
+            initLinkPreviewCache(s.linkPreviews)
             // Before the first keystroke, so the very first search is already ranked by what the user
             // uses — and an empty box already offers their top sites.
             initUsageIndex(s.usage)
@@ -1140,6 +1179,10 @@ val App = FC<AppProps> { props ->
     // tail: what is measured is the content, which no row height of ours changes.
     useEffect(cards, cardPreviews, appearance.density) {
         if (cardPreviews != CardPreviews.INLINE) return@useEffect
+        // Null where the page holds no plain card at all to measure — a collection of nothing but links,
+        // every one of them tall in this mode. Nothing is lost by it: what the measurement buys is a tall
+        // card standing exactly level with two short ones, and a page with no short cards on it has
+        // nothing to stand level with. The stylesheet's own per-density value carries on.
         measureCardHeight()?.let { setRootVar("--card-h", "${it}px") }
     }
 
@@ -1210,6 +1253,47 @@ val App = FC<AppProps> { props ->
     // Whether there is an account for the triage's cloud switch to mean anything — the same test the
     // account dialog uses (see below), pulled out here because the triage assistant needs it too.
     val signedIn = syncUi.email != null && syncUi.status != SyncStatus.SIGNED_OUT
+
+    // Whether a card may actually ask what its page says about itself: the setting *and* an account, since
+    // the question goes to our server and there is no other way to put it. Signing out therefore turns the
+    // previews off and empties what they cached, without the setting itself being touched — it is still
+    // there, and still on, for whenever the account comes back.
+    val pagePreviewsOn = pagePreviews && signedIn
+    useEffect(pagePreviewsOn) {
+        installPreviewSource(
+            if (!pagePreviewsOn) {
+                null
+            } else {
+                { url ->
+                    api.preview(url)?.let { CachedPreview(it.title, it.description, it.image, Clock.System.now()) }
+                }
+            },
+        )
+    }
+
+    // A card wearing a picture reads it out of the cache during a render that has already happened by the
+    // time the answer lands, so the answer has to say so. A counter rather than the previews themselves:
+    // what changed is somewhere in a map every tile reads, and this is the render that reads it again.
+    var previewsVersion by useState(0)
+    useEffectOnce {
+        onPreviewsUpdated { previewsVersion += 1 }
+        try {
+            awaitCancellation()
+        } finally {
+            onPreviewsUpdated(null)
+        }
+    }
+
+    // Every link on screen wears its picture in this mode, so every link on screen has to be asked about
+    // — the one place in the app that asks about more than the card under the pointer. Videos are left
+    // out: their frame is worked out from the address and costs nobody a fetch. See [prefetchPreviews],
+    // which holds the questions to a few at a time.
+    useEffect(cards, cardPreviews, pagePreviewsOn) {
+        if (cardPreviews != CardPreviews.INLINE || !pagePreviewsOn) return@useEffect
+        prefetchPreviews(
+            cards.filter { it.kind == CardKind.LINK && videoThumbUrl(it.url) == null }.map { it.url },
+        )
+    }
 
     // Whether triage has a model to ask at all — the cloud one, once both switches (the feature itself
     // and its own cloud choice) are on and there is an account to charge the question against; the
@@ -3176,7 +3260,9 @@ val App = FC<AppProps> { props ->
                     div { className = ClassName("empty"); +t.noMatchingLinks }
                 } else {
                     div {
-                        className = ClassName(if (hasCovers(visibleResults, cardPreviews)) "grid covers" else "grid")
+                        className = ClassName(
+                            if (needsCoverLayout(visibleResults, cardPreviews)) "grid covers" else "grid",
+                        )
                         // In the order the search gives them back. There is no ⇅ over the results: a
                         // sort here would have to rewrite the order of every collection a match came
                         // from, and the results are a view of the cards, not a place they live in.
@@ -3187,6 +3273,13 @@ val App = FC<AppProps> { props ->
                                 this.card = card
                                 showUrl = showCardUrls
                                 previews = cardPreviews
+                                pagePreviews = pagePreviewsOn
+                                pageCover = if (videoThumbUrl(card.url) == null) {
+                                    coverFor(card, cardPreviews, pagePreviewsOn)
+                                } else {
+                                    null
+                                }
+                                blankCover = cardPreviews == CardPreviews.INLINE && card.kind == CardKind.LINK
                                 isDraggable = false
                                 // A card found by a search is still a card of its collection: if that
                                 // one is read-only, the result carries no rename or delete either.
@@ -3368,6 +3461,7 @@ val App = FC<AppProps> { props ->
                                     readOnly = !editable,
                                     showUrls = showCardUrls,
                                     previews = cardPreviews,
+                                    pagePreviews = pagePreviewsOn,
                                     onOpen = onCardOpen,
                                     onRename = onCardRenameRequest,
                                     onDelete = onCardDelete,
@@ -3544,6 +3638,7 @@ val App = FC<AppProps> { props ->
                                                 readOnly = !editable,
                                                 showUrls = showCardUrls,
                                                 previews = cardPreviews,
+                                                pagePreviews = pagePreviewsOn,
                                                 onOpen = onCardOpen,
                                                 onRename = onCardRenameRequest,
                                                 onDelete = onCardDelete,
@@ -3911,6 +4006,14 @@ val App = FC<AppProps> { props ->
                 onShowCardUrlsChange = { show ->
                     showCardUrls = show
                     prefSet("showCardUrls", if (show) "1" else "0")
+                }
+                this.pagePreviews = pagePreviews
+                onPagePreviewsChange = { on ->
+                    pagePreviews = on
+                    prefSet("pagePreviews", if (on) "1" else "0")
+                    // Switched off, what was cached goes with it — see [forgetPreviews]. Switching it
+                    // back on asks again, which is the honest thing for a setting that says "off".
+                    if (!on) forgetPreviews()
                 }
                 this.cardPreviews = cardPreviews.id
                 onCardPreviewsChange = { id ->

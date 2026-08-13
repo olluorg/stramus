@@ -185,6 +185,21 @@ rather than data collection, and both of which are described in the privacy poli
   frame is not kept with the card, not re-encoded and not carried to our server — only displayed, at
   whatever size the card is, on a card that is itself a link to the video. `referrerpolicy="no-referrer"`
   keeps the page the card sits on out of the request.
+- **Page previews** are off unless the user turns them on, and the switch is offered only while signed in
+  (Settings → Appearance → "Page previews"). Turned on, a saved link can show what its page says about
+  itself — the `og:title`, `og:description` and `og:image` it publishes for anyone quoting it — read by
+  *our* server (`GET /v1/preview?url=…`, behind the same bearer token as sync). Where the previews appear
+  is the "Video previews" setting above, and it decides how much is asked: on hover, only the card the
+  pointer rests on; always, every link in the collection being opened. The
+  server reads the page's `<head>` on the user's behalf; the alternative, fetching it from the extension,
+  would need `<all_urls>` and would tell every site the user has a link to it. The address of the page
+  therefore reaches our server, which is why the feature exists **only** where there is an account: those
+  same addresses are already in `sync_rows`, put there by the same person for the same purpose, and a
+  signed-out extension has no switch to turn this on with and makes no such request. The cache is keyed by
+  a SHA-256 of the address, carries no user column and is not logged (`preview_cache`, migration 007). The
+  picture is *not* proxied or stored: what comes back is its address, and the card points an `<img>` at
+  whatever the site itself publishes — so, as with a video frame, that request is the user's browser
+  asking the site, with `referrerpolicy="no-referrer"`. Switching the setting off erases the local cache.
 
 ## After the review
 

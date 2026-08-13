@@ -24,12 +24,16 @@ import web.html.HTMLElement
 import kotlin.uuid.ExperimentalUuidApi
 
 /**
- * Whether a saved video shows its still frame, and where.
+ * Whether previews are shown, and where.
  *
- * [OFF] by default, and deliberately: a frame is fetched from Google's own servers, so drawing one tells
- * Google which video the user saved and from what address. That is a thing to be asked for, not a thing
- * to be discovered afterwards — see the `cardPreviews` setting, whose wording says exactly this, and
- * `Thumbs.kt`, which explains why nothing is ever kept.
+ * [OFF] by default, and deliberately: a video's frame is fetched from Google's own servers, so drawing
+ * one tells Google which video the user saved and from what address. That is a thing to be asked for,
+ * not a thing to be discovered afterwards — see the `cardPreviews` setting, whose wording says exactly
+ * this, and `Thumbs.kt`, which explains why nothing is ever kept.
+ *
+ * It settles the *placement* for both kinds of preview: a video's still frame, and — where the user has
+ * also turned `pagePreviews` on — what an ordinary saved page says about itself. Somebody who asked for
+ * previews always means both, which is what they read as on the screen.
  */
 enum class CardPreviews(val id: String) {
     /** No frames and no requests. Nothing about a saved video leaves the machine. */
@@ -38,7 +42,12 @@ enum class CardPreviews(val id: String) {
     /** The frame appears over the page while the pointer rests on a card: one video asked about, once. */
     HOVER("hover"),
 
-    /** Every video card wears its frame — so every video on screen is asked about, on every open. */
+    /**
+     * Every card wears a picture: a video its frame, a page whatever it publishes as its own — so every
+     * link on screen is asked about, on every open. A page that publishes nothing wears the stand-in
+     * ([CardTileProps.blankCover]) rather than staying short, since a grid with three tall cards in
+     * sixty is a grid rearranged for the sake of three pictures.
+     */
     INLINE("inline"),
     ;
 
@@ -62,6 +71,38 @@ external interface CardTileProps : Props {
 
     /** Whether this card shows a video's still frame, and where. See [CardPreviews]. */
     var previews: CardPreviews
+
+    /**
+     * Whether an ordinary saved page may show what it says about itself at all.
+     *
+     * *Where* it shows is not this: that is [previews], the same choice a video's frame follows, so a
+     * user who asked for previews always gets them always on both kinds of card. This is only whether
+     * ordinary pages join in — which is a separate question because the answer comes from our server,
+     * which has to be told the address to give it. Off by default, and false whenever there is no
+     * account. `App` folds the setting and the session into this one boolean.
+     */
+    var pagePreviews: Boolean
+
+    /**
+     * The picture this card wears, for a saved page that is not a video — known only once the server has
+     * answered, so it arrives as a prop rather than being worked out here (see `LinkPreviews.kt`, and
+     * `App`, which does the asking for a whole grid at once).
+     *
+     * Null in every other case: previews off, on hover rather than always, no account, a page with no
+     * picture, or an answer still on its way.
+     */
+    var pageCover: String?
+
+    /**
+     * Whether this card should wear a stand-in picture, having no picture of its own.
+     *
+     * Most of the web publishes no `og:image`, and a grid where three cards in sixty are tall is a grid
+     * shuffled into columns for the sake of three pictures (see `.grid.covers`). The stand-in is not a
+     * picture of the page — nothing is being invented about it — but the site's own icon on the site's
+     * own colour, which is what a card *without* a preview already tells the eye, given the room a
+     * preview takes. Every link card is then the same height and the grid is a grid again.
+     */
+    var blankCover: Boolean
     var isDraggable: Boolean
     var readOnly: Boolean
     var isDragging: Boolean
@@ -156,7 +197,9 @@ private fun <T : HTMLElement> HTMLAttributes<T>.cardTileBody(props: CardTileProp
     // address: nothing is fetched or kept here, and the request happens — if it happens — when a browser
     // draws the `<img>` below. See [videoThumbUrl].
     val frame = if (card.kind == CardKind.LINK) videoThumbUrl(card.url) else null
-    val offered = frame?.takeIf { props.previews == CardPreviews.INLINE }
+    // The video's own frame where there is one, and what the server said about the page where there is
+    // not. Both only in [CardPreviews.INLINE]: `App` hands over a cover at all only in that mode.
+    val offered = frame?.takeIf { props.previews == CardPreviews.INLINE } ?: props.pageCover
     // A picture that will not load costs the card the whole cover, `has-cover` and all — the class is
     // what makes the tile two rows tall, and a card left tall around a picture that never arrived is a
     // hole in the grid. Kept here rather than inside the image so that the tile itself knows.
@@ -165,13 +208,16 @@ private fun <T : HTMLElement> HTMLAttributes<T>.cardTileBody(props: CardTileProp
     // fresh chance, not a settled failure.
     useEffect(offered) { coverBroken = false }
     val cover = offered?.takeUnless { coverBroken }
+    // A picture that will not load falls back to the stand-in rather than to nothing: the card is in a
+    // grid of tall cards, and one short card in the middle of it is the hole this is all here to avoid.
+    val blank = props.blankCover && cover == null
 
     val elementId = "card-${card.id}"
     asDynamic()["id"] = elementId
     className = ClassName(
         buildString {
             append("card kind-${card.kind.id}")
-            if (cover != null) append(" has-cover")
+            if (cover != null || blank) append(" has-cover")
             if (props.isDragging) append(" dragging")
         },
     )
@@ -194,9 +240,35 @@ private fun <T : HTMLElement> HTMLAttributes<T>.cardTileBody(props: CardTileProp
     if (props.previews == CardPreviews.HOVER) {
         frame?.let { asDynamic()[PREVIEW_ATTR] = it }
     }
+    // A saved page that is not a video has nothing to draw until somebody is asked, so it carries its own
+    // address instead and [PreviewLayer] does the asking when the pointer settles. Never both attributes:
+    // a video already has a frame worth more than anything a fetch of its watch page would say about it,
+    // and the two popups would be the same popup.
+    //
+    // Hover only, exactly as above: in [CardPreviews.INLINE] the picture is already on the tile, and a
+    // popup of what is under the pointer answers nothing.
+    if (props.pagePreviews && props.previews == CardPreviews.HOVER && card.kind == CardKind.LINK && frame == null) {
+        asDynamic()[PREVIEW_URL_ATTR] = card.url
+    }
 
     // First in the tile, so the grid places it across the top — see `.card.has-cover` in index.html.
-    if (cover != null) {
+    if (blank) {
+        div {
+            className = ClassName("card-cover blank")
+            // The site's own colour, stable per host — the same hash the letter tiles use — but held
+            // to a wash rather than a block of it: a whole grid of full-strength tiles is a paint chart,
+            // and letting the card's own background through is also what makes one tint work on the
+            // light theme and the dark one alike.
+            val css = js("({})")
+            css.background = "hsl(${hostHue(hostOf(card.url))}, 58%, 52%, 0.14)"
+            asDynamic().style = css
+            Favicon {
+                url = card.url
+                favicon = card.favicon
+                className = "cover-fav"
+            }
+        }
+    } else if (cover != null) {
         img {
             className = ClassName("card-cover")
             src = cover

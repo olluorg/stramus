@@ -414,15 +414,27 @@ internal fun viewportHeight(): Double = browserWindow().innerHeight.toDouble()
  * the tabs list, the sidebar, the content area — and a scroll box clips what leaves it, however high
  * the z-index. Only an element outside all of them, positioned against the viewport, escapes.
  *
- * An element that also carries a `data-preview` is passed over: it has a picture to show (see
- * `PreviewLayer`), and the words go under that picture rather than into a second popup beside it.
+ * An element that also carries a `data-preview` — or a `data-preview-url`, which is the same thing one
+ * request later — is passed over: it has a picture to show (see `PreviewLayer`), and the words go under
+ * that picture rather than into a second popup beside it.
  */
 internal fun onHintTarget(delayMs: Int, onTarget: (HintTarget?) -> Unit): () -> Unit =
-    onHoverTarget(delayMs, HINT_ATTR, skipAttr = PREVIEW_ATTR, onTarget = onTarget)
+    onHoverTarget(delayMs, HINT_ATTR, skipAttrs = listOf(PREVIEW_ATTR, PREVIEW_URL_ATTR), onTarget = onTarget)
 
 /** The attribute [hint] writes the tooltip's words into, and the one a hover preview's picture goes in. */
 internal const val HINT_ATTR = "data-hint"
 internal const val PREVIEW_ATTR = "data-preview"
+
+/**
+ * The address a card's preview has to be *asked* for, rather than worked out — an ordinary saved page,
+ * whose picture and words only the server knows (see `LinkPreviews.kt`).
+ *
+ * A separate attribute from [PREVIEW_ATTR] because the two differ in exactly the way that matters: a
+ * video's frame is an address arrived at by arithmetic and costs nothing to put in the DOM for every
+ * card on screen, while this one is a question, asked when the pointer actually rests on the card. No
+ * card carries both.
+ */
+internal const val PREVIEW_URL_ATTR = "data-preview-url"
 
 /**
  * As [onHintTarget], but for any attribute: [attr] is what makes an element worth watching and what its
@@ -433,7 +445,7 @@ internal const val PREVIEW_ATTR = "data-preview"
 internal fun onHoverTarget(
     delayMs: Int,
     attr: String,
-    skipAttr: String? = null,
+    skipAttrs: List<String> = emptyList(),
     onTarget: (HintTarget?) -> Unit,
 ): () -> Unit {
     val doc = js("document")
@@ -456,7 +468,7 @@ internal fun onHoverTarget(
         val found = if (target != null && target.closest != undefined) target.closest("[$attr]") else null
         // Ignored rather than merely unmatched: `closest` would otherwise walk past it to an ancestor
         // that does carry the attribute, and answer with a box the pointer is nowhere near.
-        val skipped = found != null && skipAttr != null && found.hasAttribute(skipAttr) as Boolean
+        val skipped = found != null && skipAttrs.any { found.hasAttribute(it) as Boolean }
         val el = if (skipped) null else found
         val text = el?.getAttribute(attr) as? String
         cancelPending()

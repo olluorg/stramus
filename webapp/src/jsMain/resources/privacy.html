@@ -228,6 +228,21 @@
             with your card, not re-encoded, and never travels to our server. Leave the setting off and no
             such request is made at all. &ldquo;On hover&rdquo; asks only about the video you point at;
             &ldquo;always&rdquo; asks about every video on screen, each time you open the collection.</li>
+        <li><strong>Page previews.</strong> Off unless you switch them on, and offered only while you are
+            signed in (Settings &rarr; Appearance &rarr; &ldquo;Page previews&rdquo;). Switched on, a saved
+            link can show what its page says about itself &mdash; the <code>og:title</code>,
+            <code>og:description</code> and <code>og:image</code> the page publishes for anyone who quotes
+            it &mdash; which <em>our</em> server reads on your behalf. Where the previews appear is the
+            &ldquo;Video previews&rdquo; setting above: on hover, or on every card. Two things follow, and
+            both are the reason this is a setting rather than a default. First, our server is told the
+            address of the page: on hover only the card you point at is asked about, while
+            &ldquo;always&rdquo; asks about every link in the collection you open. The answer is cached
+            against a hash of the address, with nothing recorded about who asked &mdash; but the address
+            does travel, which is why the setting exists only where you are signed in and your cards, URLs
+            and all, are already on that server. Signed out, no such request is ever made, and there is no
+            switch to make one. Second, the picture itself is not copied by us: your browser loads it from
+            wherever the site publishes it, so that site sees the request, exactly as with a video frame
+            above. Switching the setting off erases everything it cached in this browser.</li>
     </ul>
 
     <h2 id="icons">Site icons</h2>
@@ -431,6 +446,22 @@
                 не перекодируется и не попадает на наш сервер. Оставьте настройку выключенной — и запроса не
                 будет вовсе. «При наведении» спрашивает только про то видео, на которое вы навели; «всегда» —
                 про все на экране, при каждом открытии коллекции.</li>
+            <li><strong>Превью страниц.</strong> По умолчанию выключены и предлагаются только при входе в
+                аккаунт (Настройки &rarr; Оформление &rarr; «Превью страниц»). Если включить, сохранённая
+                ссылка сможет показать, что её страница говорит о себе — <code>og:title</code>,
+                <code>og:description</code> и <code>og:image</code>, которые она публикует для всех, кто её
+                цитирует, — а читает их за вас <em>наш</em> сервер. Где именно появятся превью, решает
+                настройка «Превью видео» выше: при наведении или на каждой карточке. Отсюда следуют две
+                вещи, и обе — причина, по которой это настройка, а не поведение по умолчанию. Во-первых,
+                нашему серверу сообщается адрес страницы: при наведении спрашивают только про ту карточку,
+                на которую вы навели, а «всегда» — про каждую ссылку в открытой коллекции. Ответ кэшируется
+                по хэшу адреса, без всякой записи о том, кто спрашивал, — но адрес всё же уходит, и поэтому
+                настройка есть только там, где вы вошли в аккаунт и ваши карточки вместе с адресами и так
+                лежат на этом сервере. Без входа такой запрос
+                не делается никогда, и включить его негде. Во-вторых, картинку мы себе не копируем: браузер
+                загружает её оттуда, где её публикует сайт, — и сайт видит этот запрос, ровно как в случае с
+                кадром видео выше. Если настройку выключить, всё, что она успела закэшировать в этом
+                браузере, стирается.</li>
         </ul>
 
         <h2 id="icons-ru">Иконки сайтов</h2>

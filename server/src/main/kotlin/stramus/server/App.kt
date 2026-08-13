@@ -85,9 +85,11 @@ fun Application.stramusModule(
     val sync = SyncService(db)
     val blobs = BlobStore(db, config)
     val favicons = FaviconService(db, config)
+    val previews = PreviewService(db, config)
     val aiCatalog = AiCatalogService(db)
     val aiProxy = AiProxyService(db, config, aiCatalog)
     val faviconBudget = MissBudget(config.faviconMissesPerMinute)
+    val previewBudget = MissBudget(config.previewMissesPerMinute)
 
     // The sweep, on its own clock. Once a day is often enough for landfill — an orphaned file costs disk
     // and nothing else — and it runs off the request path entirely, where a slow disk cannot make anybody
@@ -284,6 +286,50 @@ fun Application.stramusModule(
                 val userId = call.userId()
                 val user = accounts.me(userId) ?: throw AuthException("no such user")
                 call.respond(Me(user.id.toString(), user.email))
+            }
+
+            /**
+             * What a saved page says about itself — see [PreviewService].
+             *
+             * Behind the bearer auth, and that is the design rather than an afterthought. `/v1/favicon` is
+             * anonymous because what it learns is a *host*, which says little about anybody; this learns the
+             * address of a particular page, and for a signed-in user that is something the server already
+             * has in `sync_rows` anyway. A signed-out client is not offered previews at all rather than
+             * being quietly asked to hand over the one thing using this app without an account avoids.
+             *
+             * Three answers, as with the icon: the tags, 204 for a page that says nothing about itself (stop
+             * asking), and 503 for a page that could not be reached (ask again another day). The client
+             * caches the first two on its own and draws the card exactly as before for either of the others.
+             */
+            get("/v1/preview") {
+                val url = call.request.queryParameters["url"]?.takeIf { it.isNotBlank() }
+                    ?: throw AccountException(400, "no url")
+                if (!config.previewProxyEnabled) {
+                    call.respond(HttpStatusCode.ServiceUnavailable, ApiError("preview", "page previews are off"))
+                    return@get
+                }
+
+                // Per account rather than per address: the caller has a name here, and an account behind a
+                // shared address should not be rationed by what its neighbours are doing.
+                val caller = call.userId().toString()
+                when (val preview = previews.previewFor(url) { previewBudget.take(caller) }) {
+                    is PreviewResult.Found -> {
+                        // No `public`, unlike the icon: this answer travelled with a bearer token, and a
+                        // shared cache in between must not keep it.
+                        call.response.header(HttpHeaders.CacheControl, "private, max-age=86400")
+                        call.respond(preview.preview)
+                    }
+
+                    PreviewResult.Absent -> {
+                        call.response.header(HttpHeaders.CacheControl, "private, max-age=86400")
+                        call.respond(HttpStatusCode.NoContent)
+                    }
+
+                    PreviewResult.Unavailable -> {
+                        call.response.header(HttpHeaders.CacheControl, "no-store")
+                        call.respond(HttpStatusCode.ServiceUnavailable, ApiError("preview", "the page could not be read"))
+                    }
+                }
             }
 
             post("/v1/sync") {

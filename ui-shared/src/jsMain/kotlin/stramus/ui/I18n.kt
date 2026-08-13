@@ -511,6 +511,16 @@ interface Strings {
     val cardPreviewsHover: String
     val cardPreviewsAlways: String
 
+    /**
+     * Settings: whether an ordinary saved page shows what it says about itself. Off unless asked for,
+     * offered only with an account, and the hint says the three things worth knowing before it is turned
+     * on — that our server is told the address of the page, that the picture comes from the site itself,
+     * which therefore sees the browser asking for it, and that *where* the previews appear is the
+     * setting above rather than this one, so "always" there means every link on screen is asked about.
+     */
+    val pagePreviews: String
+    val pagePreviewsHint: String
+
     /** Settings: whether a collection's card sections are stacked open, or shown as folders to open. */
     val groupsView: String
     val groupsViewHint: String
@@ -956,6 +966,9 @@ private object EnStrings : Strings {
     override val cardPreviewsOff = "Off"
     override val cardPreviewsHover = "On hover"
     override val cardPreviewsAlways = "Always"
+    override val pagePreviews = "Page previews"
+    override val pagePreviewsHint =
+        "Off by default, and only with an account. Turning this on lets stramus ask our own server what a saved page says about itself — its Open Graph title, description and picture — when you rest the pointer on its card. What the server is told is the address of that page; while you are signed in it already holds your cards, addresses and all. The picture itself is loaded from wherever the site publishes it, so that site sees your browser asking for it. Where they appear is the setting above: on hover asks only about the card you point at, always puts a picture on every link on screen — and therefore asks about every one of them."
     override val groupsView = "Sections view"
     override val groupsViewHint =
         "Show a collection's sections one under another, or as folders that open where they stand."
@@ -1410,6 +1423,9 @@ private object RuStrings : Strings {
     override val cardPreviewsOff = "Выключить"
     override val cardPreviewsHover = "При наведении"
     override val cardPreviewsAlways = "Всегда"
+    override val pagePreviews = "Превью страниц"
+    override val pagePreviewsHint =
+        "По умолчанию выключено и работает только с аккаунтом. Если включить, stramus будет спрашивать у нашего сервера, что сохранённая страница говорит о себе — заголовок, описание и картинку Open Graph, — когда вы задержите курсор на её карточке. Серверу сообщается адрес этой страницы; пока вы вошли в аккаунт, он и так хранит ваши карточки вместе с адресами. Сама картинка загружается оттуда, где её публикует сайт, так что сайт увидит запрос вашего браузера. Где они показываются, решает настройка выше: «при наведении» спрашивает только про ту карточку, на которую вы навели, «всегда» ставит картинку на каждую ссылку на экране — и, значит, спрашивает про каждую."
     override val groupsView = "Вид секций"
     override val groupsViewHint =
         "Показывать секции коллекции одну под другой или папками, которые раскрываются на месте."
@@ -1863,6 +1879,9 @@ private object FrStrings : Strings {
     override val cardPreviewsOff = "Désactivé"
     override val cardPreviewsHover = "Au survol"
     override val cardPreviewsAlways = "Toujours"
+    override val pagePreviews = "Aperçus de page"
+    override val pagePreviewsHint =
+        "Désactivé par défaut, et seulement avec un compte. Une fois activé, stramus demande à notre propre serveur ce qu'une page enregistrée dit d'elle-même — son titre, sa description et son image Open Graph — lorsque le pointeur s'arrête sur sa carte. Ce que le serveur apprend, c'est l'adresse de cette page ; tant que vous êtes connecté, il détient déjà vos cartes, adresses comprises. L'image, elle, est chargée là où le site la publie : ce site voit donc votre navigateur la demander. Où ils apparaissent dépend du réglage ci-dessus : au survol n'interroge que la carte pointée, toujours place une image sur chaque lien affiché — et interroge donc chacun d'eux."
     override val groupsView = "Vue des sections"
     override val groupsViewHint =
         "Afficher les sections d'une collection les unes sous les autres, ou comme des dossiers qui s'ouvrent sur place."
@@ -2316,6 +2335,9 @@ private object EsStrings : Strings {
     override val cardPreviewsOff = "Desactivado"
     override val cardPreviewsHover = "Al pasar el ratón"
     override val cardPreviewsAlways = "Siempre"
+    override val pagePreviews = "Vistas previas de páginas"
+    override val pagePreviewsHint =
+        "Desactivado por defecto y solo con una cuenta. Al activarlo, stramus pregunta a nuestro propio servidor qué dice de sí misma una página guardada — su título, descripción e imagen de Open Graph — cuando el puntero se detiene sobre su tarjeta. Lo que el servidor recibe es la dirección de esa página; mientras tienes la sesión iniciada ya guarda tus tarjetas, direcciones incluidas. La imagen se carga desde donde la publica el propio sitio, así que ese sitio ve a tu navegador pidiéndola. Dónde aparecen lo decide el ajuste de arriba: al pasar el ratón solo pregunta por la tarjeta señalada; siempre pone una imagen en cada enlace en pantalla y, por tanto, pregunta por todos ellos."
     override val groupsView = "Vista de secciones"
     override val groupsViewHint =
         "Mostrar las secciones de una colección una bajo otra, o como carpetas que se abren donde están."
@@ -2769,6 +2791,9 @@ private object DeStrings : Strings {
     override val cardPreviewsOff = "Aus"
     override val cardPreviewsHover = "Beim Überfahren"
     override val cardPreviewsAlways = "Immer"
+    override val pagePreviews = "Seitenvorschau"
+    override val pagePreviewsHint =
+        "Standardmäßig aus und nur mit einem Konto. Eingeschaltet fragt stramus unseren eigenen Server, was eine gespeicherte Seite über sich sagt — Titel, Beschreibung und Bild aus Open Graph —, sobald der Zeiger auf ihrer Karte ruht. Der Server erfährt dabei die Adresse dieser Seite; solange Sie angemeldet sind, hat er Ihre Karten samt Adressen ohnehin. Das Bild selbst wird von dort geladen, wo die Website es veröffentlicht — diese Website sieht also, dass Ihr Browser danach fragt. Wo sie erscheinen, entscheidet die Einstellung darüber: Beim Überfahren wird nur nach der Karte unter dem Zeiger gefragt, bei „immer“ trägt jeder Link auf dem Bildschirm ein Bild — und nach jedem wird gefragt."
     override val groupsView = "Bereichsansicht"
     override val groupsViewHint =
         "Die Bereiche einer Sammlung untereinander anzeigen, oder als Ordner, die an ihrem Platz aufklappen."
@@ -3222,6 +3247,9 @@ private object PtBrStrings : Strings {
     override val cardPreviewsOff = "Desligado"
     override val cardPreviewsHover = "Ao passar o cursor"
     override val cardPreviewsAlways = "Sempre"
+    override val pagePreviews = "Prévias de página"
+    override val pagePreviewsHint =
+        "Desligado por padrão e apenas com uma conta. Ao ligar, o stramus pergunta ao nosso próprio servidor o que uma página salva diz sobre si mesma — título, descrição e imagem do Open Graph — quando o cursor descansa sobre o cartão dela. O que o servidor recebe é o endereço dessa página; enquanto você está conectado, ele já guarda seus cartões, endereços e tudo. A imagem é carregada de onde o próprio site a publica, então esse site vê o seu navegador pedindo por ela. Onde elas aparecem é a configuração acima: ao passar o cursor pergunta só pelo cartão apontado; sempre coloca uma imagem em cada link na tela e, portanto, pergunta por todos eles."
     override val groupsView = "Visualização das seções"
     override val groupsViewHint =
         "Mostrar as seções de uma coleção uma abaixo da outra, ou como pastas que abrem onde estão."
@@ -3669,6 +3697,9 @@ private object ZhCnStrings : Strings {
     override val cardPreviewsOff = "关闭"
     override val cardPreviewsHover = "悬停时"
     override val cardPreviewsAlways = "始终"
+    override val pagePreviews = "页面预览"
+    override val pagePreviewsHint =
+        "默认关闭，且仅在登录后可用。开启后，当指针停在卡片上时，stramus 会向我们自己的服务器询问这个已保存页面如何描述自己——它的 Open Graph 标题、描述和图片。服务器因此会知道该页面的网址；在你登录期间，它本来就保存着你的卡片和其中的网址。图片本身从网站发布它的地方加载，因此该网站会看到你的浏览器在请求它。 显示在哪里由上面那项设置决定：「悬停时」只询问你指向的那张卡片；「始终」会给屏幕上每个链接都配图，也就会询问每一个。"
     override val groupsView = "分组视图"
     override val groupsViewHint =
         "将收藏夹的分组逐个纵向排列显示，或显示为可就地展开的文件夹。"
@@ -4117,6 +4148,9 @@ private object JaStrings : Strings {
     override val cardPreviewsOff = "無効"
     override val cardPreviewsHover = "ホバー時"
     override val cardPreviewsAlways = "常に表示"
+    override val pagePreviews = "ページのプレビュー"
+    override val pagePreviewsHint =
+        "既定では無効で、アカウントがある場合のみ使えます。有効にすると、カードにポインタを重ねたときに、保存したページが自身について何を書いているか——Open Graph のタイトル・説明・画像——を当方のサーバーに問い合わせます。サーバーが知るのはそのページのアドレスです。サインインしている間、サーバーはすでにアドレスを含むカードを保持しています。画像そのものはサイトが公開している場所から読み込まれるため、そのサイトにはブラウザからの要求が見えます。 どこに表示されるかは上の設定によります。「ホバー時」はポインタを重ねたカードだけを問い合わせ、「常に表示」は画面上のすべてのリンクに画像を付ける——つまりすべてについて問い合わせます。"
     override val groupsView = "セクション表示"
     override val groupsViewHint =
         "コレクションのセクションを縦に並べて表示するか、その場で開くフォルダーとして表示するか。"
@@ -4568,6 +4602,9 @@ private object KoStrings : Strings {
     override val cardPreviewsOff = "끔"
     override val cardPreviewsHover = "마우스 올릴 때"
     override val cardPreviewsAlways = "항상"
+    override val pagePreviews = "페이지 미리보기"
+    override val pagePreviewsHint =
+        "기본적으로 꺼져 있으며 계정이 있을 때만 쓸 수 있습니다. 켜면 카드 위에 포인터를 올렸을 때 저장한 페이지가 자신을 어떻게 소개하는지 — Open Graph 제목·설명·이미지 — 를 우리 서버에 물어봅니다. 서버가 알게 되는 것은 그 페이지의 주소이며, 로그인해 있는 동안에는 주소를 포함한 카드가 이미 서버에 있습니다. 이미지는 사이트가 게시한 곳에서 직접 불러오므로 그 사이트는 브라우저의 요청을 보게 됩니다. 어디에 나타날지는 위 설정이 정합니다. '마우스 올릴 때'는 가리킨 카드만 물어보고, '항상'은 화면의 모든 링크에 그림을 붙이므로 모두에 대해 물어봅니다."
     override val groupsView = "섹션 보기"
     override val groupsViewHint =
         "컬렉션의 섹션을 위아래로 나열해 표시하거나, 제자리에서 펼쳐지는 폴더 형태로 표시합니다."
@@ -5021,6 +5058,9 @@ private object ItStrings : Strings {
     override val cardPreviewsOff = "Disattivo"
     override val cardPreviewsHover = "Al passaggio"
     override val cardPreviewsAlways = "Sempre"
+    override val pagePreviews = "Anteprime delle pagine"
+    override val pagePreviewsHint =
+        "Disattivo per impostazione predefinita e solo con un account. Attivandolo, stramus chiede al nostro server che cosa una pagina salvata dice di sé — titolo, descrizione e immagine Open Graph — quando il puntatore si ferma sulla sua scheda. Al server arriva l'indirizzo di quella pagina; finché hai eseguito l'accesso, conserva già le tue schede, indirizzi compresi. L'immagine viene caricata da dove la pubblica il sito stesso, quindi quel sito vede il tuo browser richiederla. Dove compaiono lo decide l'impostazione qui sopra: al passaggio chiede solo della scheda puntata, sempre mette un'immagine su ogni link a schermo — e quindi chiede di tutti."
     override val groupsView = "Vista delle sezioni"
     override val groupsViewHint =
         "Mostra le sezioni di una raccolta una sotto l'altra, o come cartelle che si aprono dove si trovano."
@@ -5473,6 +5513,9 @@ private object TrStrings : Strings {
     override val cardPreviewsOff = "Kapalı"
     override val cardPreviewsHover = "Üzerine gelince"
     override val cardPreviewsAlways = "Her zaman"
+    override val pagePreviews = "Sayfa önizlemeleri"
+    override val pagePreviewsHint =
+        "Varsayılan olarak kapalı ve yalnızca hesapla çalışır. Açıldığında, imleç bir kartın üzerinde durduğunda stramus kaydedilmiş sayfanın kendisi hakkında ne söylediğini — Open Graph başlığını, açıklamasını ve görselini — kendi sunucumuza sorar. Sunucuya giden şey o sayfanın adresidir; oturumunuz açıkken zaten kartlarınızı adresleriyle birlikte tutuyor. Görselin kendisi sitenin yayımladığı yerden yüklenir, dolayısıyla o site tarayıcınızın isteğini görür. Nerede görüneceklerini yukarıdaki ayar belirler: üzerine gelince yalnızca işaret ettiğiniz kartı sorar, her zaman ekrandaki her bağlantıya bir görsel koyar — yani hepsini sorar."
     override val groupsView = "Bölüm görünümü"
     override val groupsViewHint =
         "Bir koleksiyonun bölümlerini alt alta göster, ya da bulundukları yerde açılan klasörler olarak göster."
