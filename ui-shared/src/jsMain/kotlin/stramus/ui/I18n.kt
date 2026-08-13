@@ -590,6 +590,10 @@ interface Strings {
     val deleteAccount: String
     val deleteAccountHint: String
     val deleteAccountConfirm: String
+
+    /** The checkbox that widens "delete account" to the copy in this browser, and its harder warning. */
+    val deleteAccountEraseLocal: String
+    val deleteAccountEraseLocalConfirm: String
     val syncUsage: String
     val syncUsageHint: String
     val optionOn: String
@@ -1016,6 +1020,9 @@ private object EnStrings : Strings {
     override val deleteAccount = "Delete account"
     override val deleteAccountHint = "Erases everything the server holds. What is on this machine stays."
     override val deleteAccountConfirm = "Delete the account and everything the server holds? This cannot be undone."
+    override val deleteAccountEraseLocal = "Also erase the collections, files and statistics in this browser"
+    override val deleteAccountEraseLocalConfirm =
+        "Delete the account and everything the server holds, and erase everything in this browser? Nothing of it stays anywhere. This cannot be undone."
     override val syncUsage = "Sync browsing statistics"
     override val syncUsageHint = "Which pages you open, and how often — what the search ranks by. Off means it stays on this machine."
     override val optionOn = "On"
@@ -1466,6 +1473,9 @@ private object RuStrings : Strings {
     override val deleteAccount = "Удалить аккаунт"
     override val deleteAccountHint = "Стирает всё, что хранит сервер. То, что на этой машине, остаётся."
     override val deleteAccountConfirm = "Удалить аккаунт и всё, что хранит сервер? Это не отменить."
+    override val deleteAccountEraseLocal = "Также стереть коллекции, файлы и статистику в этом браузере"
+    override val deleteAccountEraseLocalConfirm =
+        "Удалить аккаунт и всё, что хранит сервер, и стереть всё в этом браузере? Нигде ничего не останется. Это не отменить."
     override val syncUsage = "Синхронизировать статистику посещений"
     override val syncUsageHint = "Какие страницы вы открываете и как часто — то, по чему ранжируется поиск. Выключено — остаётся на этой машине."
     override val optionOn = "Вкл"
@@ -1915,6 +1925,9 @@ private object FrStrings : Strings {
     override val deleteAccount = "Supprimer le compte"
     override val deleteAccountHint = "Efface tout ce que le serveur détient. Ce qui est sur cet ordinateur reste."
     override val deleteAccountConfirm = "Supprimer le compte et tout ce que le serveur détient ? Cette action est irréversible."
+    override val deleteAccountEraseLocal = "Effacer aussi les collections, les fichiers et les statistiques de ce navigateur"
+    override val deleteAccountEraseLocalConfirm =
+        "Supprimer le compte et tout ce que le serveur détient, et effacer tout ce qui est dans ce navigateur ? Il n'en restera rien nulle part. Cette action est irréversible."
     override val syncUsage = "Synchroniser les statistiques de navigation"
     override val syncUsageHint = "Quelles pages vous ouvrez et à quelle fréquence — ce sur quoi la recherche se base pour classer. Désactivé signifie que cela reste sur cet ordinateur."
     override val optionOn = "Activé"
@@ -2364,6 +2377,9 @@ private object EsStrings : Strings {
     override val deleteAccount = "Eliminar cuenta"
     override val deleteAccountHint = "Borra todo lo que guarda el servidor. Lo que está en este equipo permanece."
     override val deleteAccountConfirm = "¿Eliminar la cuenta y todo lo que guarda el servidor? Esto no se puede deshacer."
+    override val deleteAccountEraseLocal = "Borrar también las colecciones, los archivos y las estadísticas de este navegador"
+    override val deleteAccountEraseLocalConfirm =
+        "¿Eliminar la cuenta y todo lo que guarda el servidor, y borrar todo lo que hay en este navegador? No quedará nada en ninguna parte. Esto no se puede deshacer."
     override val syncUsage = "Sincronizar estadísticas de navegación"
     override val syncUsageHint = "Qué páginas abres y con qué frecuencia — lo que usa la búsqueda para ordenar. Desactivado significa que se queda en este equipo."
     override val optionOn = "Activado"
@@ -2813,6 +2829,9 @@ private object DeStrings : Strings {
     override val deleteAccount = "Konto löschen"
     override val deleteAccountHint = "Löscht alles, was der Server speichert. Was auf diesem Gerät ist, bleibt."
     override val deleteAccountConfirm = "Konto und alles, was der Server speichert, löschen? Das kann nicht rückgängig gemacht werden."
+    override val deleteAccountEraseLocal = "Auch die Sammlungen, Dateien und Statistiken in diesem Browser löschen"
+    override val deleteAccountEraseLocalConfirm =
+        "Konto und alles, was der Server speichert, löschen und alles in diesem Browser entfernen? Es bleibt nirgends etwas übrig. Das kann nicht rückgängig gemacht werden."
     override val syncUsage = "Nutzungsstatistiken synchronisieren"
     override val syncUsageHint = "Welche Seiten du öffnest und wie oft — wonach die Suche sortiert. Aus bedeutet, es bleibt auf diesem Gerät."
     override val optionOn = "An"
@@ -3262,6 +3281,9 @@ private object PtBrStrings : Strings {
     override val deleteAccount = "Excluir conta"
     override val deleteAccountHint = "Apaga tudo o que o servidor guarda. O que está neste computador permanece."
     override val deleteAccountConfirm = "Excluir a conta e tudo o que o servidor guarda? Isso não pode ser desfeito."
+    override val deleteAccountEraseLocal = "Apagar também as coleções, os arquivos e as estatísticas neste navegador"
+    override val deleteAccountEraseLocalConfirm =
+        "Excluir a conta e tudo o que o servidor guarda, e apagar tudo neste navegador? Não ficará nada em lugar nenhum. Isso não pode ser desfeito."
     override val syncUsage = "Sincronizar estatísticas de navegação"
     override val syncUsageHint = "Quais páginas você abre e com que frequência — o que a busca usa para ordenar. Desativado significa que fica neste computador."
     override val optionOn = "Ativado"
@@ -3703,6 +3725,9 @@ private object ZhCnStrings : Strings {
     override val deleteAccount = "删除账户"
     override val deleteAccountHint = "会清除服务器上保存的一切。本机上的内容会保留。"
     override val deleteAccountConfirm = "删除账户以及服务器上保存的一切？此操作无法撤销。"
+    override val deleteAccountEraseLocal = "同时清除此浏览器中的收藏、文件和统计数据"
+    override val deleteAccountEraseLocalConfirm =
+        "删除账户以及服务器上保存的一切，并清除此浏览器中的所有内容？任何地方都不会留下任何数据。此操作无法撤销。"
     override val syncUsage = "同步浏览统计信息"
     override val syncUsageHint = "你打开了哪些页面、频率如何——这决定了搜索结果的排序方式。关闭表示这些信息只留在本机。"
     override val optionOn = "开"
@@ -4149,6 +4174,9 @@ private object JaStrings : Strings {
     override val deleteAccount = "アカウントを削除"
     override val deleteAccountHint = "サーバーが保持しているすべてを消去します。この端末上のものは残ります。"
     override val deleteAccountConfirm = "アカウントとサーバーが保持しているすべてを削除しますか？この操作は元に戻せません。"
+    override val deleteAccountEraseLocal = "このブラウザ内のコレクション、ファイル、統計も消去する"
+    override val deleteAccountEraseLocalConfirm =
+        "アカウントとサーバーが保持しているすべてを削除し、このブラウザ内のすべても消去しますか？どこにも何も残りません。この操作は元に戻せません。"
     override val syncUsage = "閲覧統計を同期"
     override val syncUsageHint = "どのページをどのくらいの頻度で開いたか——検索の並び順に使われます。オフにするとこの端末内にとどまります。"
     override val optionOn = "オン"
@@ -4596,6 +4624,9 @@ private object KoStrings : Strings {
     override val deleteAccount = "계정 삭제"
     override val deleteAccountHint = "서버가 보관하는 모든 것을 지웁니다. 이 기기에 있는 것은 남습니다."
     override val deleteAccountConfirm = "계정과 서버가 보관하는 모든 것을 삭제할까요? 이 작업은 되돌릴 수 없습니다."
+    override val deleteAccountEraseLocal = "이 브라우저의 컬렉션, 파일, 통계도 지우기"
+    override val deleteAccountEraseLocalConfirm =
+        "계정과 서버가 보관하는 모든 것을 삭제하고, 이 브라우저의 모든 것도 지울까요? 어디에도 아무것도 남지 않습니다. 이 작업은 되돌릴 수 없습니다."
     override val syncUsage = "방문 통계 동기화"
     override val syncUsageHint = "어떤 페이지를 얼마나 자주 여는지——검색 순위에 사용되는 정보입니다. 끄면 이 기기에만 남습니다."
     override val optionOn = "켜짐"
@@ -5045,6 +5076,9 @@ private object ItStrings : Strings {
     override val deleteAccount = "Elimina account"
     override val deleteAccountHint = "Cancella tutto ciò che il server conserva. Ciò che è su questo dispositivo resta."
     override val deleteAccountConfirm = "Eliminare l'account e tutto ciò che il server conserva? L'operazione non può essere annullata."
+    override val deleteAccountEraseLocal = "Cancella anche le raccolte, i file e le statistiche in questo browser"
+    override val deleteAccountEraseLocalConfirm =
+        "Eliminare l'account e tutto ciò che il server conserva, e cancellare tutto ciò che è in questo browser? Non resterà nulla da nessuna parte. L'operazione non può essere annullata."
     override val syncUsage = "Sincronizza statistiche di navigazione"
     override val syncUsageHint = "Quali pagine apri e con quale frequenza — ciò su cui si basa l'ordinamento della ricerca. Disattivato significa che resta su questo dispositivo."
     override val optionOn = "Attivo"
@@ -5493,6 +5527,9 @@ private object TrStrings : Strings {
     override val deleteAccount = "Hesabı sil"
     override val deleteAccountHint = "Sunucunun sakladığı her şeyi siler. Bu cihazda olanlar kalır."
     override val deleteAccountConfirm = "Hesap ve sunucunun sakladığı her şey silinsin mi? Bu geri alınamaz."
+    override val deleteAccountEraseLocal = "Bu tarayıcıdaki koleksiyonları, dosyaları ve istatistikleri de sil"
+    override val deleteAccountEraseLocalConfirm =
+        "Hesap ve sunucunun sakladığı her şey silinsin, bu tarayıcıdaki her şey de silinsin mi? Hiçbir yerde hiçbir şey kalmaz. Bu geri alınamaz."
     override val syncUsage = "Tarama istatistiklerini senkronize et"
     override val syncUsageHint = "Hangi sayfaları ne sıklıkla açtığın — aramanın sıralamada kullandığı şey. Kapalı, bunun bu cihazda kaldığı anlamına gelir."
     override val optionOn = "Açık"

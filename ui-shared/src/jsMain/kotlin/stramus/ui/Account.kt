@@ -10,6 +10,8 @@ import react.Props
 import react.dom.html.ReactHTML.button
 import react.dom.html.ReactHTML.div
 import react.dom.html.ReactHTML.h3
+import react.dom.html.ReactHTML.input
+import react.dom.html.ReactHTML.label
 import react.dom.html.ReactHTML.p
 import react.useState
 import web.cssom.ClassName
@@ -108,6 +110,9 @@ val AccountDialog = FC<AccountDialogProps> { props ->
     var busy by useState(false)
     var error by useState<String?>(null)
     var exporting by useState(false)
+
+    /** Whether "delete account" should also empty this browser's database. Off unless asked for. */
+    var eraseLocal by useState(false)
 
     // Signing in on a browser that already has collections asks a question that has no safe default: are
     // these the account's, or is the account's what should be here? Nobody but the user knows. It may
@@ -261,14 +266,38 @@ val AccountDialog = FC<AccountDialogProps> { props ->
                 className = ClassName("muted")
                 +t.deleteAccountHint
             }
+            // Off by default, and stays that way: the data was the user's before there was an account and
+            // is theirs after, so deleting the account does not presume to take it. But this is the one
+            // moment someone may well mean "all of it, everywhere", and the only place they would think
+            // to look for it.
+            label {
+                className = ClassName("check-row")
+                input {
+                    type = CHECKBOX_INPUT
+                    checked = eraseLocal
+                    onChange = { eraseLocal = it.target.checked }
+                }
+                +t.deleteAccountEraseLocal
+            }
             button {
                 className = ClassName("btn danger")
                 disabled = !props.serverOnline
                 onClick = {
-                    if (confirmDialog(t.deleteAccountConfirm)) {
+                    if (confirmDialog(if (eraseLocal) t.deleteAccountEraseLocalConfirm else t.deleteAccountConfirm)) {
                         scope.launch {
-                            runCatching { props.api.deleteAccount() }.onFailure(::fail)
-                            props.engine.signOut()
+                            val deleted = runCatching { props.api.deleteAccount() }.onFailure(::fail).isSuccess
+                            // The copy in this browser goes only once the server has confirmed the account
+                            // did: erasing it after a delete that failed would leave the user with no copy
+                            // anywhere and an account still standing.
+                            if (deleted && eraseLocal) {
+                                // Erasing takes the sync bookkeeping with it, so this is a sign-out too.
+                                props.engine.eraseLocalData()
+                                clearAllNoteDrafts()
+                                props.api.forgetDevice()
+                                props.onSynced()
+                            } else {
+                                props.engine.signOut()
+                            }
                             props.onState(SyncUi(SyncStatus.SIGNED_OUT))
                             props.onClose()
                         }

@@ -18,6 +18,7 @@ import stramus.core.db.CardRow
 import stramus.core.db.CardSections
 import stramus.core.db.Cards
 import stramus.core.db.Collections
+import stramus.core.db.Favicons
 import stramus.core.db.Sections
 import stramus.core.db.SyncMeta
 import stramus.core.db.SyncMetaRow
@@ -118,6 +119,36 @@ class SyncEngine(
     /** Forget the account. The data stays: it was the user's before there was an account, and still is. */
     suspend fun signOut() {
         db.write(SyncState, SyncMeta) {
+            SyncState.all().forEach { SyncState.delete(it.k) }
+            SyncMeta.all().forEach { SyncMeta.delete(listOf(it.tbl, it.rowId)) }
+        }
+    }
+
+    /**
+     * Empty this browser's database: the collections, the files, the counters, the cached icons, and the
+     * bookkeeping that says whose account they were.
+     *
+     * Offered only alongside deleting the account, where "delete everything" would otherwise have meant
+     * everything but the copy sitting in front of the user. Deliberately *not* a button of its own: the
+     * browser already removes all of this by uninstalling the extension or clearing the site's data, and
+     * it does so more thoroughly than a list here that a later table could fall off the end of.
+     *
+     * Unlike [signIn]'s `discardLocal` this also takes [Usage], [ActionUsage] and [Favicons] — the pages
+     * you visit and the icons of the sites you saved are the most personal rows in the file, and leaving
+     * them behind is exactly what someone asking for this does not want.
+     *
+     * One transaction: a half-emptied database is not a state this can end in.
+     */
+    suspend fun eraseLocalData() {
+        db.write(Cards, CardBlobs, CardSections, Collections, Sections, Usage, ActionUsage, Favicons, SyncState, SyncMeta) {
+            Cards.all().forEach { Cards.delete(it.id) }
+            CardBlobs.all().forEach { CardBlobs.delete(it.cardId) }
+            CardSections.all().forEach { CardSections.delete(it.id) }
+            Collections.all().forEach { Collections.delete(it.id) }
+            Sections.all().forEach { Sections.delete(it.id) }
+            Usage.all().forEach { Usage.delete(it.url) }
+            ActionUsage.all().forEach { ActionUsage.delete(it.kind) }
+            Favicons.all().forEach { Favicons.delete(it.host) }
             SyncState.all().forEach { SyncState.delete(it.k) }
             SyncMeta.all().forEach { SyncMeta.delete(listOf(it.tbl, it.rowId)) }
         }

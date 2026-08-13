@@ -161,6 +161,15 @@ class StramusApi(
         signOutLocally()
     }
 
+    /**
+     * Forget which device this browser is, so the next account started here is not handed the id of the
+     * last one. Only for the app's erase-everything path: kept across an ordinary sign-out, because a
+     * device that signs back in is the same device and should not turn up as a second one in the list.
+     */
+    fun forgetDevice() {
+        localStorage.removeItem(DEVICE_KEY)
+    }
+
     /** Every row the server holds about this account, in the form it holds it — the GDPR copy-of-everything. */
     suspend fun exportAccount(): AccountExport = withToken { token ->
         http.get("$baseUrl/v1/account/export") { header(HttpHeaders.Authorization, "Bearer $token") }
