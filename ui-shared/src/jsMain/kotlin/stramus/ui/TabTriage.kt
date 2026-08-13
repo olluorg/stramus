@@ -43,7 +43,6 @@ import stramus.core.repo.CardSectionRepository
 import stramus.core.sync.StramusApi
 import stramus.core.url.hostOf
 import web.cssom.ClassName
-import web.html.InputType
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.js.console
 import kotlin.uuid.ExperimentalUuidApi
@@ -66,9 +65,6 @@ private const val RELATED_SHOWN = 3
  * already-loaded metadata, no network call, and a summary is only as good as what it is written from.
  */
 private const val EXAMPLES_READ = 20
-
-// The wrappers' InputType is opaque; named here the way the rest of the UI names the ones it uses.
-private val CHECKBOX_INPUT: InputType = "checkbox".unsafeCast<InputType>()
 
 /**
  * Where one row is going, as the plan now has it: a collection, and a section within it or none.

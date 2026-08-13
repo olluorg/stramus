@@ -31,6 +31,9 @@ import kotlin.uuid.ExperimentalUuidApi
 // The file input's type is a value class over a string; casting sidesteps a fiddly member lookup.
 internal val FILE_INPUT_TYPE: InputType = "file".unsafeCast<InputType>()
 
+/** The same cast for checkboxes — the tab triage's rows, and the account dialog's erase-everything box. */
+internal val CHECKBOX_INPUT: InputType = "checkbox".unsafeCast<InputType>()
+
 /**
  * Backdrop + centered panel shared by every modal in the app — the note editor, the file viewer,
  * settings, the PIN dialogs, the AI window. Clicking the backdrop closes it, and so does Escape:

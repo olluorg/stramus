@@ -75,6 +75,9 @@ interface Strings {
     // Left sidebar
     val expandSidebar: String
     val collapseSidebar: String
+
+    /** The seam either sidebar is dragged by to be made wider or narrower. */
+    val resizeSidebar: String
     val newSection: String
     val sectionNamePrompt: String
     val sectionNameDefault: String
@@ -590,6 +593,10 @@ interface Strings {
     val deleteAccount: String
     val deleteAccountHint: String
     val deleteAccountConfirm: String
+
+    /** The checkbox that widens "delete account" to the copy in this browser, and its harder warning. */
+    val deleteAccountEraseLocal: String
+    val deleteAccountEraseLocalConfirm: String
     val syncUsage: String
     val syncUsageHint: String
     val optionOn: String
@@ -638,6 +645,7 @@ private object EnStrings : Strings {
 
     override val expandSidebar = "Expand sidebar"
     override val collapseSidebar = "Collapse sidebar"
+    override val resizeSidebar = "Drag to resize — double-click to reset"
     override val newSection = "+ New section"
     override val sectionNamePrompt = "Section name"
     override val sectionNameDefault = "New section"
@@ -980,9 +988,9 @@ private object EnStrings : Strings {
     override val exportBookmarks = "Export bookmarks"
 
     override val import = "Import"
-    override val importHint = "Bring in a bookmarks file from any browser, or a CSV exported here. " +
-        "Folders become sections, collections and groups; a link already saved where it would " +
-        "land is left alone."
+    override val importHint = "Bring in a bookmarks file from any browser, a CSV exported here, or a " +
+        "OneTab or Toby export. Folders become sections, collections and groups; a link already " +
+        "saved where it would land is left alone."
     override val importFile = "Choose a file"
     override val importedTitle = "Imported"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -1016,6 +1024,9 @@ private object EnStrings : Strings {
     override val deleteAccount = "Delete account"
     override val deleteAccountHint = "Erases everything the server holds. What is on this machine stays."
     override val deleteAccountConfirm = "Delete the account and everything the server holds? This cannot be undone."
+    override val deleteAccountEraseLocal = "Also erase the collections, files and statistics in this browser"
+    override val deleteAccountEraseLocalConfirm =
+        "Delete the account and everything the server holds, and erase everything in this browser? Nothing of it stays anywhere. This cannot be undone."
     override val syncUsage = "Sync browsing statistics"
     override val syncUsageHint = "Which pages you open, and how often — what the search ranks by. Off means it stays on this machine."
     override val optionOn = "On"
@@ -1087,6 +1098,7 @@ private object RuStrings : Strings {
 
     override val expandSidebar = "Развернуть панель"
     override val collapseSidebar = "Свернуть панель"
+    override val resizeSidebar = "Потяните, чтобы изменить ширину — двойной щелчок вернёт исходную"
     override val newSection = "+ Новый раздел"
     override val sectionNamePrompt = "Название раздела"
     override val sectionNameDefault = "Новый раздел"
@@ -1430,9 +1442,9 @@ private object RuStrings : Strings {
     override val exportBookmarks = "Экспорт закладок"
 
     override val import = "Импорт"
-    override val importHint = "Загрузите файл закладок из любого браузера или CSV, экспортированный " +
-        "здесь. Папки станут разделами, коллекциями и секциями; ссылка, которая уже сохранена там, " +
-        "куда попала бы, останется одна."
+    override val importHint = "Загрузите файл закладок из любого браузера, CSV, экспортированный " +
+        "здесь, или экспорт из OneTab либо Toby. Папки станут разделами, коллекциями и секциями; " +
+        "ссылка, которая уже сохранена там, куда попала бы, останется одна."
     override val importFile = "Выбрать файл"
     override val importedTitle = "Импорт"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -1466,6 +1478,9 @@ private object RuStrings : Strings {
     override val deleteAccount = "Удалить аккаунт"
     override val deleteAccountHint = "Стирает всё, что хранит сервер. То, что на этой машине, остаётся."
     override val deleteAccountConfirm = "Удалить аккаунт и всё, что хранит сервер? Это не отменить."
+    override val deleteAccountEraseLocal = "Также стереть коллекции, файлы и статистику в этом браузере"
+    override val deleteAccountEraseLocalConfirm =
+        "Удалить аккаунт и всё, что хранит сервер, и стереть всё в этом браузере? Нигде ничего не останется. Это не отменить."
     override val syncUsage = "Синхронизировать статистику посещений"
     override val syncUsageHint = "Какие страницы вы открываете и как часто — то, по чему ранжируется поиск. Выключено — остаётся на этой машине."
     override val optionOn = "Вкл"
@@ -1537,6 +1552,7 @@ private object FrStrings : Strings {
 
     override val expandSidebar = "Déployer le panneau"
     override val collapseSidebar = "Réduire le panneau"
+    override val resizeSidebar = "Faites glisser pour redimensionner — double-clic pour réinitialiser"
     override val newSection = "+ Nouvelle section"
     override val sectionNamePrompt = "Nom de la section"
     override val sectionNameDefault = "Nouvelle section"
@@ -1879,9 +1895,9 @@ private object FrStrings : Strings {
     override val exportBookmarks = "Exporter les favoris"
 
     override val import = "Importer"
-    override val importHint = "Importez un fichier de favoris depuis n'importe quel navigateur, ou un CSV exporté " +
-        "ici. Les dossiers deviennent des sections, des collections et des groupes ; un lien déjà enregistré " +
-        "là où il atterrirait est laissé tel quel."
+    override val importHint = "Importez un fichier de favoris depuis n'importe quel navigateur, un CSV exporté " +
+        "ici, ou un export OneTab ou Toby. Les dossiers deviennent des sections, des collections et des " +
+        "groupes ; un lien déjà enregistré là où il atterrirait est laissé tel quel."
     override val importFile = "Choisir un fichier"
     override val importedTitle = "Importé"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -1915,6 +1931,9 @@ private object FrStrings : Strings {
     override val deleteAccount = "Supprimer le compte"
     override val deleteAccountHint = "Efface tout ce que le serveur détient. Ce qui est sur cet ordinateur reste."
     override val deleteAccountConfirm = "Supprimer le compte et tout ce que le serveur détient ? Cette action est irréversible."
+    override val deleteAccountEraseLocal = "Effacer aussi les collections, les fichiers et les statistiques de ce navigateur"
+    override val deleteAccountEraseLocalConfirm =
+        "Supprimer le compte et tout ce que le serveur détient, et effacer tout ce qui est dans ce navigateur ? Il n'en restera rien nulle part. Cette action est irréversible."
     override val syncUsage = "Synchroniser les statistiques de navigation"
     override val syncUsageHint = "Quelles pages vous ouvrez et à quelle fréquence — ce sur quoi la recherche se base pour classer. Désactivé signifie que cela reste sur cet ordinateur."
     override val optionOn = "Activé"
@@ -1986,6 +2005,7 @@ private object EsStrings : Strings {
 
     override val expandSidebar = "Expandir panel"
     override val collapseSidebar = "Contraer panel"
+    override val resizeSidebar = "Arrastra para cambiar el ancho — doble clic para restablecer"
     override val newSection = "+ Nueva sección"
     override val sectionNamePrompt = "Nombre de la sección"
     override val sectionNameDefault = "Nueva sección"
@@ -2328,9 +2348,9 @@ private object EsStrings : Strings {
     override val exportBookmarks = "Exportar marcadores"
 
     override val import = "Importar"
-    override val importHint = "Trae un archivo de marcadores de cualquier navegador, o un CSV exportado aquí. " +
-        "Las carpetas se convierten en secciones, colecciones y grupos; un enlace ya guardado donde " +
-        "aterrizaría se deja tal cual."
+    override val importHint = "Trae un archivo de marcadores de cualquier navegador, un CSV exportado aquí, o " +
+        "una exportación de OneTab o Toby. Las carpetas se convierten en secciones, colecciones y grupos; " +
+        "un enlace ya guardado donde aterrizaría se deja tal cual."
     override val importFile = "Elegir un archivo"
     override val importedTitle = "Importado"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -2364,6 +2384,9 @@ private object EsStrings : Strings {
     override val deleteAccount = "Eliminar cuenta"
     override val deleteAccountHint = "Borra todo lo que guarda el servidor. Lo que está en este equipo permanece."
     override val deleteAccountConfirm = "¿Eliminar la cuenta y todo lo que guarda el servidor? Esto no se puede deshacer."
+    override val deleteAccountEraseLocal = "Borrar también las colecciones, los archivos y las estadísticas de este navegador"
+    override val deleteAccountEraseLocalConfirm =
+        "¿Eliminar la cuenta y todo lo que guarda el servidor, y borrar todo lo que hay en este navegador? No quedará nada en ninguna parte. Esto no se puede deshacer."
     override val syncUsage = "Sincronizar estadísticas de navegación"
     override val syncUsageHint = "Qué páginas abres y con qué frecuencia — lo que usa la búsqueda para ordenar. Desactivado significa que se queda en este equipo."
     override val optionOn = "Activado"
@@ -2435,6 +2458,7 @@ private object DeStrings : Strings {
 
     override val expandSidebar = "Leiste ausklappen"
     override val collapseSidebar = "Leiste einklappen"
+    override val resizeSidebar = "Ziehen, um die Breite zu ändern — Doppelklick setzt sie zurück"
     override val newSection = "+ Neuer Bereich"
     override val sectionNamePrompt = "Name des Bereichs"
     override val sectionNameDefault = "Neuer Bereich"
@@ -2777,9 +2801,9 @@ private object DeStrings : Strings {
     override val exportBookmarks = "Lesezeichen exportieren"
 
     override val import = "Importieren"
-    override val importHint = "Eine Lesezeichendatei aus einem beliebigen Browser importieren, oder eine hier " +
-        "exportierte CSV. Ordner werden zu Bereichen, Sammlungen und Gruppen; ein Link, der bereits dort " +
-        "gespeichert ist, wo er landen würde, bleibt unangetastet."
+    override val importHint = "Eine Lesezeichendatei aus einem beliebigen Browser importieren, eine hier " +
+        "exportierte CSV, oder einen Export aus OneTab oder Toby. Ordner werden zu Bereichen, Sammlungen " +
+        "und Gruppen; ein Link, der bereits dort gespeichert ist, wo er landen würde, bleibt unangetastet."
     override val importFile = "Datei auswählen"
     override val importedTitle = "Importiert"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -2813,6 +2837,9 @@ private object DeStrings : Strings {
     override val deleteAccount = "Konto löschen"
     override val deleteAccountHint = "Löscht alles, was der Server speichert. Was auf diesem Gerät ist, bleibt."
     override val deleteAccountConfirm = "Konto und alles, was der Server speichert, löschen? Das kann nicht rückgängig gemacht werden."
+    override val deleteAccountEraseLocal = "Auch die Sammlungen, Dateien und Statistiken in diesem Browser löschen"
+    override val deleteAccountEraseLocalConfirm =
+        "Konto und alles, was der Server speichert, löschen und alles in diesem Browser entfernen? Es bleibt nirgends etwas übrig. Das kann nicht rückgängig gemacht werden."
     override val syncUsage = "Nutzungsstatistiken synchronisieren"
     override val syncUsageHint = "Welche Seiten du öffnest und wie oft — wonach die Suche sortiert. Aus bedeutet, es bleibt auf diesem Gerät."
     override val optionOn = "An"
@@ -2884,6 +2911,7 @@ private object PtBrStrings : Strings {
 
     override val expandSidebar = "Expandir painel"
     override val collapseSidebar = "Recolher painel"
+    override val resizeSidebar = "Arraste para mudar a largura — clique duplo restaura"
     override val newSection = "+ Nova seção"
     override val sectionNamePrompt = "Nome da seção"
     override val sectionNameDefault = "Nova seção"
@@ -3226,8 +3254,9 @@ private object PtBrStrings : Strings {
     override val exportBookmarks = "Exportar favoritos"
 
     override val import = "Importar"
-    override val importHint = "Traga um arquivo de favoritos de qualquer navegador, ou um CSV exportado aqui. " +
-        "Pastas viram seções, coleções e grupos; um link já salvo onde ele cairia é deixado como está."
+    override val importHint = "Traga um arquivo de favoritos de qualquer navegador, um CSV exportado aqui, ou " +
+        "uma exportação do OneTab ou do Toby. Pastas viram seções, coleções e grupos; um link já salvo " +
+        "onde ele cairia é deixado como está."
     override val importFile = "Escolher um arquivo"
     override val importedTitle = "Importado"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -3261,6 +3290,9 @@ private object PtBrStrings : Strings {
     override val deleteAccount = "Excluir conta"
     override val deleteAccountHint = "Apaga tudo o que o servidor guarda. O que está neste computador permanece."
     override val deleteAccountConfirm = "Excluir a conta e tudo o que o servidor guarda? Isso não pode ser desfeito."
+    override val deleteAccountEraseLocal = "Apagar também as coleções, os arquivos e as estatísticas neste navegador"
+    override val deleteAccountEraseLocalConfirm =
+        "Excluir a conta e tudo o que o servidor guarda, e apagar tudo neste navegador? Não ficará nada em lugar nenhum. Isso não pode ser desfeito."
     override val syncUsage = "Sincronizar estatísticas de navegação"
     override val syncUsageHint = "Quais páginas você abre e com que frequência — o que a busca usa para ordenar. Desativado significa que fica neste computador."
     override val optionOn = "Ativado"
@@ -3332,6 +3364,7 @@ private object ZhCnStrings : Strings {
 
     override val expandSidebar = "展开侧栏"
     override val collapseSidebar = "收起侧栏"
+    override val resizeSidebar = "拖动调整宽度 — 双击恢复默认"
     override val newSection = "+ 新建分区"
     override val sectionNamePrompt = "分区名称"
     override val sectionNameDefault = "新建分区"
@@ -3667,8 +3700,8 @@ private object ZhCnStrings : Strings {
     override val exportBookmarks = "导出书签"
 
     override val import = "导入"
-    override val importHint = "从任意浏览器导入书签文件，或导入在此处导出的 CSV。文件夹会变成分区、收藏夹" +
-        "和分组；已保存在目标位置的链接会保持不变。"
+    override val importHint = "从任意浏览器导入书签文件，导入在此处导出的 CSV，或导入 OneTab、Toby 的" +
+        "导出文件。文件夹会变成分区、收藏夹和分组；已保存在目标位置的链接会保持不变。"
     override val importFile = "选择文件"
     override val importedTitle = "已导入"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -3702,6 +3735,9 @@ private object ZhCnStrings : Strings {
     override val deleteAccount = "删除账户"
     override val deleteAccountHint = "会清除服务器上保存的一切。本机上的内容会保留。"
     override val deleteAccountConfirm = "删除账户以及服务器上保存的一切？此操作无法撤销。"
+    override val deleteAccountEraseLocal = "同时清除此浏览器中的收藏、文件和统计数据"
+    override val deleteAccountEraseLocalConfirm =
+        "删除账户以及服务器上保存的一切，并清除此浏览器中的所有内容？任何地方都不会留下任何数据。此操作无法撤销。"
     override val syncUsage = "同步浏览统计信息"
     override val syncUsageHint = "你打开了哪些页面、频率如何——这决定了搜索结果的排序方式。关闭表示这些信息只留在本机。"
     override val optionOn = "开"
@@ -3773,6 +3809,7 @@ private object JaStrings : Strings {
 
     override val expandSidebar = "サイドバーを展開"
     override val collapseSidebar = "サイドバーを折りたたむ"
+    override val resizeSidebar = "ドラッグで幅を変更 — ダブルクリックで元に戻す"
     override val newSection = "+ 新しいセクション"
     override val sectionNamePrompt = "セクション名"
     override val sectionNameDefault = "新しいセクション"
@@ -4112,9 +4149,9 @@ private object JaStrings : Strings {
     override val exportBookmarks = "ブックマークをエクスポート"
 
     override val import = "インポート"
-    override val importHint = "任意のブラウザのブックマークファイル、またはここでエクスポートしたCSVを" +
-        "取り込みます。フォルダーはセクション、コレクション、グループになります。すでに保存先にあるリンクは" +
-        "そのままにされます。"
+    override val importHint = "任意のブラウザのブックマークファイル、ここでエクスポートしたCSV、または" +
+        "OneTabやTobyのエクスポートを取り込みます。フォルダーはセクション、コレクション、グループになります。" +
+        "すでに保存先にあるリンクはそのままにされます。"
     override val importFile = "ファイルを選択"
     override val importedTitle = "インポート済み"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -4148,6 +4185,9 @@ private object JaStrings : Strings {
     override val deleteAccount = "アカウントを削除"
     override val deleteAccountHint = "サーバーが保持しているすべてを消去します。この端末上のものは残ります。"
     override val deleteAccountConfirm = "アカウントとサーバーが保持しているすべてを削除しますか？この操作は元に戻せません。"
+    override val deleteAccountEraseLocal = "このブラウザ内のコレクション、ファイル、統計も消去する"
+    override val deleteAccountEraseLocalConfirm =
+        "アカウントとサーバーが保持しているすべてを削除し、このブラウザ内のすべても消去しますか？どこにも何も残りません。この操作は元に戻せません。"
     override val syncUsage = "閲覧統計を同期"
     override val syncUsageHint = "どのページをどのくらいの頻度で開いたか——検索の並び順に使われます。オフにするとこの端末内にとどまります。"
     override val optionOn = "オン"
@@ -4219,6 +4259,7 @@ private object KoStrings : Strings {
 
     override val expandSidebar = "사이드바 펼치기"
     override val collapseSidebar = "사이드바 접기"
+    override val resizeSidebar = "드래그하여 너비 조절 — 두 번 클릭하면 원래대로"
     override val newSection = "+ 새 섹션"
     override val sectionNamePrompt = "섹션 이름"
     override val sectionNameDefault = "새 섹션"
@@ -4559,9 +4600,9 @@ private object KoStrings : Strings {
     override val exportBookmarks = "북마크 내보내기"
 
     override val import = "가져오기"
-    override val importHint = "어떤 브라우저에서든 북마크 파일을 가져오거나, 여기서 내보낸 CSV를 " +
-        "가져올 수 있습니다. 폴더는 섹션, 컬렉션, 그룹이 됩니다. 이미 저장될 위치에 있는 링크는 " +
-        "그대로 둡니다."
+    override val importHint = "어떤 브라우저에서든 북마크 파일을 가져오거나, 여기서 내보낸 CSV, 또는 " +
+        "OneTab이나 Toby에서 내보낸 파일을 가져올 수 있습니다. 폴더는 섹션, 컬렉션, 그룹이 됩니다. " +
+        "이미 저장될 위치에 있는 링크는 그대로 둡니다."
     override val importFile = "파일 선택"
     override val importedTitle = "가져옴"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -4595,6 +4636,9 @@ private object KoStrings : Strings {
     override val deleteAccount = "계정 삭제"
     override val deleteAccountHint = "서버가 보관하는 모든 것을 지웁니다. 이 기기에 있는 것은 남습니다."
     override val deleteAccountConfirm = "계정과 서버가 보관하는 모든 것을 삭제할까요? 이 작업은 되돌릴 수 없습니다."
+    override val deleteAccountEraseLocal = "이 브라우저의 컬렉션, 파일, 통계도 지우기"
+    override val deleteAccountEraseLocalConfirm =
+        "계정과 서버가 보관하는 모든 것을 삭제하고, 이 브라우저의 모든 것도 지울까요? 어디에도 아무것도 남지 않습니다. 이 작업은 되돌릴 수 없습니다."
     override val syncUsage = "방문 통계 동기화"
     override val syncUsageHint = "어떤 페이지를 얼마나 자주 여는지——검색 순위에 사용되는 정보입니다. 끄면 이 기기에만 남습니다."
     override val optionOn = "켜짐"
@@ -4666,6 +4710,7 @@ private object ItStrings : Strings {
 
     override val expandSidebar = "Espandi pannello"
     override val collapseSidebar = "Comprimi pannello"
+    override val resizeSidebar = "Trascina per ridimensionare — doppio clic per ripristinare"
     override val newSection = "+ Nuova sezione"
     override val sectionNamePrompt = "Nome della sezione"
     override val sectionNameDefault = "Nuova sezione"
@@ -5008,9 +5053,9 @@ private object ItStrings : Strings {
     override val exportBookmarks = "Esporta segnalibri"
 
     override val import = "Importa"
-    override val importHint = "Importa un file di segnalibri da qualsiasi browser, o un CSV esportato qui. " +
-        "Le cartelle diventano sezioni, raccolte e gruppi; un link già salvato dove finirebbe viene " +
-        "lasciato invariato."
+    override val importHint = "Importa un file di segnalibri da qualsiasi browser, un CSV esportato qui, o " +
+        "un'esportazione di OneTab o Toby. Le cartelle diventano sezioni, raccolte e gruppi; un link già " +
+        "salvato dove finirebbe viene lasciato invariato."
     override val importFile = "Scegli un file"
     override val importedTitle = "Importato"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -5044,6 +5089,9 @@ private object ItStrings : Strings {
     override val deleteAccount = "Elimina account"
     override val deleteAccountHint = "Cancella tutto ciò che il server conserva. Ciò che è su questo dispositivo resta."
     override val deleteAccountConfirm = "Eliminare l'account e tutto ciò che il server conserva? L'operazione non può essere annullata."
+    override val deleteAccountEraseLocal = "Cancella anche le raccolte, i file e le statistiche in questo browser"
+    override val deleteAccountEraseLocalConfirm =
+        "Eliminare l'account e tutto ciò che il server conserva, e cancellare tutto ciò che è in questo browser? Non resterà nulla da nessuna parte. L'operazione non può essere annullata."
     override val syncUsage = "Sincronizza statistiche di navigazione"
     override val syncUsageHint = "Quali pagine apri e con quale frequenza — ciò su cui si basa l'ordinamento della ricerca. Disattivato significa che resta su questo dispositivo."
     override val optionOn = "Attivo"
@@ -5115,6 +5163,7 @@ private object TrStrings : Strings {
 
     override val expandSidebar = "Kenar çubuğunu genişlet"
     override val collapseSidebar = "Kenar çubuğunu daralt"
+    override val resizeSidebar = "Genişliği değiştirmek için sürükleyin — çift tıklama sıfırlar"
     override val newSection = "+ Yeni bölüm"
     override val sectionNamePrompt = "Bölüm adı"
     override val sectionNameDefault = "Yeni bölüm"
@@ -5456,9 +5505,9 @@ private object TrStrings : Strings {
     override val exportBookmarks = "Yer imlerini dışa aktar"
 
     override val import = "İçe aktar"
-    override val importHint = "Herhangi bir tarayıcıdan bir yer imi dosyası, ya da burada dışa aktarılmış bir " +
-        "CSV içe aktar. Klasörler bölümlere, koleksiyonlara ve gruplara dönüşür; ineceği yerde zaten " +
-        "kayıtlı olan bir bağlantı olduğu gibi bırakılır."
+    override val importHint = "Herhangi bir tarayıcıdan bir yer imi dosyası, burada dışa aktarılmış bir CSV, " +
+        "ya da bir OneTab veya Toby dışa aktarımı içe aktar. Klasörler bölümlere, koleksiyonlara ve " +
+        "gruplara dönüşür; ineceği yerde zaten kayıtlı olan bir bağlantı olduğu gibi bırakılır."
     override val importFile = "Bir dosya seç"
     override val importedTitle = "İçe aktarıldı"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -5492,6 +5541,9 @@ private object TrStrings : Strings {
     override val deleteAccount = "Hesabı sil"
     override val deleteAccountHint = "Sunucunun sakladığı her şeyi siler. Bu cihazda olanlar kalır."
     override val deleteAccountConfirm = "Hesap ve sunucunun sakladığı her şey silinsin mi? Bu geri alınamaz."
+    override val deleteAccountEraseLocal = "Bu tarayıcıdaki koleksiyonları, dosyaları ve istatistikleri de sil"
+    override val deleteAccountEraseLocalConfirm =
+        "Hesap ve sunucunun sakladığı her şey silinsin, bu tarayıcıdaki her şey de silinsin mi? Hiçbir yerde hiçbir şey kalmaz. Bu geri alınamaz."
     override val syncUsage = "Tarama istatistiklerini senkronize et"
     override val syncUsageHint = "Hangi sayfaları ne sıklıkla açtığın — aramanın sıralamada kullandığı şey. Kapalı, bunun bu cihazda kaldığı anlamına gelir."
     override val optionOn = "Açık"

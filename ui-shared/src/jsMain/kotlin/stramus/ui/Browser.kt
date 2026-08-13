@@ -53,6 +53,8 @@ private external interface JsStorage {
     fun getItem(key: String): String?
     fun setItem(key: String, value: String)
     fun removeItem(key: String)
+    fun key(index: Int): String?
+    val length: Int
 }
 
 private external interface JsDocument {
@@ -527,6 +529,15 @@ internal fun prefSet(key: String, value: String): Boolean =
 internal fun prefRemove(key: String) {
     runCatching { browserWindow().localStorage.removeItem(key) }
 }
+
+/**
+ * Every key currently in localStorage, read out in one pass before anything is removed: deleting while
+ * walking the store by index skips whatever slid into the gap.
+ */
+internal fun prefKeys(): List<String> = runCatching {
+    val storage = browserWindow().localStorage
+    (0 until storage.length).mapNotNull { storage.key(it) }
+}.getOrDefault(emptyList())
 
 /**
  * Stamp a CSS custom property on `<html>` — the one way a theme picked at runtime reaches a stylesheet

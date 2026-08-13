@@ -58,3 +58,12 @@ internal fun saveNoteDraft(key: String, draft: NoteDraft) {
 internal fun clearNoteDraft(key: String) {
     prefRemove(key)
 }
+
+/**
+ * Throw away every draft in this browser. Part of erasing everything: a draft is the text of a note the
+ * user was writing, and it would be a poor sort of "delete my data" that left it sitting in localStorage
+ * because it had not been saved yet.
+ */
+internal fun clearAllNoteDrafts() {
+    prefKeys().filter { it.startsWith(DRAFT_PREFIX) }.forEach(::prefRemove)
+}

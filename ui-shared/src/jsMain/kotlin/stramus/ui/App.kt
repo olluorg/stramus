@@ -137,6 +137,28 @@ private const val QUICK_SAVE_COLLECTION_PREF = "quickSaveCollectionId"
 /** Which windows of the tabs sidebar are folded shut, as a comma-separated list of browser window ids. */
 private const val COLLAPSED_TAB_WINDOWS_PREF = "collapsedTabWindows"
 
+/** How wide each sidebar has been dragged, in px. Written on release of the seam, not during the drag. */
+private const val LEFT_WIDTH_PREF = "leftWidth"
+private const val RIGHT_WIDTH_PREF = "rightWidth"
+
+/**
+ * The widths the two sidebars open at, and how far a drag may take either of them.
+ *
+ * The floor is the narrowest either panel is still usable at: a collection row keeps room for a name
+ * beside its padlock, and the tabs pane keeps its Tabs/History switch on one line. Everything in both
+ * panels cuts a name it cannot fit with an ellipsis rather than pushing the controls beside it off the
+ * edge, which is what makes a narrow panel merely narrow. The ceiling is where a sidebar would start
+ * to be the page rather than the edge of it.
+ */
+private const val LEFT_WIDTH_DEFAULT = 260
+private const val RIGHT_WIDTH_DEFAULT = 280
+private const val SIDEBAR_WIDTH_MIN = 200
+private const val SIDEBAR_WIDTH_MAX = 560
+
+/** A stored width, made safe: anything unreadable or out of range falls back to [fallback]. */
+private fun storedWidth(pref: String, fallback: Int): Int =
+    prefGet(pref)?.toIntOrNull()?.coerceIn(SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX) ?: fallback
+
 /** Reads [COLLAPSED_TAB_WINDOWS_PREF] back; anything unreadable in it is simply not a folded window. */
 private fun parseWindowIds(stored: String?): Set<Int> =
     stored?.split(",")?.mapNotNull { it.trim().toIntOrNull() }?.toSet() ?: emptySet()
@@ -541,7 +563,9 @@ private fun ChildrenBuilder.tabWindow(
                     className = ClassName(if (open) "chevron" else "chevron closed")
                     icon("chevron-down")
                 }
-                +label
+                // Its own element, so a window name too long for a narrowed sidebar is cut with an
+                // ellipsis instead of shouldering the window's tools off the row.
+                span { className = ClassName("ellipsis"); +label }
             }
             div {
                 className = ClassName("tab-window-tools")
@@ -866,6 +890,11 @@ val App = FC<AppProps> { props ->
     var cardPreviews by useState(CardPreviews.from(prefGet("cardPreviews")))
     var leftCollapsed by useState(prefGet("leftCollapsed") == "1")
     var rightCollapsed by useState(prefGet("rightCollapsed") == "1")
+    // How wide each sidebar has been dragged by its seam ([ResizeHandle]), kept per browser like the
+    // rest of the layout. Only the expanded panels wear these: a collapsed one is a rail of a fixed
+    // width, and the tabs pane in its cards view takes the room the cards need instead.
+    var leftWidth by useState { storedWidth(LEFT_WIDTH_PREF, LEFT_WIDTH_DEFAULT) }
+    var rightWidth by useState { storedWidth(RIGHT_WIDTH_PREF, RIGHT_WIDTH_DEFAULT) }
     // Whether the sections sidebar and the tabs/history sidebar have traded sides. Purely a layout
     // flip — everything each one shows and does stays exactly where it is otherwise.
     var swapSidebars by useState(prefGet("swapSidebars") == "1")
@@ -2617,6 +2646,21 @@ val App = FC<AppProps> { props ->
         } else {
             aside {
                 className = ClassName("sidebar")
+                val css = js("({})")
+                css.width = "${leftWidth}px"
+                css.flexBasis = "${leftWidth}px"
+                asDynamic().style = css
+                // The seam this panel is dragged wider or narrower by. It sits on whichever edge faces
+                // the content pane, so which way a drag widens the panel flips with [swapSidebars].
+                ResizeHandle {
+                    width = leftWidth
+                    growsRight = !swapSidebars
+                    min = SIDEBAR_WIDTH_MIN
+                    max = SIDEBAR_WIDTH_MAX
+                    reset = LEFT_WIDTH_DEFAULT
+                    label = t.resizeSidebar
+                    onCommit = { w -> leftWidth = w; prefSet(LEFT_WIDTH_PREF, w.toString()) }
+                }
                 div {
                     className = ClassName("sidebar-scroll")
                     div {
@@ -2758,9 +2802,12 @@ val App = FC<AppProps> { props ->
                                     } else if (section.title.isBlank()) {
                                         // A section left without a name is still there to be found and clicked:
                                         // it says so, rather than showing an empty header that reads as nothing.
-                                        span { className = ClassName("untitled"); +t.untitled }
+                                        span { className = ClassName("untitled ellipsis"); +t.untitled }
                                     } else {
-                                        +section.title
+                                        // In a span of its own, not as bare text: the header is a flex row
+                                        // (chevron, name, tools), and only an element of its own can be cut
+                                        // short with an ellipsis when a narrowed sidebar leaves it no room.
+                                        span { className = ClassName("ellipsis"); +section.title }
                                     }
                                 }
                                 if (!isLocked) {
@@ -2986,9 +3033,16 @@ val App = FC<AppProps> { props ->
                                             }
                                             span {
                                                 className = ClassName("col-title")
-                                                // A read-only collection is not renamed either: the name
-                                                // is as much part of it as the cards are.
-                                                hint(if (takesContent) t.renameCollectionHint else t.readOnlyHint)
+                                                // The name first, and in full: a name too long for the
+                                                // sidebar is cut short on the row (and cut shorter still
+                                                // by a drag of the seam), so hovering it is the only way
+                                                // to read the whole of it. Then what the row does with a
+                                                // double-click — a read-only collection is not renamed
+                                                // either: the name is as much part of it as the cards are.
+                                                hint(
+                                                    c.title.ifBlank { t.untitled } + " — " +
+                                                        if (takesContent) t.renameCollectionHint else t.readOnlyHint,
+                                                )
                                                 onDoubleClick = { if (takesContent) onTitleDoubleClick(c.id) }
                                                 if (renamingId == c.id && takesContent) {
                                                     InlineEdit {
@@ -3530,6 +3584,23 @@ val App = FC<AppProps> { props ->
                 val showTabCards = tabsCardView && pane == RightPane.TABS
                 aside {
                     className = ClassName(if (showTabCards) "tabs cards-view" else "tabs")
+                    // The cards view is not a sidebar width at all — it grows to match the content pane
+                    // (see `.tabs.cards-view`), so it carries neither a width of its own nor a seam.
+                    if (!showTabCards) {
+                        val css = js("({})")
+                        css.width = "${rightWidth}px"
+                        css.flexBasis = "${rightWidth}px"
+                        asDynamic().style = css
+                        ResizeHandle {
+                            width = rightWidth
+                            growsRight = swapSidebars
+                            min = SIDEBAR_WIDTH_MIN
+                            max = SIDEBAR_WIDTH_MAX
+                            reset = RIGHT_WIDTH_DEFAULT
+                            label = t.resizeSidebar
+                            onCommit = { w -> rightWidth = w; prefSet(RIGHT_WIDTH_PREF, w.toString()) }
+                        }
+                    }
                     div {
                         className = ClassName("tabs-head")
                         // The pane switch. Each half is drawn only where the host grants it, so a

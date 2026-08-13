@@ -37,7 +37,8 @@ gives you the same collections on a second device, and nothing more.
   you share it — a shoulder-surfing guard, not encryption: the server sees the content of a synced
   PIN section as plainly as everything else.
 - **Import / export.** Netscape bookmarks HTML (folders map to section → collection → card section)
-  and CSV, both ways.
+  and CSV, both ways. Import also reads a OneTab text export (each saved group becomes a collection)
+  and a Toby JSON export (each list becomes a collection, its first label the section).
 - **Light/dark themes, English/Russian UI**, a favicon cache so links keep their icons offline, and
   collapsed-sidebar thumbnails for sections and collections.
 - **No analytics, no telemetry, no tracking, no advertising**, with or without an account.
