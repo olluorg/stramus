@@ -362,3 +362,39 @@ interface FaviconRepository {
  * host on screen, having already been given a perfectly good answer.
  */
 data class CachedIcon(val dataUri: String, val updatedAt: Instant)
+
+/**
+ * What pages say about themselves, keyed by the address asked about — the answers the server gave to
+ * `/v1/preview`, kept so that opening a new tab does not ask it about every card on screen again.
+ *
+ * A cache like [FaviconRepository] and, like it, deliberately not synced (see `Codec.kt`): the other
+ * device can ask the same question and get the same answer, and a page's description of itself is not
+ * the user's own data to carry around.
+ */
+interface LinkPreviewRepository {
+    /** Everything cached, address → preview. Read once on start so the first hover needs no network. */
+    suspend fun all(): Map<String, CachedPreview>
+
+    /** Store (or replace) what is known about [url]. */
+    suspend fun put(url: String, preview: CachedPreview)
+
+    /** Throw the whole cache away — what the setting being turned off means. */
+    suspend fun clear()
+}
+
+/**
+ * A page's own description of itself, as cached: any of the three fields may be absent, and all three
+ * absent is the perfectly good answer "this page says nothing about itself" — worth keeping, since
+ * otherwise it is asked about again on every load forever.
+ *
+ * [image] is an address, not bytes: see the server's `LinkPreview`, which explains why nothing else
+ * would be right.
+ */
+data class CachedPreview(
+    val title: String?,
+    val description: String?,
+    val image: String?,
+    val updatedAt: Instant,
+) {
+    val isEmpty: Boolean get() = title == null && description == null && image == null
+}

@@ -343,12 +343,20 @@ private fun readAsDataUri(blobPromise: dynamic, done: (String?) -> Unit) {
  */
 private val letterPlaceholders = mutableMapOf<String, String>()
 
+/**
+ * A stable hue per host: fold the characters onto the colour wheel. The same site is always the same
+ * colour, so a page of iconless links reads as distinct rows instead of a column of identical
+ * placeholders — and a card standing in for a page with no picture of its own is recognisably that
+ * site's card (see `.card-cover.blank`).
+ */
+internal fun hostHue(host: String): Int = host.fold(0) { acc, c -> (acc * 31 + c.code) and 0x7fffffff } % 360
+
 private fun letterPlaceholder(host: String): String = letterPlaceholders.getOrPut(host) {
     val letter = host.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString() ?: "•"
-    // A stable hue per host: fold the characters onto the colour wheel. Saturation and lightness are
-    // fixed so every tile belongs to one family and the white letter stays readable on all of them —
-    // and so the same colour works on the light and the dark theme without knowing which is on.
-    val hue = host.fold(0) { acc, c -> (acc * 31 + c.code) and 0x7fffffff } % 360
+    // Saturation and lightness are fixed so every tile belongs to one family and the white letter stays
+    // readable on all of them — and so the same colour works on the light and the dark theme without
+    // knowing which is on.
+    val hue = hostHue(host)
     "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
         """
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">

@@ -8,6 +8,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
@@ -31,6 +32,7 @@ import stramus.protocol.BlobCheckResponse
 import stramus.protocol.CodeRequest
 import stramus.protocol.CodeVerifyRequest
 import stramus.protocol.GoogleSignInRequest
+import stramus.protocol.LinkPreview
 import stramus.protocol.LoginRequest
 import stramus.protocol.LogoutRequest
 import stramus.protocol.Me
@@ -189,6 +191,29 @@ class StramusApi(
             setBody(request)
         }
     }.body()
+
+    /**
+     * What [url] says about itself — `og:title`, `og:description`, `og:image` — read by the server, not
+     * by this browser. Null means the server looked and the page describes itself in none of those ways.
+     *
+     * Behind the session on purpose, and that is the whole shape of the feature: asking this hands the
+     * server the address of a page, which for a signed-in account is a thing it already holds in
+     * `sync_rows` and for anyone else would be a disclosure they never agreed to. A signed-out app never
+     * calls this — [withToken] would throw — and shows no page previews at all.
+     *
+     * The picture is *not* fetched here: what comes back is its address, which a card points an `<img>`
+     * at. See the server's `LinkPreview`.
+     */
+    suspend fun preview(url: String): LinkPreview? {
+        val response = withToken { token ->
+            http.get("$baseUrl/v1/preview") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                parameter("url", url)
+            }
+        }
+        // 204: looked, and there is nothing to say. Reading a body that is not there would throw.
+        return if (response.status.value == 204) null else response.body()
+    }
 
     override suspend fun sync(request: SyncRequest): SyncResponse = withToken { token ->
         http.post("$baseUrl/v1/sync") {

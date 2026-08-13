@@ -282,6 +282,33 @@ object Favicons : Store<FaviconRow>("favicons", ::FaviconRow) {
     val updatedAt by Field.Instant()
 }
 
+class LinkPreviewRow : Row() {
+    var url by LinkPreviews.url
+    var title by LinkPreviews.title
+    var description by LinkPreviews.description
+    var image by LinkPreviews.image
+    var updatedAt by LinkPreviews.updatedAt
+}
+
+/**
+ * What pages said about themselves when the server was asked, one row per address — the local half of
+ * the page-preview cache (see `LinkPreviews.kt` in the UI, and the server's `Previews.kt`).
+ *
+ * Keyed by the address in the clear, unlike the server's own table, and rightly: this database is the
+ * user's own machine, holding their cards — URLs and all — a few stores away. Hashing here would buy
+ * nothing and cost the ability to sweep the cache when the setting goes off.
+ *
+ * A row with all three fields null is the answer "this page says nothing about itself", kept for the
+ * same reason the server keeps its own negative: without it, every load asks again.
+ */
+object LinkPreviews : Store<LinkPreviewRow>("link_previews", ::LinkPreviewRow) {
+    val url by Field.Text().primaryKey()
+    val title by Field.Text().nullable()
+    val description by Field.Text().nullable()
+    val image by Field.Text().nullable()
+    val updatedAt by Field.Instant()
+}
+
 class SyncMetaRow : Row() {
     var tbl by SyncMeta.tbl
     var rowId by SyncMeta.rowId
@@ -337,8 +364,9 @@ object SyncState : Store<SyncStateRow>("sync_state", ::SyncStateRow) {
  * SQLite-on-WASM file (wa-sqlite's VFS) that a native-IndexedDB layer cannot read at all — kidx just
  * creates this one fresh and never touches the old one. See `StoreJs.kt`.
  *
- * One migration, because there is nothing to carry forward: a database already on the old engine
- * starts here empty, seeded the same way a first install always has been ([StoreSeed]).
+ * The first migration carries nothing forward: a database already on the old engine starts here empty,
+ * seeded the same way a first install always has been ([StoreSeed]). Every one after it adds to a
+ * database somebody is already using, and so is append-only — a step, once shipped, is never edited.
  */
 val stramusSchema: Schema = Schema(
     "stramus-kidx",
@@ -361,5 +389,9 @@ val stramusSchema: Schema = Schema(
                 SchemaStep.CreateStore(SyncState),
             ),
         ),
+        // The page-preview cache. A store of its own rather than a column on the cards: it is a cache of
+        // what *other people's* pages say, refreshed and thrown away on its own schedule, and a card
+        // carrying it would carry it into sync.
+        Migration(2, listOf(SchemaStep.CreateStore(LinkPreviews))),
     ),
 )

@@ -55,6 +55,12 @@ external interface SettingsModalProps : Props {
     var cardPreviews: String
     var onCardPreviewsChange: (String) -> Unit
 
+    /** Whether an ordinary saved page shows what it says about itself. Off by default, and — like
+     *  [syncUsage] — offered only where there is an account: the answer comes from our server, which
+     *  has to be told the address to give it. See `LinkPreviews.kt`. */
+    var pagePreviews: Boolean
+    var onPagePreviewsChange: (Boolean) -> Unit
+
     /** Whether the sections sidebar sits on the right instead of its usual left, and the tabs/history
      *  sidebar on the left instead of its usual right. Only worth offering where there is a second
      *  sidebar to swap places with. */
@@ -506,6 +512,17 @@ private fun ChildrenBuilder.appearancePane(props: SettingsModalProps, s: Strings
             props.onCardPreviewsChange,
             titleExtra = { span { className = ClassName("settings-badge"); +s.experimental } },
         )
+
+        // Only where there is an account to ask through. Signed out there is nothing to offer: the app
+        // does not fetch pages itself, and a switch that would do nothing is worse than no switch.
+        if (props.signedIn) {
+            toggleRow(
+                s.pagePreviews, s.pagePreviewsHint, props.pagePreviews,
+                listOf(false to s.optionOff, true to s.optionOn),
+                props.onPagePreviewsChange,
+                titleExtra = { span { className = ClassName("settings-badge"); +s.experimental } },
+            )
+        }
 
         toggleRow(
             s.groupsView, s.groupsViewHint, props.groupsFolderView,

@@ -403,6 +403,13 @@
             display: grid;
             grid-template-columns: auto 1fr;
             align-items: center;
+            /* Exactly two plain cards and the gap between them. In the columns layout that is what makes
+               a column of two stand level with one covered card beside it; in a plain grid where every
+               card is covered it is simply the height they all share. --card-h is measured from a real
+               card (App.kt), so this holds whatever the font turns out to be. */
+            height: calc(2 * var(--card-h) + var(--card-gap));
+            /* The picture takes the slack, the title row only what it needs. */
+            grid-template-rows: 1fr auto;
             /* The gap between the picture and the title belongs to the card, not to the picture: given
                to the picture as a margin it would be added on top of a height already equal to the whole
                cell, and the picture would spill over the title. */
@@ -421,6 +428,18 @@
             object-fit: cover;
             border-radius: var(--r-ctl);
             background: var(--bg);
+        }
+        /* A card standing in for a page that publishes no picture of its own — see CardTileProps.blankCover.
+           Not an invented preview: the site's icon on a wash of the site's own colour, which is what the
+           card already said, drawn at the size a preview takes so that the grid keeps one card height. */
+        .card-cover.blank {
+            display: flex; align-items: center; justify-content: center;
+        }
+        .card-cover.blank .cover-fav {
+            width: 30px; height: 30px; border-radius: var(--r-ctl);
+            /* The icon is the whole of what this tile says, so it is not dimmed with the rest of a card
+               that has not been opened yet. */
+            opacity: 1;
         }
 
         /* A grid that may hold covers, which is to say one drawn while `cardPreviews` is on.
@@ -450,14 +469,6 @@
         .grid.covers .card {
             break-inside: avoid;
             margin-bottom: var(--card-gap);
-        }
-        /* Exactly two plain cards and the gap between them, which is what makes a column of two stand
-           level with one covered card beside it. --card-h is measured from a real card (App.kt), so this
-           holds whatever the font turns out to be. */
-        .grid.covers .card.has-cover {
-            height: calc(2 * var(--card-h) + var(--card-gap));
-            /* The picture takes the slack, the title row only what it needs. */
-            grid-template-rows: 1fr auto;
         }
 
 
@@ -538,6 +549,16 @@
             font-size: 12px; line-height: 1.35; color: var(--text);
             overflow-wrap: anywhere; overflow: hidden;
             display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+        }
+        /* What a page says about itself, under its own title in the popup — the `og:description` the
+           server read for it. Dimmer and smaller than the caption above it: the title is the card, and
+           this is the page's own blurb about itself, which is often a sentence of marketing. Three
+           lines at most, for the same reason the caption gets two. */
+        .preview-note {
+            padding: 0 4px 3px;
+            font-size: 11px; line-height: 1.35; color: var(--muted);
+            overflow-wrap: anywhere; overflow: hidden;
+            display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
         }
 
         /* The ⇅ menu that sorts the window's tabs, and the ⤓ that saves them into the open collection.

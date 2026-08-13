@@ -115,14 +115,19 @@ not used for creditworthiness or lending. All three hold.
 | Regions | All |
 | Pricing | Free |
 
-## Two things a reviewer may ask about
+## Three things a reviewer may ask about
 
-Both are user-initiated navigations rather than data collection, and both are in the privacy policy:
+The first two are user-initiated navigations rather than data collection. All three are in the privacy
+policy:
 
 - Choosing ChatGPT, Gemini or Claude as the assistant means a question the user types opens a chat with
   that service in a new tab, with the question in it. The default, where the browser has an on-device
   model, answers locally and sends nothing.
 - A web search from the search box goes to the user's own default search engine.
+- **Page previews** (Settings → Appearance, off by default, and offered only while signed in) let a saved
+  link show what its page says about itself. Our own server reads the page's Open Graph tags on the user's
+  behalf, behind the same token as synchronisation — so no host permission beyond `api.stramus.space` is
+  needed, and no page is ever fetched from the user's own address. See the fuller note in `README.md`.
 
 ## After submitting
 

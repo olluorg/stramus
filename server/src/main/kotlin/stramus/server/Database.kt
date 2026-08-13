@@ -171,4 +171,20 @@ val serverMigrations: List<Migration<ServerDb>> = listOf(
         );
         """,
     ),
+    Migration(
+        "007-preview-cache",
+        """
+        -- Like favicon_cache, deliberately without a userId — and unlike it, keyed by a hash rather than
+        -- by the thing itself: a row here stands for one *page* rather than one host, and a table of
+        -- addresses in the clear would read as somebody's browsing history. See PreviewCache.
+        CREATE TABLE "preview_cache" (
+            "urlHash" text NOT NULL,
+            "title" text,
+            "description" text,
+            "image" text,
+            "fetchedAt" text NOT NULL,
+            PRIMARY KEY ("urlHash")
+        );
+        """,
+    ),
 )

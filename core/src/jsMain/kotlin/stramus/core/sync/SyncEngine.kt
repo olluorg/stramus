@@ -19,6 +19,7 @@ import stramus.core.db.CardSections
 import stramus.core.db.Cards
 import stramus.core.db.Collections
 import stramus.core.db.Favicons
+import stramus.core.db.LinkPreviews
 import stramus.core.db.Sections
 import stramus.core.db.SyncMeta
 import stramus.core.db.SyncMetaRow
@@ -140,7 +141,10 @@ class SyncEngine(
      * One transaction: a half-emptied database is not a state this can end in.
      */
     suspend fun eraseLocalData() {
-        db.write(Cards, CardBlobs, CardSections, Collections, Sections, Usage, ActionUsage, Favicons, SyncState, SyncMeta) {
+        db.write(
+            Cards, CardBlobs, CardSections, Collections, Sections, Usage, ActionUsage, Favicons,
+            LinkPreviews, SyncState, SyncMeta,
+        ) {
             Cards.all().forEach { Cards.delete(it.id) }
             CardBlobs.all().forEach { CardBlobs.delete(it.cardId) }
             CardSections.all().forEach { CardSections.delete(it.id) }
@@ -149,6 +153,9 @@ class SyncEngine(
             Usage.all().forEach { Usage.delete(it.url) }
             ActionUsage.all().forEach { ActionUsage.delete(it.kind) }
             Favicons.all().forEach { Favicons.delete(it.host) }
+            // Not the user's own rows, but a list of pages they had saved all the same: "erase everything
+            // in this browser" has to mean this too.
+            LinkPreviews.all().forEach { LinkPreviews.delete(it.url) }
             SyncState.all().forEach { SyncState.delete(it.k) }
             SyncMeta.all().forEach { SyncMeta.delete(listOf(it.tbl, it.rowId)) }
         }

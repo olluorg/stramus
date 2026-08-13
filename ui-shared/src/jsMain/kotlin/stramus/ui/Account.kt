@@ -293,6 +293,9 @@ val AccountDialog = FC<AccountDialogProps> { props ->
                                 // Erasing takes the sync bookkeeping with it, so this is a sign-out too.
                                 props.engine.eraseLocalData()
                                 clearAllNoteDrafts()
+                                // The rows are gone from the database; this is the copy of them this page
+                                // has been holding in memory since it loaded.
+                                forgetPreviews()
                                 props.api.forgetDevice()
                                 props.onSynced()
                             } else {
