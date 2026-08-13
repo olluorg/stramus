@@ -96,7 +96,10 @@ internal fun ChildrenBuilder.historyPane(
                     className = ClassName("tab-window")
                     div {
                         className = ClassName("tab-window-head")
-                        span { +dayLabel(visits.first().lastVisit, strings, locale) }
+                        span {
+                            className = ClassName("ellipsis")
+                            +dayLabel(visits.first().lastVisit, strings, locale)
+                        }
                         span { className = ClassName("count"); +visits.size.toString() }
                     }
                     ul {

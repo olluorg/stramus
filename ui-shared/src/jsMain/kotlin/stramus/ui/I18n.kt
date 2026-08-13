@@ -75,6 +75,9 @@ interface Strings {
     // Left sidebar
     val expandSidebar: String
     val collapseSidebar: String
+
+    /** The seam either sidebar is dragged by to be made wider or narrower. */
+    val resizeSidebar: String
     val newSection: String
     val sectionNamePrompt: String
     val sectionNameDefault: String
@@ -642,6 +645,7 @@ private object EnStrings : Strings {
 
     override val expandSidebar = "Expand sidebar"
     override val collapseSidebar = "Collapse sidebar"
+    override val resizeSidebar = "Drag to resize — double-click to reset"
     override val newSection = "+ New section"
     override val sectionNamePrompt = "Section name"
     override val sectionNameDefault = "New section"
@@ -1094,6 +1098,7 @@ private object RuStrings : Strings {
 
     override val expandSidebar = "Развернуть панель"
     override val collapseSidebar = "Свернуть панель"
+    override val resizeSidebar = "Потяните, чтобы изменить ширину — двойной щелчок вернёт исходную"
     override val newSection = "+ Новый раздел"
     override val sectionNamePrompt = "Название раздела"
     override val sectionNameDefault = "Новый раздел"
@@ -1547,6 +1552,7 @@ private object FrStrings : Strings {
 
     override val expandSidebar = "Déployer le panneau"
     override val collapseSidebar = "Réduire le panneau"
+    override val resizeSidebar = "Faites glisser pour redimensionner — double-clic pour réinitialiser"
     override val newSection = "+ Nouvelle section"
     override val sectionNamePrompt = "Nom de la section"
     override val sectionNameDefault = "Nouvelle section"
@@ -1999,6 +2005,7 @@ private object EsStrings : Strings {
 
     override val expandSidebar = "Expandir panel"
     override val collapseSidebar = "Contraer panel"
+    override val resizeSidebar = "Arrastra para cambiar el ancho — doble clic para restablecer"
     override val newSection = "+ Nueva sección"
     override val sectionNamePrompt = "Nombre de la sección"
     override val sectionNameDefault = "Nueva sección"
@@ -2451,6 +2458,7 @@ private object DeStrings : Strings {
 
     override val expandSidebar = "Leiste ausklappen"
     override val collapseSidebar = "Leiste einklappen"
+    override val resizeSidebar = "Ziehen, um die Breite zu ändern — Doppelklick setzt sie zurück"
     override val newSection = "+ Neuer Bereich"
     override val sectionNamePrompt = "Name des Bereichs"
     override val sectionNameDefault = "Neuer Bereich"
@@ -2903,6 +2911,7 @@ private object PtBrStrings : Strings {
 
     override val expandSidebar = "Expandir painel"
     override val collapseSidebar = "Recolher painel"
+    override val resizeSidebar = "Arraste para mudar a largura — clique duplo restaura"
     override val newSection = "+ Nova seção"
     override val sectionNamePrompt = "Nome da seção"
     override val sectionNameDefault = "Nova seção"
@@ -3355,6 +3364,7 @@ private object ZhCnStrings : Strings {
 
     override val expandSidebar = "展开侧栏"
     override val collapseSidebar = "收起侧栏"
+    override val resizeSidebar = "拖动调整宽度 — 双击恢复默认"
     override val newSection = "+ 新建分区"
     override val sectionNamePrompt = "分区名称"
     override val sectionNameDefault = "新建分区"
@@ -3799,6 +3809,7 @@ private object JaStrings : Strings {
 
     override val expandSidebar = "サイドバーを展開"
     override val collapseSidebar = "サイドバーを折りたたむ"
+    override val resizeSidebar = "ドラッグで幅を変更 — ダブルクリックで元に戻す"
     override val newSection = "+ 新しいセクション"
     override val sectionNamePrompt = "セクション名"
     override val sectionNameDefault = "新しいセクション"
@@ -4248,6 +4259,7 @@ private object KoStrings : Strings {
 
     override val expandSidebar = "사이드바 펼치기"
     override val collapseSidebar = "사이드바 접기"
+    override val resizeSidebar = "드래그하여 너비 조절 — 두 번 클릭하면 원래대로"
     override val newSection = "+ 새 섹션"
     override val sectionNamePrompt = "섹션 이름"
     override val sectionNameDefault = "새 섹션"
@@ -4698,6 +4710,7 @@ private object ItStrings : Strings {
 
     override val expandSidebar = "Espandi pannello"
     override val collapseSidebar = "Comprimi pannello"
+    override val resizeSidebar = "Trascina per ridimensionare — doppio clic per ripristinare"
     override val newSection = "+ Nuova sezione"
     override val sectionNamePrompt = "Nome della sezione"
     override val sectionNameDefault = "Nuova sezione"
@@ -5150,6 +5163,7 @@ private object TrStrings : Strings {
 
     override val expandSidebar = "Kenar çubuğunu genişlet"
     override val collapseSidebar = "Kenar çubuğunu daralt"
+    override val resizeSidebar = "Genişliği değiştirmek için sürükleyin — çift tıklama sıfırlar"
     override val newSection = "+ Yeni bölüm"
     override val sectionNamePrompt = "Bölüm adı"
     override val sectionNameDefault = "Yeni bölüm"

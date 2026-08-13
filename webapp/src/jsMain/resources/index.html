@@ -194,8 +194,12 @@
         .app.swapped .sidebar .brand { flex-direction: row-reverse; }
 
         .sidebar {
+            /* The starting width, in step with LEFT_WIDTH_DEFAULT in App.kt. A panel that has been
+               dragged carries its own width inline and overrides both of these. */
             width: 260px;
             flex: 0 0 260px;
+            /* The frame the seam ([ResizeHandle]) is positioned against. */
+            position: relative;
             background: var(--panel);
             border-right: 1px solid var(--border);
             display: flex;
@@ -220,6 +224,51 @@
             overflow-x: hidden;
         }
         .brand { font-size: 18px; font-weight: 700; padding: 4px 8px; letter-spacing: 0.2px; }
+
+        /* The seam each sidebar is dragged wider or narrower by (Resize.kt). It is drawn inside the
+           panel, along the edge that faces the content pane — hence `right` on the left-hand sidebar
+           and `left` on the right-hand one, and hence both flipping over with [swapSidebars]. Inside
+           rather than straddling the border because .sidebar clips what leaves it; the strip lands on
+           the panel's own padding, where there is nothing to cover.
+
+           A few px wider than the line it draws: the line says where the edge is, the strip is what
+           the pointer actually has to hit, and a 1px target is a target nobody hits. */
+        .resizer {
+            position: absolute; top: 0; bottom: 0; width: 8px; z-index: 6;
+            padding: 0; border: none; background: transparent;
+            cursor: col-resize;
+            /* The drag is the pointer's; a touch must not scroll the panel out from under it. */
+            touch-action: none;
+        }
+        .sidebar .resizer, .app.swapped .tabs .resizer { right: 0; left: auto; }
+        .tabs .resizer, .app.swapped .sidebar .resizer { left: 0; right: auto; }
+        /* The line: invisible until the seam is pointed at, being the border already drawn there. */
+        .resizer::after {
+            content: ""; position: absolute; top: 0; bottom: 0; width: 2px;
+            background: transparent; transition: background .12s;
+        }
+        .sidebar .resizer::after, .app.swapped .tabs .resizer::after { right: 0; }
+        .tabs .resizer::after, .app.swapped .sidebar .resizer::after { left: 0; }
+        .resizer:hover::after, .resizer:focus-visible::after, .resizer.dragging::after { background: var(--accent); }
+        .resizer:focus { outline: none; }
+        /* While a seam is being dragged the pointer keeps its shape wherever it has run to, and the
+           drag selects nothing on its way across the page. */
+        .resizer.dragging { cursor: col-resize; }
+        .resizer.dragging::before {
+            content: ""; position: fixed; inset: 0; z-index: 5; cursor: col-resize;
+        }
+        /* Whatever a drag asks for, neither panel may take over the window: the width is clamped
+           against the viewport as well as against SIDEBAR_WIDTH_MAX, so a sidebar dragged wide on a
+           large screen is still only an edge of the page on a small one. The collapsed rail and the
+           tabs pane's cards view are widths of their own and answer to neither. */
+        .sidebar, .tabs { max-width: 30vw; }
+        .sidebar.collapsed, .tabs.collapsed, .tabs.cards-view { max-width: none; }
+
+        /* Anything that has to give way rather than push its neighbours off the row when a panel is
+           narrowed: a section's name, a window's name, the day a group of history belongs to. Their
+           parents are flex rows, and only an element of its own can be cut short with an ellipsis —
+           bare text in a flex row is clipped without one. */
+        .ellipsis { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         /* Every non-text glyph in the app — what used to be a bare emoji or dingbat character — is an
            inline SVG wrapped in one of these (see `icon()` in Icon.kt). It is sized to the font-size of
@@ -260,6 +309,8 @@
             display: flex; align-items: center; justify-content: space-between;
             padding: var(--row-pad); border-radius: var(--r-ctl); cursor: pointer;
             min-width: 0;
+            /* What the delete × is laid over the row against — see `.col > .icon.del`. */
+            position: relative;
         }
         .col:hover { background: var(--bg); }
         .col.selected { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
@@ -268,6 +319,19 @@
         .col-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         /* A read-only collection wears its padlock in the sidebar. */
         .col-lock { flex: 0 0 auto; font-size: 12px; padding: 0 2px; }
+        /* The × that deletes a collection is taken out of the row and laid over the end of it, so the
+           name has the whole width to itself: on a sidebar dragged narrow, every pixel not spent on the
+           name is a pixel of the name that has to be cut. The button is invisible until the row is
+           hovered or reached by keyboard (see `.icon.del` below), and while it is there the name fades
+           out under it rather than running into it — a mask, not a reserved gap, because a gap would be
+           there the whole time. Only rows that have the button fade: a read-only collection has none,
+           and its padlock stays in the row where it can be seen. */
+        .col > .icon.del { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); }
+        .col:has(> .icon.del):hover .col-title,
+        .col:has(> .icon.del):focus-within .col-title {
+            -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 34px), transparent);
+            mask-image: linear-gradient(to right, #000 calc(100% - 34px), transparent);
+        }
         /* The stand-in name of a section or collection with none of its own: set apart in italics so it
            reads as a placeholder, not as a real title someone typed. */
         .untitled { color: var(--muted); font-style: italic; }
@@ -399,7 +463,9 @@
 
         /* Right sidebar: live open-tabs list (extension only), one group per browser window */
         .tabs {
+            /* In step with RIGHT_WIDTH_DEFAULT in App.kt; a dragged panel overrides both inline. */
             width: 280px; flex: 0 0 280px;
+            position: relative;
             background: var(--panel); border-left: 1px solid var(--border);
             display: flex; flex-direction: column; padding: 16px 12px; gap: 8px;
         }
@@ -414,13 +480,13 @@
         .tabs-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
         .tab-window { border-radius: var(--r-card); padding: 0 4px 4px; outline: 2px dashed transparent; outline-offset: -2px; transition: background .12s; }
         .tab-window.drop-active { outline-color: var(--accent); background: var(--accent-soft); }
-        .tab-window-head { display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 6px 6px 4px; }
-        .tab-window-head .count { font-weight: 500; }
+        .tab-window-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 6px 6px 4px; }
+        .tab-window-head .count { font-weight: 500; flex: none; }
         /* The window's name is also the handle that folds its tabs away — same click, same chevron and
            same fold as a card section's title in the middle pane. */
-        .tab-window-title { display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; }
+        .tab-window-title { display: flex; align-items: center; gap: 5px; flex: 1; min-width: 0; cursor: pointer; user-select: none; }
         .tab-window-title:hover { color: var(--accent); }
-        .tab-window-tools { display: flex; align-items: center; gap: 6px; }
+        .tab-window-tools { display: flex; align-items: center; gap: 6px; flex: none; }
         /* The app's own tooltip, and the only kind the app has: the browser's `title` waits about a
            second and comes in the system's colours, not ours. The controls carry the words (data-hint,
            set by `hint()` in Browser.kt); this is the one element that shows them, drawn at the root of
@@ -518,8 +584,8 @@
         .empty.small { padding: 16px 8px; font-size: 13px; text-align: left; }
 
         /* The right sidebar's pane switch: the open tabs, or the browsing history */
-        .pane-switch { display: flex; gap: 2px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-ctl); padding: 2px; }
-        .pane-tab { border: none; background: transparent; color: var(--muted); font: inherit; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 4px 8px; border-radius: var(--r-pill); cursor: pointer; }
+        .pane-switch { display: flex; gap: 2px; min-width: 0; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-ctl); padding: 2px; }
+        .pane-tab { border: none; background: transparent; color: var(--muted); font: inherit; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 4px 8px; border-radius: var(--r-pill); cursor: pointer; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .pane-tab:hover { color: var(--text); }
         .pane-tab.active { background: var(--panel); color: var(--text); }
         /* A history row is a tab row plus the time of the visit: same look, same drag, no drop target. */
@@ -537,7 +603,7 @@
         }
         /* The name is one colour in both lightings — the same purple, lightened where it would
            otherwise be a deep violet word written on a near-black panel. */
-        .brand-name { flex: 1; min-width: 0; color: var(--brand, #50219B); }
+        .brand-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--brand, #50219B); }
         .icon.collapse-btn { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px; opacity: .7; }
         .icon.collapse-btn:hover { color: var(--accent); opacity: 1; }
         /* The Tabs pane's quick list/cards switch, beside the collapse button — the same choice as the
@@ -566,7 +632,7 @@
 
         /* Section collapse chevron + drop highlight */
         .section-title { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 5px; }
-        .chevron { font-size: 9px; color: var(--muted); display: inline-block; transition: transform .18s ease; }
+        .chevron { font-size: 9px; color: var(--muted); display: inline-block; flex: none; transition: transform .18s ease; }
         /* The chevron points down when the section is open and turns as it folds shut. */
         .chevron.closed { transform: rotate(-90deg); }
         /* The open folder's way back to the grid, standing in for the chevron: sized and weighted like
@@ -581,7 +647,18 @@
            Collapsible.kt) — the grid inside would otherwise go on cutting the lift off a hovered card. */
         .collapsible { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .18s ease; }
         .collapsible.open { grid-template-rows: 1fr; }
-        .collapsible-inner { overflow: hidden; min-height: 0; }
+        /* The one column the fold holds its content in, pinned to the width it is given rather than to
+           the width its content would like. Without `minmax(0, …)` the column is `auto`, whose floor is
+           the content's min-content size — a collection named in one long word, or a card title of one,
+           then makes the column wider than the sidebar, and everything to the right of the name (the ×
+           that deletes the collection) is pushed out of the panel where nothing can reach it. The same
+           floor is what `min-width: 0` lifts off the item inside it; the two together mean the fold is
+           never wider than what holds it, in either the sidebar or the content pane. */
+        .collapsible { grid-template-columns: minmax(0, 1fr); }
+        .collapsible-inner { overflow: hidden; min-height: 0; min-width: 0; }
+        /* Lifted once the fold stands open, so the grid stops cutting the lift off a hovered card —
+           and it is precisely this that takes the scroll container (and with it the 0 minimum) away
+           from `.collapsible-inner`, which is why the two rules above have to say so outright. */
         .collapsible.settled > .collapsible-inner { overflow: visible; }
         @media (prefers-reduced-motion: reduce) {
             .collapsible, .chevron { transition: none; }
@@ -826,7 +903,7 @@
         .card.drop-target { outline: 2px solid var(--accent); outline-offset: -1px; }
 
         /* Right sidebar header row */
-        .tabs-head { display: flex; align-items: center; justify-content: space-between; }
+        .tabs-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; }
 
         /* Card kinds: note/file glyphs + image thumbnails */
         .glyph { width: var(--card-icon); height: var(--card-icon); flex: 0 0 var(--card-icon); display: flex; align-items: center; justify-content: center; font-size: 18px; border-radius: var(--r-pill); background: var(--bg); }
