@@ -101,6 +101,125 @@ internal fun parseBookmarks(html: String): List<ImportedLink> {
     return links
 }
 
+// ---- OneTab: a text file of links, one a line, blank lines between saved groups ----
+
+/**
+ * A line of a OneTab export: a URL, then optionally ` | ` and the page title. Anything else — a
+ * heading someone typed in, a stray note — is not one, and a file full of them is not a OneTab file.
+ */
+private val ONETAB_LINE = Regex("""^\s*[a-z][a-z0-9+.\-]*://\S+(\s*\|.*)?$""", RegexOption.IGNORE_CASE)
+
+/**
+ * Read a OneTab export — what its "Export / Import URLs" box hands out: one `url | title` a line,
+ * with a blank line between one saved group of tabs and the next.
+ *
+ * The file names nothing: OneTab's own group names, stars and dates are not in it, only the links.
+ * So each group becomes a collection numbered in the order the file lists them, which is stable
+ * enough that re-importing the same file lands on the same collections and skips what is already
+ * there instead of doubling it.
+ */
+internal fun parseOneTab(text: String): List<ImportedLink> {
+    val links = mutableListOf<ImportedLink>()
+    var group = 0
+    // Only a group with a link in it takes a number, so a file that starts with a blank line, or
+    // separates its groups with two, does not leave gaps in the numbering.
+    var inGroup = false
+
+    for (raw in text.lines()) {
+        val line = raw.trim()
+        if (line.isEmpty()) {
+            inGroup = false
+            continue
+        }
+        // The title is what follows the first pipe — a URL has none, a title may well have several.
+        val cut = line.indexOf(" | ").takeIf { it >= 0 } ?: line.indexOf('|')
+        val url = (if (cut >= 0) line.take(cut) else line).trim()
+        if (!importable(url)) continue
+        if (!inGroup) {
+            group++
+            inGroup = true
+        }
+        val title = if (cut >= 0) line.drop(cut).trimStart(' ', '|').trim() else ""
+        links += ImportedLink(
+            section = null,
+            collection = "OneTab $group",
+            cardSection = null,
+            title = title.ifBlank { hostOf(url) },
+            url = url,
+        )
+    }
+    return links
+}
+
+// ---- Toby: a JSON file of lists of cards ----
+
+/** A JSON array, whether it is [value] itself or the first of [names] that [value] holds one under. */
+private fun arrayIn(value: dynamic, vararg names: String): Array<dynamic>? {
+    if (value == null) return null
+    if (value is Array<*>) return value.unsafeCast<Array<dynamic>>()
+    for (name in names) {
+        val field = value[name]
+        if (field is Array<*>) return field.unsafeCast<Array<dynamic>>()
+    }
+    return null
+}
+
+/** The first of [names] [value] holds a non-blank string under — Toby's own key, then its synonyms. */
+private fun stringIn(value: dynamic, vararg names: String): String? {
+    if (value == null) return null
+    for (name in names) {
+        // Cast rather than trust: a field the file wrote as a number or an object is not a title, and
+        // a Kotlin string's own methods are not there to be called on whatever JSON happened to hold.
+        val field = value[name] as? String
+        if (!field.isNullOrBlank()) return field.trim()
+    }
+    return null
+}
+
+/** The first label on a list, written either as a bare string or as an object naming itself. */
+private fun labelOf(list: dynamic): String? {
+    for (label in arrayIn(list, "labels", "tags") ?: return null) {
+        val direct = (label as? String)?.trim()
+        if (!direct.isNullOrBlank()) return direct
+        stringIn(label, "title", "name")?.let { return it }
+    }
+    return null
+}
+
+/**
+ * Read a Toby export — the JSON one, the only one of Toby's that carries the collections rather than
+ * a flat list of links.
+ *
+ * A Toby list is a collection here, and a list's first label is the section it goes in, so lists
+ * tagged the same way land together and untagged ones land in the default section. A card's title is
+ * the one the user gave it if there is one, since that is the one they see in Toby.
+ *
+ * The keys are read forgivingly: Toby has written its export as `lists` of `cards` for several
+ * versions now, but a file that calls them something else is still worth reading.
+ */
+internal fun parseToby(text: String): List<ImportedLink> {
+    val root = runCatching { JSON.parse<dynamic>(text) }.getOrNull() ?: return emptyList()
+    val lists = arrayIn(root, "lists", "groups", "collections") ?: return emptyList()
+
+    val links = mutableListOf<ImportedLink>()
+    for (list in lists) {
+        val collection = stringIn(list, "title", "name")
+        val section = labelOf(list)
+        for (card in arrayIn(list, "cards", "tabs", "items") ?: emptyArray()) {
+            val url = stringIn(card, "url", "href") ?: continue
+            if (!importable(url)) continue
+            links += ImportedLink(
+                section = section,
+                collection = collection,
+                cardSection = null,
+                title = stringIn(card, "customTitle", "title", "name") ?: hostOf(url),
+                url = url,
+            )
+        }
+    }
+    return links
+}
+
 /** One CSV row, split on commas that are not inside quotes, with doubled quotes undone (RFC 4180). */
 private fun csvRow(line: String): List<String> {
     val fields = mutableListOf<String>()
@@ -189,18 +308,43 @@ internal fun parseCsv(text: String): List<ImportedLink> {
     }
 }
 
-/** Whether the file is a bookmarks file rather than a CSV — what it holds, not what it is called. */
+// ---- Which of the four a file is: what it holds, not what it is called ----
+
+/** Whether the file is a bookmarks file rather than one of the others. */
 private fun looksLikeBookmarks(name: String, text: String): Boolean {
     val head = text.take(2000).lowercase()
     return "<dl" in head || "netscape-bookmark" in head || name.endsWith(".html", ignoreCase = true) ||
         name.endsWith(".htm", ignoreCase = true)
 }
 
+/** Whether the file is JSON, which of the files this reads means Toby's. */
+private fun looksLikeJson(name: String, text: String): Boolean {
+    val head = text.trimStart()
+    return name.endsWith(".json", ignoreCase = true) || head.startsWith("{") || head.startsWith("[")
+}
+
 /**
- * Take in a file the user picked — a bookmarks file from any browser, or a CSV — and put its links
- * where it says they go, creating the sections, collections and card sections it names as they are
- * needed. Existing ones are found by name (ignoring case), so importing into an app that already has
- * a "Work" section adds to that section rather than making a second one.
+ * Whether the file is a OneTab export: nothing but links, one a line. A CSV's first column is a
+ * section name, never a URL, so the two do not answer to each other's description.
+ */
+private fun looksLikeOneTab(text: String): Boolean {
+    val lines = text.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.take(50).toList()
+    return lines.isNotEmpty() && lines.all { ONETAB_LINE.matches(it) }
+}
+
+private fun parse(fileName: String, text: String): List<ImportedLink> = when {
+    looksLikeBookmarks(fileName, text) -> parseBookmarks(text)
+    looksLikeJson(fileName, text) -> parseToby(text)
+    looksLikeOneTab(text) -> parseOneTab(text)
+    else -> parseCsv(text)
+}
+
+/**
+ * Take in a file the user picked — a bookmarks file from any browser, a CSV, a OneTab text export or
+ * a Toby JSON one — and put its links where it says they go, creating the sections, collections and
+ * card sections it names as they are needed. Existing ones are found by name (ignoring case), so
+ * importing into an app that already has a "Work" section adds to that section rather than making a
+ * second one.
  *
  * A link already in the collection it would land in is skipped: re-importing the same file, or a
  * newer export of the same bookmarks, adds what is new instead of doubling what is there. Sameness is
@@ -214,7 +358,7 @@ internal suspend fun importFile(
     text: String,
     importedTitle: String,
 ): ImportResult {
-    val links = if (looksLikeBookmarks(fileName, text)) parseBookmarks(text) else parseCsv(text)
+    val links = parse(fileName, text)
     if (links.isEmpty()) return ImportResult(added = 0, skipped = 0)
 
     var sections = store.sections.all()

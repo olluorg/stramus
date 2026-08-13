@@ -752,7 +752,7 @@ private fun ChildrenBuilder.dataPane(props: SettingsModalProps, s: Strings) {
                 input {
                     type = FILE_INPUT_TYPE
                     className = ClassName("hidden-file-input")
-                    accept = ".html,.htm,.csv,text/html,text/csv"
+                    accept = ".html,.htm,.csv,.json,.txt,text/html,text/csv,application/json,text/plain"
                     onChange = { e ->
                         readPickedText(e.target) { name, text -> props.onImport(name, text) }
                     }

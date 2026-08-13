@@ -980,9 +980,9 @@ private object EnStrings : Strings {
     override val exportBookmarks = "Export bookmarks"
 
     override val import = "Import"
-    override val importHint = "Bring in a bookmarks file from any browser, or a CSV exported here. " +
-        "Folders become sections, collections and groups; a link already saved where it would " +
-        "land is left alone."
+    override val importHint = "Bring in a bookmarks file from any browser, a CSV exported here, or a " +
+        "OneTab or Toby export. Folders become sections, collections and groups; a link already " +
+        "saved where it would land is left alone."
     override val importFile = "Choose a file"
     override val importedTitle = "Imported"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -1430,9 +1430,9 @@ private object RuStrings : Strings {
     override val exportBookmarks = "Экспорт закладок"
 
     override val import = "Импорт"
-    override val importHint = "Загрузите файл закладок из любого браузера или CSV, экспортированный " +
-        "здесь. Папки станут разделами, коллекциями и секциями; ссылка, которая уже сохранена там, " +
-        "куда попала бы, останется одна."
+    override val importHint = "Загрузите файл закладок из любого браузера, CSV, экспортированный " +
+        "здесь, или экспорт из OneTab либо Toby. Папки станут разделами, коллекциями и секциями; " +
+        "ссылка, которая уже сохранена там, куда попала бы, останется одна."
     override val importFile = "Выбрать файл"
     override val importedTitle = "Импорт"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -1879,9 +1879,9 @@ private object FrStrings : Strings {
     override val exportBookmarks = "Exporter les favoris"
 
     override val import = "Importer"
-    override val importHint = "Importez un fichier de favoris depuis n'importe quel navigateur, ou un CSV exporté " +
-        "ici. Les dossiers deviennent des sections, des collections et des groupes ; un lien déjà enregistré " +
-        "là où il atterrirait est laissé tel quel."
+    override val importHint = "Importez un fichier de favoris depuis n'importe quel navigateur, un CSV exporté " +
+        "ici, ou un export OneTab ou Toby. Les dossiers deviennent des sections, des collections et des " +
+        "groupes ; un lien déjà enregistré là où il atterrirait est laissé tel quel."
     override val importFile = "Choisir un fichier"
     override val importedTitle = "Importé"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -2328,9 +2328,9 @@ private object EsStrings : Strings {
     override val exportBookmarks = "Exportar marcadores"
 
     override val import = "Importar"
-    override val importHint = "Trae un archivo de marcadores de cualquier navegador, o un CSV exportado aquí. " +
-        "Las carpetas se convierten en secciones, colecciones y grupos; un enlace ya guardado donde " +
-        "aterrizaría se deja tal cual."
+    override val importHint = "Trae un archivo de marcadores de cualquier navegador, un CSV exportado aquí, o " +
+        "una exportación de OneTab o Toby. Las carpetas se convierten en secciones, colecciones y grupos; " +
+        "un enlace ya guardado donde aterrizaría se deja tal cual."
     override val importFile = "Elegir un archivo"
     override val importedTitle = "Importado"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -2777,9 +2777,9 @@ private object DeStrings : Strings {
     override val exportBookmarks = "Lesezeichen exportieren"
 
     override val import = "Importieren"
-    override val importHint = "Eine Lesezeichendatei aus einem beliebigen Browser importieren, oder eine hier " +
-        "exportierte CSV. Ordner werden zu Bereichen, Sammlungen und Gruppen; ein Link, der bereits dort " +
-        "gespeichert ist, wo er landen würde, bleibt unangetastet."
+    override val importHint = "Eine Lesezeichendatei aus einem beliebigen Browser importieren, eine hier " +
+        "exportierte CSV, oder einen Export aus OneTab oder Toby. Ordner werden zu Bereichen, Sammlungen " +
+        "und Gruppen; ein Link, der bereits dort gespeichert ist, wo er landen würde, bleibt unangetastet."
     override val importFile = "Datei auswählen"
     override val importedTitle = "Importiert"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -3226,8 +3226,9 @@ private object PtBrStrings : Strings {
     override val exportBookmarks = "Exportar favoritos"
 
     override val import = "Importar"
-    override val importHint = "Traga um arquivo de favoritos de qualquer navegador, ou um CSV exportado aqui. " +
-        "Pastas viram seções, coleções e grupos; um link já salvo onde ele cairia é deixado como está."
+    override val importHint = "Traga um arquivo de favoritos de qualquer navegador, um CSV exportado aqui, ou " +
+        "uma exportação do OneTab ou do Toby. Pastas viram seções, coleções e grupos; um link já salvo " +
+        "onde ele cairia é deixado como está."
     override val importFile = "Escolher um arquivo"
     override val importedTitle = "Importado"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -3667,8 +3668,8 @@ private object ZhCnStrings : Strings {
     override val exportBookmarks = "导出书签"
 
     override val import = "导入"
-    override val importHint = "从任意浏览器导入书签文件，或导入在此处导出的 CSV。文件夹会变成分区、收藏夹" +
-        "和分组；已保存在目标位置的链接会保持不变。"
+    override val importHint = "从任意浏览器导入书签文件，导入在此处导出的 CSV，或导入 OneTab、Toby 的" +
+        "导出文件。文件夹会变成分区、收藏夹和分组；已保存在目标位置的链接会保持不变。"
     override val importFile = "选择文件"
     override val importedTitle = "已导入"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -4112,9 +4113,9 @@ private object JaStrings : Strings {
     override val exportBookmarks = "ブックマークをエクスポート"
 
     override val import = "インポート"
-    override val importHint = "任意のブラウザのブックマークファイル、またはここでエクスポートしたCSVを" +
-        "取り込みます。フォルダーはセクション、コレクション、グループになります。すでに保存先にあるリンクは" +
-        "そのままにされます。"
+    override val importHint = "任意のブラウザのブックマークファイル、ここでエクスポートしたCSV、または" +
+        "OneTabやTobyのエクスポートを取り込みます。フォルダーはセクション、コレクション、グループになります。" +
+        "すでに保存先にあるリンクはそのままにされます。"
     override val importFile = "ファイルを選択"
     override val importedTitle = "インポート済み"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -4559,9 +4560,9 @@ private object KoStrings : Strings {
     override val exportBookmarks = "북마크 내보내기"
 
     override val import = "가져오기"
-    override val importHint = "어떤 브라우저에서든 북마크 파일을 가져오거나, 여기서 내보낸 CSV를 " +
-        "가져올 수 있습니다. 폴더는 섹션, 컬렉션, 그룹이 됩니다. 이미 저장될 위치에 있는 링크는 " +
-        "그대로 둡니다."
+    override val importHint = "어떤 브라우저에서든 북마크 파일을 가져오거나, 여기서 내보낸 CSV, 또는 " +
+        "OneTab이나 Toby에서 내보낸 파일을 가져올 수 있습니다. 폴더는 섹션, 컬렉션, 그룹이 됩니다. " +
+        "이미 저장될 위치에 있는 링크는 그대로 둡니다."
     override val importFile = "파일 선택"
     override val importedTitle = "가져옴"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -5008,9 +5009,9 @@ private object ItStrings : Strings {
     override val exportBookmarks = "Esporta segnalibri"
 
     override val import = "Importa"
-    override val importHint = "Importa un file di segnalibri da qualsiasi browser, o un CSV esportato qui. " +
-        "Le cartelle diventano sezioni, raccolte e gruppi; un link già salvato dove finirebbe viene " +
-        "lasciato invariato."
+    override val importHint = "Importa un file di segnalibri da qualsiasi browser, un CSV esportato qui, o " +
+        "un'esportazione di OneTab o Toby. Le cartelle diventano sezioni, raccolte e gruppi; un link già " +
+        "salvato dove finirebbe viene lasciato invariato."
     override val importFile = "Scegli un file"
     override val importedTitle = "Importato"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
@@ -5456,9 +5457,9 @@ private object TrStrings : Strings {
     override val exportBookmarks = "Yer imlerini dışa aktar"
 
     override val import = "İçe aktar"
-    override val importHint = "Herhangi bir tarayıcıdan bir yer imi dosyası, ya da burada dışa aktarılmış bir " +
-        "CSV içe aktar. Klasörler bölümlere, koleksiyonlara ve gruplara dönüşür; ineceği yerde zaten " +
-        "kayıtlı olan bir bağlantı olduğu gibi bırakılır."
+    override val importHint = "Herhangi bir tarayıcıdan bir yer imi dosyası, burada dışa aktarılmış bir CSV, " +
+        "ya da bir OneTab veya Toby dışa aktarımı içe aktar. Klasörler bölümlere, koleksiyonlara ve " +
+        "gruplara dönüşür; ineceği yerde zaten kayıtlı olan bir bağlantı olduğu gibi bırakılır."
     override val importFile = "Bir dosya seç"
     override val importedTitle = "İçe aktarıldı"
     override fun importDone(added: Int, skipped: Int) = when (skipped) {
