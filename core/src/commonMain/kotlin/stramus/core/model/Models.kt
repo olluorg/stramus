@@ -36,6 +36,12 @@ data class Section(
  * [readOnly] is a guard against a slip of the hand, not against a person: the collection can be read
  * and its links opened, but nothing in it can be added, renamed, moved or deleted until it is turned
  * off. A section's PIN is what keeps *other people* out.
+ *
+ * [icon] and [color] are how a collection is told apart from its neighbours at a glance, and both are
+ * *names*, not drawings: the name of a glyph in the UI's own icon set, and the name of one of the
+ * colours the stylesheet defines for both lightings. Nothing here knows what either looks like — the
+ * UI does — which is what keeps a saved collection from carrying a colour that only worked in the
+ * theme it was picked under. Null on both is a collection that has never been given one.
  */
 data class Collection(
     val id: Uuid,
@@ -44,6 +50,8 @@ data class Collection(
     val orderKey: String,
     val createdAt: Instant,
     val readOnly: Boolean,
+    val icon: String? = null,
+    val color: String? = null,
 )
 
 /** A titled group of cards inside a collection, with an optional description (a Toby divider). */

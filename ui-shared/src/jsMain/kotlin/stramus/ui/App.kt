@@ -229,6 +229,13 @@ private data class FileModal(val collectionId: Uuid, val cardSectionId: Uuid?, v
  */
 private data class RenameModal(val card: Card, val fromSearch: Boolean)
 
+/**
+ * The open icon picker: which collection it is marking, and the corner of the control that opened it,
+ * in viewport coordinates — the popup hangs off whatever was clicked, in the sidebar or in the head of
+ * the open collection.
+ */
+private data class IconPicker(val collectionId: Uuid, val x: Double, val y: Double)
+
 /** Editing a card section's description (title kept, body edited as markdown). */
 private data class DescModal(val sectionId: Uuid, val title: String, val description: String)
 /** Setting a section's PIN. [change] = it already has one and this replaces it. */
@@ -847,6 +854,10 @@ val App = FC<AppProps> { props ->
     var noteModal by useState<NoteModal?>(null)
     var fileModal by useState<FileModal?>(null)
     var renameModal by useState<RenameModal?>(null)
+    // The collection whose icon picker is open, and where the popup hangs. The collection is held by
+    // id and looked up again when the popup is drawn, so a rename or a sync landing under it does not
+    // leave a stale copy on screen.
+    var iconPicker by useState<IconPicker?>(null)
     var descModal by useState<DescModal?>(null)
     var pinDialog by useState<PinDialog?>(null)
     // The PIN-protected sections opened in this session, and the message under a rejected PIN. The set
@@ -1548,6 +1559,14 @@ val App = FC<AppProps> { props ->
         val s = store ?: return
         scope.launch {
             s.collections.setReadOnly(collection.id, !collection.readOnly)
+            collections = s.collections.all()
+        }
+    }
+
+    fun setCollectionIcon(collection: Collection, icon: String?, color: String?) {
+        val s = store ?: return
+        scope.launch {
+            s.collections.setIcon(collection.id, icon, color)
             collections = s.collections.all()
         }
     }
@@ -3056,6 +3075,31 @@ val App = FC<AppProps> { props ->
                                                 draggingHistory = null
                                                 dropCollectionId = null
                                             }
+                                            // The mark, before the name: what the eye is meant to find
+                                            // the row by, so it sits where a scan down the sidebar
+                                            // starts rather than after a name it would have to read.
+                                            // Clicking it opens the picker over the row — the mark is
+                                            // its own handle, the way it is in the apps this borrows
+                                            // the idea from — and selects the collection besides,
+                                            // since a click anywhere on the row already means that.
+                                            if (c.icon != null && knownMark(c.icon) && takesContent) {
+                                                span {
+                                                    className = ClassName("col-icon-btn")
+                                                    onClick = { e ->
+                                                        e.stopPropagation()
+                                                        selectedId = c.id
+                                                        val box = e.currentTarget.asDynamic().getBoundingClientRect()
+                                                        iconPicker = IconPicker(
+                                                            c.id,
+                                                            box.left as Double,
+                                                            (box.bottom as Double) + 6.0,
+                                                        )
+                                                    }
+                                                    collectionIcon(c)
+                                                }
+                                            } else {
+                                                collectionIcon(c)
+                                            }
                                             span {
                                                 className = ClassName("col-title")
                                                 // The name first, and in full: a name too long for the
@@ -3250,6 +3294,40 @@ val App = FC<AppProps> { props ->
                     div {
                         className = ClassName("content-head")
                         h2 {
+                            // The mark, and the way to change it, are the same thing: it sits left of
+                            // the title and opens the picker under itself. A collection with no mark
+                            // still gets the slot, faintly — otherwise the only collections that could
+                            // be marked would be the ones already marked.
+                            if (editable) {
+                                button {
+                                    className = ClassName("head-icon-btn")
+                                    hint(t.collectionIconHint)
+                                    onClick = { e ->
+                                        val box = e.currentTarget.asDynamic().getBoundingClientRect()
+                                        iconPicker = IconPicker(
+                                            current.id,
+                                            box.left as Double,
+                                            (box.bottom as Double) + 6.0,
+                                        )
+                                    }
+                                    val mark = current.icon?.takeIf { knownMark(it) }
+                                    if (mark != null) {
+                                        span {
+                                            className = ClassName("col-icon")
+                                            if (!mark.startsWith(EMOJI_MARK)) {
+                                                current.color
+                                                    ?.takeIf { it in COLLECTION_COLORS }
+                                                    ?.let { asDynamic()["data-color"] = it }
+                                            }
+                                            markGlyph(mark)
+                                        }
+                                    } else {
+                                        span { className = ClassName("col-icon empty"); icon("smile") }
+                                    }
+                                }
+                            } else {
+                                collectionIcon(current, "head-icon")
+                            }
                             +current.title
                             if (!editable) {
                                 span {
@@ -4112,6 +4190,34 @@ val App = FC<AppProps> { props ->
                         if (m.fromSearch) onResultRename(m.card, renamed, url) else onCardRename(m.card, renamed, url)
                     }
                     renameModal = null
+                }
+            }
+        }
+
+        // Looked up rather than carried: the collection may have been renamed, or arrived again from
+        // another device, since the picker was opened, and it may have been deleted outright — which
+        // takes the popup with it.
+        iconPicker?.let { picker ->
+            collections.firstOrNull { it.id == picker.collectionId }?.let { c ->
+                CollectionIconPicker {
+                    strings = t
+                    this.lang = lang
+                    collection = c
+                    anchorX = picker.x
+                    anchorY = picker.y
+                    onClose = { iconPicker = null }
+                    // Clearing the mark clears its colour with it: a colour with nothing to paint is
+                    // a setting the user has no way of seeing, and would come back as a surprise the
+                    // next time they marked the collection.
+                    onPick = { icon ->
+                        val color = if (icon == null) null else c.color
+                        // "Remove" on a collection that was never marked is a click that changes
+                        // nothing; writing the row anyway would stamp it and push it to every other
+                        // device to say so.
+                        if (icon != c.icon || color != c.color) setCollectionIcon(c, icon, color)
+                        iconPicker = null
+                    }
+                    onColor = { color -> if (color != c.color) setCollectionIcon(c, c.icon, color) }
                 }
             }
         }

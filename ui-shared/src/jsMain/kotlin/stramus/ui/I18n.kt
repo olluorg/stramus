@@ -97,6 +97,27 @@ interface Strings {
     val untitled: String
 
     /**
+     * Marking a collection with a glyph and a colour: the tooltip on the mark that opens the picker, its
+     * heading, the button that takes the mark off again, and the swatch that leaves a glyph in the plain
+     * text colour.
+     */
+    val collectionIconHint: String
+    val collectionIconHeading: String
+    val collectionIconNone: String
+    val collectionColorNone: String
+
+    /**
+     * Inside the picker: its two halves — the app's own line glyphs and the emoji it ships drawings of
+     * — the search box over them, the button that picks one at random, and what stands where the grid
+     * would be when a search matches nothing.
+     */
+    val collectionIconTabGlyphs: String
+    val collectionIconTabEmoji: String
+    val collectionIconSearch: String
+    val collectionIconRandom: String
+    val collectionIconNothing: String
+
+    /**
      * Tooltips on the buttons that add and remove. A `+` or a `×` says what will happen but not to
      * what — and the two `+`s (a collection, a card section) are the same glyph for different things.
      * The deletions say what goes with the thing deleted, since that is what the click is really about.
@@ -692,6 +713,15 @@ private object EnStrings : Strings {
     override val renameHint = "Click to collapse, double-click to rename, drag to reorder"
     override val renameCollectionHint = "Double-click to rename"
     override val untitled = "Untitled"
+    override val collectionIconHint = "Icon and colour"
+    override val collectionIconTabGlyphs = "Icons"
+    override val collectionIconTabEmoji = "Emoji"
+    override val collectionIconSearch = "Search icons"
+    override val collectionIconRandom = "Random icon"
+    override val collectionIconNothing = "Nothing matches that"
+    override val collectionIconHeading = "Collection icon"
+    override val collectionIconNone = "Remove icon"
+    override val collectionColorNone = "No colour"
 
     override val newSectionHint = "Add a section to the sidebar"
     override val addCollectionHint = "Add a collection to this section"
@@ -1175,6 +1205,15 @@ private object RuStrings : Strings {
     override val renameHint = "Клик — свернуть, двойной клик — переименовать, перетащить — поменять порядок"
     override val renameCollectionHint = "Двойной клик — переименовать"
     override val untitled = "Без названия"
+    override val collectionIconHint = "Иконка и цвет"
+    override val collectionIconTabGlyphs = "Иконки"
+    override val collectionIconTabEmoji = "Эмодзи"
+    override val collectionIconSearch = "Поиск иконок"
+    override val collectionIconRandom = "Случайная иконка"
+    override val collectionIconNothing = "Ничего не нашлось"
+    override val collectionIconHeading = "Иконка коллекции"
+    override val collectionIconNone = "Убрать иконку"
+    override val collectionColorNone = "Без цвета"
 
     override val newSectionHint = "Создать раздел в боковой панели"
     override val addCollectionHint = "Добавить коллекцию в этот раздел"
@@ -1660,6 +1699,15 @@ private object FrStrings : Strings {
     override val renameHint = "Cliquer pour replier, double-cliquer pour renommer, glisser pour réordonner"
     override val renameCollectionHint = "Double-cliquer pour renommer"
     override val untitled = "Sans titre"
+    override val collectionIconHint = "Icône et couleur"
+    override val collectionIconTabGlyphs = "Icônes"
+    override val collectionIconTabEmoji = "Émoji"
+    override val collectionIconSearch = "Rechercher une icône"
+    override val collectionIconRandom = "Icône au hasard"
+    override val collectionIconNothing = "Aucun résultat"
+    override val collectionIconHeading = "Icône de la collection"
+    override val collectionIconNone = "Retirer l'icône"
+    override val collectionColorNone = "Aucune couleur"
 
     override val newSectionHint = "Ajouter une section au panneau"
     override val addCollectionHint = "Ajouter une collection à cette section"
@@ -2146,6 +2194,15 @@ private object EsStrings : Strings {
     override val renameHint = "Clic para colapsar, doble clic para renombrar, arrastrar para reordenar"
     override val renameCollectionHint = "Doble clic para renombrar"
     override val untitled = "Sin título"
+    override val collectionIconHint = "Icono y color"
+    override val collectionIconTabGlyphs = "Iconos"
+    override val collectionIconTabEmoji = "Emoji"
+    override val collectionIconSearch = "Buscar iconos"
+    override val collectionIconRandom = "Icono al azar"
+    override val collectionIconNothing = "No hay coincidencias"
+    override val collectionIconHeading = "Icono de la colección"
+    override val collectionIconNone = "Quitar icono"
+    override val collectionColorNone = "Sin color"
 
     override val newSectionHint = "Añadir una sección al panel"
     override val addCollectionHint = "Añadir una colección a esta sección"
@@ -2632,6 +2689,15 @@ private object DeStrings : Strings {
     override val renameHint = "Klick zum Einklappen, Doppelklick zum Umbenennen, Ziehen zum Umsortieren"
     override val renameCollectionHint = "Doppelklick zum Umbenennen"
     override val untitled = "Unbenannt"
+    override val collectionIconHint = "Symbol und Farbe"
+    override val collectionIconTabGlyphs = "Symbole"
+    override val collectionIconTabEmoji = "Emoji"
+    override val collectionIconSearch = "Symbole suchen"
+    override val collectionIconRandom = "Zufälliges Symbol"
+    override val collectionIconNothing = "Keine Treffer"
+    override val collectionIconHeading = "Symbol der Sammlung"
+    override val collectionIconNone = "Symbol entfernen"
+    override val collectionColorNone = "Keine Farbe"
 
     override val newSectionHint = "Einen Bereich zur Leiste hinzufügen"
     override val addCollectionHint = "Eine Sammlung zu diesem Bereich hinzufügen"
@@ -3118,6 +3184,15 @@ private object PtBrStrings : Strings {
     override val renameHint = "Clique para recolher, clique duplo para renomear, arraste para reordenar"
     override val renameCollectionHint = "Clique duplo para renomear"
     override val untitled = "Sem título"
+    override val collectionIconHint = "Ícone e cor"
+    override val collectionIconTabGlyphs = "Ícones"
+    override val collectionIconTabEmoji = "Emoji"
+    override val collectionIconSearch = "Buscar ícones"
+    override val collectionIconRandom = "Ícone aleatório"
+    override val collectionIconNothing = "Nada encontrado"
+    override val collectionIconHeading = "Ícone da coleção"
+    override val collectionIconNone = "Remover ícone"
+    override val collectionColorNone = "Sem cor"
 
     override val newSectionHint = "Adicionar uma seção ao painel"
     override val addCollectionHint = "Adicionar uma coleção a esta seção"
@@ -3603,6 +3678,15 @@ private object ZhCnStrings : Strings {
     override val renameHint = "点击折叠，双击重命名，拖动排序"
     override val renameCollectionHint = "双击重命名"
     override val untitled = "未命名"
+    override val collectionIconHint = "图标和颜色"
+    override val collectionIconTabGlyphs = "图标"
+    override val collectionIconTabEmoji = "表情"
+    override val collectionIconSearch = "搜索图标"
+    override val collectionIconRandom = "随机图标"
+    override val collectionIconNothing = "没有匹配项"
+    override val collectionIconHeading = "收藏夹图标"
+    override val collectionIconNone = "移除图标"
+    override val collectionColorNone = "无颜色"
 
     override val newSectionHint = "在侧栏中添加一个分区"
     override val addCollectionHint = "在此分区中添加一个收藏夹"
@@ -4073,6 +4157,15 @@ private object JaStrings : Strings {
     override val renameHint = "クリックで折りたたみ、ダブルクリックで名前を変更、ドラッグで並べ替え"
     override val renameCollectionHint = "ダブルクリックで名前を変更"
     override val untitled = "無題"
+    override val collectionIconHint = "アイコンと色"
+    override val collectionIconTabGlyphs = "アイコン"
+    override val collectionIconTabEmoji = "絵文字"
+    override val collectionIconSearch = "アイコンを検索"
+    override val collectionIconRandom = "ランダムなアイコン"
+    override val collectionIconNothing = "一致するものがありません"
+    override val collectionIconHeading = "コレクションのアイコン"
+    override val collectionIconNone = "アイコンを削除"
+    override val collectionColorNone = "色なし"
 
     override val newSectionHint = "サイドバーにセクションを追加"
     override val addCollectionHint = "このセクションにコレクションを追加"
@@ -4554,6 +4647,15 @@ private object KoStrings : Strings {
     override val renameHint = "클릭하면 접히고, 더블클릭하면 이름을 바꾸고, 드래그하면 순서를 바꿀 수 있습니다"
     override val renameCollectionHint = "더블클릭하면 이름을 바꿀 수 있습니다"
     override val untitled = "제목 없음"
+    override val collectionIconHint = "아이콘과 색"
+    override val collectionIconTabGlyphs = "아이콘"
+    override val collectionIconTabEmoji = "이모지"
+    override val collectionIconSearch = "아이콘 검색"
+    override val collectionIconRandom = "무작위 아이콘"
+    override val collectionIconNothing = "일치하는 항목이 없습니다"
+    override val collectionIconHeading = "컬렉션 아이콘"
+    override val collectionIconNone = "아이콘 제거"
+    override val collectionColorNone = "색 없음"
 
     override val newSectionHint = "사이드바에 섹션 추가"
     override val addCollectionHint = "이 섹션에 컬렉션 추가"
@@ -5036,6 +5138,15 @@ private object ItStrings : Strings {
     override val renameHint = "Clic per comprimere, doppio clic per rinominare, trascina per riordinare"
     override val renameCollectionHint = "Doppio clic per rinominare"
     override val untitled = "Senza titolo"
+    override val collectionIconHint = "Icona e colore"
+    override val collectionIconTabGlyphs = "Icone"
+    override val collectionIconTabEmoji = "Emoji"
+    override val collectionIconSearch = "Cerca icone"
+    override val collectionIconRandom = "Icona casuale"
+    override val collectionIconNothing = "Nessun risultato"
+    override val collectionIconHeading = "Icona della raccolta"
+    override val collectionIconNone = "Rimuovi icona"
+    override val collectionColorNone = "Nessun colore"
 
     override val newSectionHint = "Aggiungi una sezione al pannello"
     override val addCollectionHint = "Aggiungi una raccolta a questa sezione"
@@ -5522,6 +5633,15 @@ private object TrStrings : Strings {
     override val renameHint = "Daraltmak için tıkla, yeniden adlandırmak için çift tıkla, sıralamak için sürükle"
     override val renameCollectionHint = "Yeniden adlandırmak için çift tıkla"
     override val untitled = "Adsız"
+    override val collectionIconHint = "Simge ve renk"
+    override val collectionIconTabGlyphs = "Simgeler"
+    override val collectionIconTabEmoji = "Emoji"
+    override val collectionIconSearch = "Simge ara"
+    override val collectionIconRandom = "Rastgele simge"
+    override val collectionIconNothing = "Eşleşen bir şey yok"
+    override val collectionIconHeading = "Koleksiyon simgesi"
+    override val collectionIconNone = "Simgeyi kaldır"
+    override val collectionColorNone = "Renk yok"
 
     override val newSectionHint = "Kenar çubuğuna bir bölüm ekle"
     override val addCollectionHint = "Bu bölüme bir koleksiyon ekle"

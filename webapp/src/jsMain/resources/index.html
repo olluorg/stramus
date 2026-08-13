@@ -33,6 +33,11 @@
             /* The wordmark, and the chip the mark beside it sits on. See Theme.kt. */
             --brand: #50219B;
             --brand-chip: #50219B;
+            /* What a collection can be marked in (see `COLLECTION_COLORS`): the same eight hues the
+               accent is chosen from, each with a value per lighting — a colour that reads on white is
+               a colour that disappears on near-black, and a mark nobody can see is not a mark. */
+            --ci-blue: #3b82f6; --ci-purple: #8b5cf6; --ci-indigo: #4f46e5; --ci-teal: #0d9488;
+            --ci-green: #16a34a; --ci-amber: #d97706; --ci-orange: #ea580c; --ci-rose: #e11d48;
         }
         /* Dark palette, shared by the OS "auto" default and the explicit night theme. */
         @media (prefers-color-scheme: dark) {
@@ -47,6 +52,8 @@
                 --danger: #f26060;
                 --brand: #b39cee;
                 --brand-chip: transparent;
+                --ci-blue: #4b8bf5; --ci-purple: #a78bfa; --ci-indigo: #818cf8; --ci-teal: #2dd4bf;
+                --ci-green: #4ade80; --ci-amber: #fbbf24; --ci-orange: #fb923c; --ci-rose: #fb7185;
             }
         }
         /* Explicit theme choice from the toolbar wins over the OS preference. */
@@ -61,6 +68,8 @@
             --danger: #f26060;
             --brand: #b39cee;
             --brand-chip: transparent;
+            --ci-blue: #4b8bf5; --ci-purple: #a78bfa; --ci-indigo: #818cf8; --ci-teal: #2dd4bf;
+            --ci-green: #4ade80; --ci-amber: #fbbf24; --ci-orange: #fb923c; --ci-rose: #fb7185;
         }
         :root[data-theme="light"] {
             --bg: #f6f7f9;
@@ -73,6 +82,8 @@
             --danger: #ef4444;
             --brand: #50219B;
             --brand-chip: #50219B;
+            --ci-blue: #3b82f6; --ci-purple: #8b5cf6; --ci-indigo: #4f46e5; --ci-teal: #0d9488;
+            --ci-green: #16a34a; --ci-amber: #d97706; --ci-orange: #ea580c; --ci-rose: #e11d48;
         }
         /* ---- Shape: how round the app is, and how much room a card takes ---------------------
            Two scales, both set in Settings → Theme and stamped on <html> as data-radius/data-density
@@ -317,6 +328,40 @@
         .col.drop-target { background: var(--accent); color: #fff; outline: 2px solid var(--accent); outline-offset: 1px; }
         .col.drop-target .icon.del { color: #fff; }
         .col-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        /* The mark a collection is told apart by: a glyph, a colour, or both, drawn before the name.
+           Only marked collections have one at all — a grey placeholder in every row would be a column
+           of furniture down a sidebar whose whole point is that the marked rows stand out. The colour
+           is a name (`data-color`), resolved to the value this lighting gives it, so a mark picked
+           under one theme is not a mark that has to be picked again under the other. */
+        .col-icon { flex: 0 0 auto; display: inline-flex; font-size: 15px; margin-right: 7px; color: var(--muted); }
+        /* The mark in a sidebar row is also the way to change it: a click on it opens the picker. The
+           wrapper is what makes that a target worth aiming at, and what says so on hover. */
+        .col-icon-btn { flex: 0 0 auto; display: inline-flex; align-items: center; cursor: pointer; border-radius: var(--r-pill); }
+        .col-icon-btn:hover { background: var(--panel); box-shadow: 0 0 0 2px var(--panel); }
+        .col-icon[data-color="blue"] { color: var(--ci-blue); }
+        .col-icon[data-color="purple"] { color: var(--ci-purple); }
+        .col-icon[data-color="indigo"] { color: var(--ci-indigo); }
+        .col-icon[data-color="teal"] { color: var(--ci-teal); }
+        .col-icon[data-color="green"] { color: var(--ci-green); }
+        .col-icon[data-color="amber"] { color: var(--ci-amber); }
+        .col-icon[data-color="orange"] { color: var(--ci-orange); }
+        .col-icon[data-color="rose"] { color: var(--ci-rose); }
+        /* An uncoloured mark belongs to its row: it follows the selected row's accent and the drop
+           target's white, where a coloured one is its own colour in every state. */
+        .col.selected .col-icon:not([data-color]) { color: inherit; }
+        .col.drop-target .col-icon { color: #fff; }
+        /* The same mark over the open collection, at the size of the heading it sits in — and, where the
+           collection can be edited, the button that opens the picker under it. A collection with no mark
+           still gets the slot, faint until hovered: it is the only way in for the ones that have none. */
+        .head-icon { font-size: .95em; margin-right: 9px; vertical-align: -.06em; }
+        .head-icon-btn {
+            display: inline-flex; align-items: center; border: none; background: transparent; color: inherit;
+            font-size: .95em; padding: 3px; margin-right: 6px; border-radius: var(--r-pill);
+            cursor: pointer; vertical-align: -.06em;
+        }
+        .head-icon-btn:hover { background: var(--bg); }
+        .col-icon.empty { color: var(--muted); opacity: .45; }
+        .head-icon-btn:hover .col-icon.empty { opacity: 1; color: var(--accent); }
         /* A read-only collection wears its padlock in the sidebar. */
         .col-lock { flex: 0 0 auto; font-size: 12px; padding: 0 2px; }
         /* The × that deletes a collection is taken out of the row and laid over the end of it, so the
@@ -834,6 +879,80 @@
         .rename-url-toggle:hover { color: var(--accent); }
         .rename-url { margin: 4px 18px 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: var(--r-ctl); padding: 8px 12px; font-size: 13px; }
 
+        /* ---- Marking a collection ------------------------------------------------------------
+           A popup hanging off whatever was clicked — the mark in the sidebar row, or the button in the
+           head of the open collection. Fixed rather than absolute: the sidebar scrolls and clips, and a
+           picker that a scroll container can cut in half is no picker at all. Its position comes from
+           the anchor's own rectangle (see CollectionIcon.kt), held inside the viewport there. */
+        .popover-backdrop { position: fixed; inset: 0; z-index: 60; }
+        .icon-popover {
+            position: fixed; width: 336px; max-height: 396px;
+            display: flex; flex-direction: column;
+            background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-modal);
+            box-shadow: 0 16px 40px rgba(0,0,0,.28); overflow: hidden;
+        }
+        .icon-pop-head { display: flex; align-items: center; gap: 4px; padding: 10px 10px 0; }
+        .pop-tab {
+            border: none; background: transparent; color: var(--muted); cursor: pointer;
+            border-radius: var(--r-pill); padding: 5px 9px; font-size: 12px; font-weight: 600;
+        }
+        .pop-tab:hover { color: var(--text); background: var(--bg); }
+        .pop-tab.selected { color: var(--accent); background: var(--accent-soft); }
+        .pop-spacer { flex: 1; }
+        /* The two things that are done *to* a mark rather than chosen: one at random, and none at all. */
+        .pop-action { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 4px 5px; border-radius: var(--r-pill); }
+        .pop-action:hover { color: var(--accent); background: var(--bg); }
+        .pop-search {
+            margin: 8px 10px 0; border: 1px solid var(--border); background: var(--bg); color: var(--text);
+            border-radius: var(--r-ctl); padding: 7px 10px; font-size: 13px;
+        }
+        .pop-search:focus { outline: none; border-color: var(--accent); }
+        .icon-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; padding: 10px; overflow-y: auto; flex: 1; }
+        .icon-cell {
+            display: flex; align-items: center; justify-content: center;
+            aspect-ratio: 1; border: 1px solid transparent; background: transparent;
+            border-radius: var(--r-ctl); color: var(--text); font-size: 19px; cursor: pointer;
+        }
+        .icon-cell:hover { background: var(--bg); border-color: var(--border); }
+        .icon-cell.selected { background: var(--accent-soft); border-color: var(--accent); }
+        /* A glyph is shown in the colour it would be worn in — the grid answers the question actually
+           being asked, which is what this will look like on the row. */
+        .icon-cell[data-color="blue"] { color: var(--ci-blue); }
+        .icon-cell[data-color="purple"] { color: var(--ci-purple); }
+        .icon-cell[data-color="indigo"] { color: var(--ci-indigo); }
+        .icon-cell[data-color="teal"] { color: var(--ci-teal); }
+        .icon-cell[data-color="green"] { color: var(--ci-green); }
+        .icon-cell[data-color="amber"] { color: var(--ci-amber); }
+        .icon-cell[data-color="orange"] { color: var(--ci-orange); }
+        .icon-cell[data-color="rose"] { color: var(--ci-rose); }
+        .pop-empty { grid-column: 1 / -1; color: var(--muted); font-size: 12px; text-align: center; padding: 24px 0; }
+        /* The foot: the colours a glyph can wear, and the way to take the whole mark off again. */
+        .icon-pop-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--border); }
+        .icon-colors { display: flex; align-items: center; gap: 7px; min-width: 0; flex-wrap: wrap; }
+        .pop-remove {
+            flex: none; margin-left: auto; border: none; background: transparent; color: var(--muted);
+            cursor: pointer; font-size: 12px; padding: 4px 6px; border-radius: var(--r-pill); white-space: nowrap;
+        }
+        .pop-remove:hover:not(:disabled) { color: var(--danger); background: var(--bg); }
+        /* Nothing to remove: still there, so the row does not jump about, but plainly not for pressing. */
+        .pop-remove:disabled { opacity: .4; cursor: default; }
+        .color-cell {
+            width: 20px; height: 20px; flex: none; border-radius: 50%; cursor: pointer;
+            border: 2px solid transparent; background: currentColor; padding: 0;
+        }
+        /* The ring stands off the swatch rather than on it, so the colour is still whole when chosen. */
+        .color-cell.selected { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent); }
+        /* "No colour" is a crossed-out swatch, not a ninth colour: it holds a glyph rather than paint. */
+        .color-cell.none { display: flex; align-items: center; justify-content: center; background: var(--bg); border-color: var(--border); color: var(--muted); font-size: 11px; }
+        .color-cell[data-color="blue"] { color: var(--ci-blue); }
+        .color-cell[data-color="purple"] { color: var(--ci-purple); }
+        .color-cell[data-color="indigo"] { color: var(--ci-indigo); }
+        .color-cell[data-color="teal"] { color: var(--ci-teal); }
+        .color-cell[data-color="green"] { color: var(--ci-green); }
+        .color-cell[data-color="amber"] { color: var(--ci-amber); }
+        .color-cell[data-color="orange"] { color: var(--ci-orange); }
+        .color-cell[data-color="rose"] { color: var(--ci-rose); }
+
         .control { border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: var(--r-ctl); padding: 7px 8px; font-size: 13px; cursor: pointer; }
         .control:hover { border-color: var(--accent); }
         .content-head .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -1346,6 +1465,8 @@
         .about-pane .brand-logo { width: 56px; height: 56px; padding: 5px; border-radius: var(--r-card); margin: 4px 0; }
         .about-name { font-size: 18px; font-weight: 600; color: var(--brand, #50219B); }
         .about-version, .about-copyright { font-size: 13px; color: var(--muted, #8b949e); }
+        /* Who drew the icons — the licences of the two libraries ask to be named. */
+        .about-credits { font-size: 11px; color: var(--muted, #8b949e); opacity: .8; }
         .about-link { font-size: 13px; color: var(--accent); margin-top: 6px; }
     </style>
 </head>

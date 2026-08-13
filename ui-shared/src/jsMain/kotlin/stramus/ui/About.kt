@@ -39,6 +39,13 @@ internal fun ChildrenBuilder.aboutPane(s: Strings) {
                 rel = "noopener"
                 +s.aboutHomepage
             }
+            // The two libraries the collection-icon picker ships, named because their licences ask to
+            // be: Lucide is ISC, Twemoji's graphics are CC-BY 4.0. Not translated — these are names and
+            // licence tags, and they read the same in every language the app speaks.
+            span {
+                className = ClassName("about-credits")
+                +"Icons: Lucide (ISC) · Emoji: Twemoji (CC-BY 4.0)"
+            }
         }
     }
 }

@@ -20,7 +20,9 @@ import web.html.HTMLInputElement
 
 /** The icon a row is drawn with when it stands for no page of its own (so there is no favicon). */
 private fun iconNameOf(hit: Hit): String = when (hit) {
-    is CollectionHit -> "folder"
+    // A marked collection is recognised here by the same mark it wears in the sidebar — emoji included,
+    // which `markGlyph` draws; an unmarked one falls back to the plain folder.
+    is CollectionHit -> hit.collection.icon?.takeIf { knownMark(it) } ?: "folder"
     is WebSearchHit -> "search"
     is AiHit -> "sparkles"
     is OpenUrlHit -> "arrow-up-right"
@@ -198,7 +200,7 @@ val SearchBox = FC<SearchBoxProps> { props ->
                                             className = "fav hit-icon"
                                         }
                                     } else {
-                                        span { className = ClassName("hit-glyph"); icon(iconNameOf(hit)) }
+                                        span { className = ClassName("hit-glyph"); markGlyph(iconNameOf(hit)) }
                                     }
 
                                     span {

@@ -69,6 +69,8 @@ class CollectionRow : Row() {
     var orderKey by Collections.orderKey
     var createdAt by Collections.createdAt
     var readOnly by Collections.readOnly
+    var icon by Collections.icon
+    var color by Collections.color
     var updatedAt by Collections.updatedAt
     var deletedAt by Collections.deletedAt
 }
@@ -85,6 +87,17 @@ object Collections : Store<CollectionRow>("collections", ::CollectionRow) {
 
     val createdAt by Field.Instant()
     val readOnly by Field.Int() // 1 = look, don't touch: no adding, editing, moving or deleting
+
+    /**
+     * What the collection is marked with in the sidebar: the name of a glyph in the UI's icon set, and
+     * the name of one of the colours the stylesheet gives both lightings. Names rather than an SVG and
+     * a hex value — a picked colour would otherwise be one that only worked in the theme it was picked
+     * under, and both are then a handful of bytes in the sync delta instead of a drawing. Null on both
+     * = unmarked, which every collection is until somebody says otherwise.
+     */
+    val icon by Field.Text().nullable()
+    val color by Field.Text().nullable()
+
     val updatedAt by Field.Instant()
     val deletedAt by Field.Instant().nullable()
 

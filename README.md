@@ -289,6 +289,20 @@ uploaded ZIP, so editing them there changes Chrome's UI and the store listing at
 Different entry points supply different implementations of `TabCapture` and `HistoryAccess` from
 `core`: in the extension they call the Chrome APIs, in the web app they're stubs.
 
+## Collection icons
+
+A collection can be marked with a glyph and a colour, or with an emoji, picked from a popup that hangs
+off the mark itself. Both libraries are inline SVG committed to the source tree — `IconLibrary.kt`
+(Lucide, ISC) and `EmojiLibrary.kt` (Twemoji, graphics CC-BY 4.0) — written by
+`tools/icon-data/generate.py`, which is run by hand and never by Gradle: a build that reaches for a CDN
+is a build that fails on a train.
+
+The emoji are shipped as drawings rather than left to the system font on purpose. A character is drawn
+by whatever the machine happens to have — a different picture on every OS, sometimes none at all — and
+the same reasoning already governs the app's own glyphs (see `Icon.kt`). The picker's search matches
+CLDR keywords in every UI language that has them (Turkish falls back to English); glyph keywords are
+Lucide's own and exist in English only.
+
 ## Checking the build
 
 ```bash

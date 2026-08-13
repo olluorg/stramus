@@ -182,7 +182,8 @@ private suspend fun purgeTombstones(db: Database) {
 }
 
 private fun SectionRow.toModel() = Section(id, title, orderKey, deletable != 0, collapsed != 0, pinHash != null)
-private fun CollectionRow.toModel() = Collection(id, sectionId, title, orderKey, createdAt, readOnly != 0)
+private fun CollectionRow.toModel() =
+    Collection(id, sectionId, title, orderKey, createdAt, readOnly != 0, icon, color)
 private fun CardSectionRow.toModel() = CardSection(id, collectionId, title, description, orderKey, collapsed != 0)
 private fun CardRow.toModel() = Card(
     id, collectionId, cardSectionId, CardKind.from(kind), title, url, favicon, content, thumb, mime, blobSha,
@@ -199,6 +200,8 @@ private fun Collection.toRow() = CollectionRow().apply {
     this.orderKey = this@toRow.orderKey
     this.createdAt = this@toRow.createdAt
     this.readOnly = if (this@toRow.readOnly) 1 else 0
+    this.icon = this@toRow.icon
+    this.color = this@toRow.color
     this.updatedAt = Clock.System.now()
 }
 
@@ -540,6 +543,16 @@ internal class KidxCollectionRepository(
         db.write(Collections) {
             val row = Collections.get(id) ?: return@write
             row.readOnly = if (readOnly) 1 else 0
+            row.updatedAt = Clock.System.now()
+            Collections.put(row)
+        }
+    }
+
+    override suspend fun setIcon(id: Uuid, icon: String?, color: String?) {
+        db.write(Collections) {
+            val row = Collections.get(id) ?: return@write
+            row.icon = icon
+            row.color = color
             row.updatedAt = Clock.System.now()
             Collections.put(row)
         }

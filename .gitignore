@@ -27,3 +27,6 @@ tools/dev-server.sh
 # The server's default sqlite file, written wherever it runs with no STRAMUS_DB set — `:server:test` and
 # `tools/dev-server.sh` both do this from the repo root.
 server/stramus.db*
+
+# The generator in tools/icon-data leaves these behind when it is imported rather than run.
+__pycache__/

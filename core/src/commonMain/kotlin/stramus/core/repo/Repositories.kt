@@ -125,6 +125,12 @@ interface CollectionRepository {
 
     /** Turn the collection's read-only guard on or off. */
     suspend fun setReadOnly(id: Uuid, readOnly: Boolean)
+
+    /**
+     * Mark the collection with a glyph, a colour, both or neither — null clears that half of it. Both
+     * are names the UI resolves; see [Collection].
+     */
+    suspend fun setIcon(id: Uuid, icon: String?, color: String?)
 }
 
 /** Storage-agnostic access to the card sections (dividers) inside a collection. */

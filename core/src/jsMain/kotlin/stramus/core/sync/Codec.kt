@@ -128,6 +128,8 @@ private fun CollectionRow.toSyncRow() = SyncRow(
         "orderKey" to orderKey,
         "createdAt" to createdAt.toString(),
         "readOnly" to readOnly.toString(),
+        "icon" to icon,
+        "color" to color,
     ),
 )
 
@@ -231,6 +233,8 @@ suspend fun WriteScope.applyRemote(row: SyncRow) {
                     orderKey = p?.str("orderKey") ?: ""
                     createdAt = p?.instant("createdAt") ?: Instant.parse(row.updatedAt)
                     readOnly = p?.int("readOnly") ?: 0
+                    icon = p?.str("icon")
+                    color = p?.str("color")
                 },
             )
         }
