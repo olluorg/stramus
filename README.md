@@ -3,6 +3,10 @@
 A tab manager in the spirit of Toby: save open tabs into collections, grouped into sections in a
 sidebar. Runs as a standalone web app and as a Chrome extension that replaces the new-tab page.
 
+The extension is in the Chrome Web Store:
+<https://chromewebstore.google.com/detail/accjfifjflckbinniekamhehcjdampjh>. The web version is at
+<https://stramus.space>, with nothing to install and no account to make.
+
 Written in Kotlin/JS (React via kotlin-wrappers). Data lives in SQLite running in the browser on top
 of IndexedDB, through [Kormium](https://github.com/olluorg/korm) and its `kormium-sqlite-js` engine.
 Everything is stored locally in the browser: the server and an account are an optional add-on that
@@ -255,6 +259,12 @@ that the server sees the content of synced cards.
 Design rationale: [`docs/sync-and-auth.md`](docs/sync-and-auth.md).
 
 ## Publishing to the Chrome Web Store
+
+The extension is published:
+<https://chromewebstore.google.com/detail/accjfifjflckbinniekamhehcjdampjh>. The next release is a
+bump of `version` in the manifest, a `vX.Y.Z` tag, and the ZIP the release workflow builds and
+attaches to it, uploaded to the developer console; the order of it is written out in
+[`store/README.md`](store/README.md).
 
 Everything the Web Store form asks for lives in [`store/`](store/README.md): a checklist, listing
 copy in two languages, permission justifications and the data-use answers. The privacy policy is
