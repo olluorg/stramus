@@ -22,8 +22,23 @@ export async function closeSettings(page) {
   await page.locator('.settings-modal').waitFor({ state: 'hidden' });
 }
 
+/** The settings modal is one long page; a rail item scrolls its pane's group up to the top edge. The
+ *  scroll is smooth, so a shot taken right after the click would catch it mid-flight — this waits for
+ *  the group to actually arrive. Groups sit in the body in rail order, so the item's index finds it.
+ *  The last groups can't reach the top (there is nothing below them to scroll up), so the end of the
+ *  scroll counts as arrived too. */
 export async function goToSettingsTab(page, tabName) {
   await page.locator('.settings-nav-item', { hasText: tabName }).click();
+  await page.waitForFunction((name) => {
+    const items = [...document.querySelectorAll('.settings-nav-item')];
+    const index = items.findIndex((el) => el.textContent.toLowerCase().includes(name.toLowerCase()));
+    const body = document.querySelector('.settings-body');
+    const group = body && body.children[index];
+    if (!group) return false;
+    const atTop = Math.abs(group.getBoundingClientRect().top - body.getBoundingClientRect().top) < 2;
+    const atEnd = body.scrollTop + body.clientHeight >= body.scrollHeight - 2;
+    return atTop || atEnd;
+  }, tabName);
 }
 
 /** theme: 'Auto' | 'Light' | 'Dark' (English labels — see I18n.kt themeAuto/themeLight/themeDark). */

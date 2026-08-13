@@ -1066,7 +1066,7 @@
         .icon.del.undo-dismiss { opacity: .7; position: static; }
         .icon.del.undo-dismiss:hover { opacity: 1; }
 
-        /* Settings modal — a left rail names the panes; only the chosen one is drawn on the right. */
+        /* Settings modal — every pane on one scrolling page; the left rail is its table of contents. */
         .settings-modal { max-width: 880px; }
         .settings-layout { display: flex; flex: 1; min-height: 0; }
         .settings-nav { flex: 0 0 208px; border-right: 1px solid var(--border); padding: 12px 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
@@ -1075,9 +1075,23 @@
         .settings-nav-item.active { background: var(--accent); color: #fff; }
         .settings-nav-icon { font-size: 15px; width: 20px; text-align: center; flex: 0 0 auto; }
         .settings-body { flex: 1; min-width: 0; padding: 6px 20px 8px; overflow-y: auto; }
+        .settings-group { padding: 6px 0; }
+        .settings-group + .settings-group { border-top: 1px solid var(--border); }
         .settings-section { padding: 14px 0; border-bottom: 1px solid var(--border); }
         .settings-section:last-child { border-bottom: none; }
         .settings-section h4 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+        /* A rail click scrolls a pane's group to the top edge; its heading blinks once on arrival so
+           the eye lands where the pane begins rather than wherever the page stopped. */
+        .settings-section h4.settings-flash { animation: settings-flash .8s ease-in-out; }
+        @keyframes settings-flash {
+            0% { color: var(--accent); opacity: .3; }
+            30% { color: var(--accent); opacity: 1; }
+            65% { color: var(--accent); opacity: .35; }
+            100% { color: var(--muted); opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .settings-section h4.settings-flash { animation: none; }
+        }
         .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
         .settings-row + .settings-row { margin-top: 14px; }
         .settings-label { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; min-width: 0; }

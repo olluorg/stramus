@@ -1,8 +1,9 @@
 // Settings open on Dark, showing theme + language. store/screenshots.md #5, shot 5.
-// The Settings modal is tabbed (Appearance / Account / Startup / Tabs / Security / AI / Data /
-// About — Settings.kt), so theme, language, the assistant choice and CSV export can't all be in
-// frame at once; Appearance is the one that carries the listing's main visual claim (theme +
-// language together). The AI and Data tabs are their own scenarios (06-ai-settings, 08-data-export).
+// The Settings modal is one long page with a rail that scrolls it (Appearance / Account / Startup /
+// Tabs / Security / AI / Data / About — Settings.kt), so theme, language, the assistant choice and
+// CSV export can't all be in frame at once; Appearance is the one that carries the listing's main
+// visual claim (theme + language together). The AI and Data panes are their own scenarios
+// (06-ai-settings, 08-data-export).
 import { openApp, setTheme, openSettings, goToSettingsTab } from '../lib/dom.mjs';
 import { importDemoData } from '../lib/seed.mjs';
 

@@ -13,9 +13,11 @@ import react.dom.html.ReactHTML.option
 import react.dom.html.ReactHTML.p
 import react.dom.html.ReactHTML.select
 import react.dom.html.ReactHTML.span
+import react.useRef
 import react.useState
 import stramus.core.platform.AiAvailability
 import web.cssom.ClassName
+import web.html.HTMLDivElement
 import web.html.InputType
 
 /** The idle timeouts offered for auto-locking a section; 0 = never lock on its own. */
@@ -154,9 +156,10 @@ external interface SettingsModalProps : Props {
 
 /**
  * The panes of the settings page, in sidebar order. Each carries the glyph and title its nav button
- * wears; which pane is showing is [SettingsModal]'s only piece of local state. Some panes are not
- * always there — [TABS] only where the host has tabs to settle — so the list is filtered per host
- * before it is drawn.
+ * wears. All of them are drawn, one under another, on a single scrolling page — which pane the nav
+ * shows as current is [SettingsModal]'s only piece of local state, and it follows the scroll rather
+ * than deciding what is on screen. Some panes are not always there — [TABS] only where the host has
+ * tabs to settle — so the list is filtered per host before it is drawn.
  */
 private enum class SettingsTab(val icon: String, val title: (Strings) -> String) {
     ACCOUNT("user", { it.account }),
@@ -766,9 +769,87 @@ private fun ChildrenBuilder.dataPane(props: SettingsModalProps, s: Strings) {
 }
 
 /**
+ * Where each pane's group starts, measured from the top of everything the body scrolls through — the
+ * numbers a nav click scrolls to and the scroll spy reads back. The body's children *are* the groups,
+ * one per pane in nav order, so their order is the tab list's and no lookup by name is needed.
+ */
+private fun groupTops(body: dynamic): List<Double> {
+    val children = body.children
+    // A rect's top is where the element is on screen; subtracting the body's own screen position and
+    // adding back how far it has already been scrolled turns that into a scroll offset.
+    val base = (body.getBoundingClientRect().top as Double) - (body.scrollTop as Double)
+    return (0 until (children.length as Int)).map { i ->
+        (children[i].getBoundingClientRect().top as Double) - base
+    }
+}
+
+/** The clock, in milliseconds — only ever read as a difference against itself. */
+private fun nowMs(): Double = js("Date.now()") as Double
+
+private external fun requestAnimationFrame(callback: (Double) -> Unit): Int
+
+/**
+ * Blinks a group's first heading — what a nav click has just brought to the top edge. The page moved
+ * under the reader, and the blink is what says where the thing they asked for begins; without it a
+ * short pane looks like nothing happened at all.
+ *
+ * The class is taken off before it goes back on so a second click on the same name blinks again: a
+ * class that never left is a class the browser sees no reason to animate.
+ */
+private fun flashHeading(group: dynamic) {
+    val heading = group.querySelector("h4") ?: return
+    heading.classList.remove("settings-flash")
+    // Reading the layout in between is what forces the removal to actually land first.
+    heading.offsetWidth
+    heading.classList.add("settings-flash")
+}
+
+/** Two frames of stillness — a scroll that has stopped has stopped. */
+private const val SETTLE_FRAMES = 2
+
+/** Frames a scroll is watched for before the blink fires regardless; ~1.5s, far longer than any. */
+private const val SETTLE_FRAMES_MAX = 90
+
+/**
+ * Runs [then] once [body] has stopped moving. A smooth scroll takes as long as the browser cares to
+ * take, and there is no telling in advance how long that is — so the position is watched frame by
+ * frame rather than guessed at with a timer. A click on the pane already at the top moves nothing,
+ * which reads as "stopped" after a few frames and blinks all the same, which is right: the question
+ * it answers is where this pane starts, and it deserves an answer either way.
+ */
+private fun whenScrollSettles(body: dynamic, then: () -> Unit) {
+    var last = -1.0
+    var still = 0
+    var frames = 0
+    fun step() {
+        val top = body.scrollTop as Double
+        still = if (top == last) still + 1 else 0
+        last = top
+        frames++
+        if ((still >= SETTLE_FRAMES && frames > SETTLE_FRAMES) || frames >= SETTLE_FRAMES_MAX) {
+            then()
+        } else {
+            requestAnimationFrame { step() }
+        }
+    }
+    requestAnimationFrame { step() }
+}
+
+/** A group counts as "the one being read" a little before its heading reaches the top edge. */
+private const val SPY_SLACK = 24.0
+
+/** How long a click's own scroll is left alone before the spy starts reading the position again. */
+private const val JUMP_QUIET_MS = 700.0
+
+/**
  * The settings "page": a modal opened from the left sidebar footer. Groups app-wide preferences and
  * data export (theme, language, CSV export, bookmarks export) that used to live in the content
- * toolbar. Its own left sidebar names the panes; only the chosen one is drawn.
+ * toolbar.
+ *
+ * Everything is on one page, in one scroll: settings are read as much as they are gone to, and eight
+ * separate pages hid seven of them behind a click apiece. The left rail is a table of contents, not a
+ * set of pages — clicking a name scrolls its group up to the top, and scrolling by hand moves the
+ * highlight to whatever is being read.
  */
 val SettingsModal = FC<SettingsModalProps> { props ->
     val s = props.strings
@@ -776,10 +857,11 @@ val SettingsModal = FC<SettingsModalProps> { props ->
     // The tabs actually on offer for this host: everything, minus the ones that would settle nothing
     // here (the web app has no browser tabs to close, so it shows no Tabs pane).
     val tabs = SettingsTab.entries.filter { it != SettingsTab.TABS || props.hasTabs }
-    var active by useState(SettingsTab.ACCOUNT)
-    // A host that dropped the active pane out from under us (unlikely — hasTabs is fixed per host, but
-    // cheap to be safe): fall back to the first pane there is.
-    if (active !in tabs) active = tabs.first()
+    var active by useState(tabs.first())
+    val bodyRef = useRef<HTMLDivElement>(null)
+    // When the last nav click was. Its own smooth scroll travels past every group in between, and the
+    // highlight flickering through them on the way is noise: the spy holds still until it lands.
+    val jumpedAt = useRef(0.0)
 
     modalShell(props.onClose, "modal settings-modal") {
         div {
@@ -793,10 +875,29 @@ val SettingsModal = FC<SettingsModalProps> { props ->
 
             div {
                 className = ClassName("settings-nav")
-                tabs.forEach { tab ->
+                tabs.forEachIndexed { index, tab ->
                     button {
                         className = ClassName(if (tab == active) "settings-nav-item active" else "settings-nav-item")
-                        onClick = { active = tab }
+                        onClick = {
+                            active = tab
+                            val element = bodyRef.current
+                            if (element != null) {
+                                // Held as `dynamic` on purpose: `scrollTo` with options is typed as
+                                // taking a value class the wrappers do not build here, and the groups
+                                // are read straight off the DOM rather than through refs of their own.
+                                val body: dynamic = element
+                                val group = body.children[index]
+                                val top = groupTops(body).getOrNull(index)
+                                if (group != null && top != null) {
+                                    jumpedAt.current = nowMs()
+                                    val opts = js("({})")
+                                    opts.top = top
+                                    opts.behavior = "smooth"
+                                    body.scrollTo(opts)
+                                    whenScrollSettles(body) { flashHeading(group) }
+                                }
+                            }
+                        }
                         span { className = ClassName("settings-nav-icon"); icon(tab.icon) }
                         +tab.title(s)
                     }
@@ -805,15 +906,35 @@ val SettingsModal = FC<SettingsModalProps> { props ->
 
             div {
                 className = ClassName("settings-body")
-                when (active) {
-                    SettingsTab.APPEARANCE -> appearancePane(props, s)
-                    SettingsTab.ACCOUNT -> accountPane(props, s)
-                    SettingsTab.STARTUP -> startupPane(props, s)
-                    SettingsTab.TABS -> tabsPane(props, s)
-                    SettingsTab.SECURITY -> securityPane(props, s)
-                    SettingsTab.AI -> aiPane(props, s)
-                    SettingsTab.DATA -> dataPane(props, s)
-                    SettingsTab.ABOUT -> aboutPane(s)
+                ref = bodyRef
+                onScroll = {
+                    val body = bodyRef.current.asDynamic()
+                    if (body != null && nowMs() - (jumpedAt.current ?: 0.0) > JUMP_QUIET_MS) {
+                        val scrollTop = body.scrollTop as Double
+                        // The last group is usually too short to ever reach the top edge, so the end of
+                        // the scroll is what says it is being read — nothing below it is left to show.
+                        val atEnd = scrollTop + (body.clientHeight as Double) >= (body.scrollHeight as Double) - 2
+                        val tops = groupTops(body)
+                        val index = if (atEnd) tops.lastIndex else tops.indexOfLast { it <= scrollTop + SPY_SLACK }
+                        tabs.getOrNull(index)?.let { if (it != active) active = it }
+                    }
+                }
+
+                // One group per pane, in nav order — the nav scrolls to them by that position.
+                tabs.forEach { tab ->
+                    div {
+                        className = ClassName("settings-group")
+                        when (tab) {
+                            SettingsTab.APPEARANCE -> appearancePane(props, s)
+                            SettingsTab.ACCOUNT -> accountPane(props, s)
+                            SettingsTab.STARTUP -> startupPane(props, s)
+                            SettingsTab.TABS -> tabsPane(props, s)
+                            SettingsTab.SECURITY -> securityPane(props, s)
+                            SettingsTab.AI -> aiPane(props, s)
+                            SettingsTab.DATA -> dataPane(props, s)
+                            SettingsTab.ABOUT -> aboutPane(s)
+                        }
+                    }
                 }
             }
         }
