@@ -561,6 +561,44 @@ interface Strings {
     /** A file with no link this app could take in — the wrong file, or one already fully imported. */
     val importNothing: String
 
+    // The whole database in one file, as opposed to the links in it — see `Backup.kt`. Its own section
+    // of the settings page, because it answers a different question from the exports above: not "take my
+    // links elsewhere" but "put this browser back the way it was".
+    val backup: String
+    val backupHint: String
+    val exportBackup: String
+
+    /** The backup could not be written; the database is fine, and nothing has changed. */
+    val backupFailed: String
+
+    /** The file was ours but would not go back in — a truncated or hand-edited backup. */
+    val restoreFailed: String
+
+    // The database would not open at all — see `DbRecovery.kt`. The one screen shown *instead* of the
+    // app, so every string here is read by someone who has just lost access to their collections.
+    val dbFailureTitle: String
+
+    /** By far the commonest cause: a newer build of stramus has run in this browser. */
+    val dbFailureTooNew: String
+    val dbFailureGeneric: String
+    val dbFailureBackup: String
+    val dbFailureBackupDone: String
+    val dbFailureBackupFailed: String
+    val dbFailureReload: String
+
+    /** Another tab holds the database open, so it cannot be deleted until that one is closed. */
+    val dbFailureBlocked: String
+
+    /** Offered only where a session is still held: the account already has a copy. [email] names it. */
+    fun dbFailureRestoreServerHint(email: String): String
+    val dbFailureRestoreServer: String
+    val dbFailureRestoreServerConfirm: String
+
+    /** The last resort, for a browser with no account: the database goes, the backup file is the way back. */
+    val dbFailureResetHint: String
+    val dbFailureReset: String
+    val dbFailureResetConfirm: String
+
     // Sort orders. A card section takes all of them; a window's tabs are sorted by title, domain or URL.
     val sortTitle: String
     val sortUrl: String
@@ -998,6 +1036,36 @@ private object EnStrings : Strings {
         else -> "Imported $added links; $skipped were already saved."
     }
     override val importNothing = "No links to import in that file."
+
+    override val backup = "Backup"
+    override val backupHint = "One file with everything in this browser — notes, files, groups and order, " +
+        "not only the links. It is what puts this browser back if its database is ever lost; bring it " +
+        "back in through Import above."
+    override val exportBackup = "Download backup"
+    override val backupFailed = "The backup could not be created."
+    override val restoreFailed = "That backup could not be restored."
+
+    override val dbFailureTitle = "stramus cannot open its database"
+    override val dbFailureTooNew = "This browser's database was written by a newer version of stramus than " +
+        "the one running here, and IndexedDB cannot go back a version. Updating stramus — or reopening " +
+        "the version you had — brings your collections straight back, with nothing lost."
+    override val dbFailureGeneric = "The local database would not open, so nothing on this page is live. " +
+        "What is saved here is still on disk."
+    override val dbFailureBackup = "Download backup"
+    override val dbFailureBackupDone = "Backup saved."
+    override val dbFailureBackupFailed = "The backup could not be created."
+    override val dbFailureReload = "Reload"
+    override val dbFailureBlocked = "The database is open in another stramus tab. Close the others and try again."
+    override fun dbFailureRestoreServerHint(email: String) = "Signed in as $email, so your collections are " +
+        "on the server as well. This browser's copy can be deleted and fetched back on the next sync."
+    override val dbFailureRestoreServer = "Delete and restore from account"
+    override val dbFailureRestoreServerConfirm =
+        "Delete this browser's database and fetch your collections back from your account?"
+    override val dbFailureResetHint = "There is no account on this browser, so what is here is nowhere " +
+        "else. Download the backup above before starting over — a deleted database cannot be brought back."
+    override val dbFailureReset = "Delete database and start over"
+    override val dbFailureResetConfirm = "Delete this browser's database? Everything saved here is lost " +
+        "unless you have downloaded a backup."
 
     override val sortTitle = "Title A–Z"
     override val sortUrl = "URL"
@@ -1453,6 +1521,37 @@ private object RuStrings : Strings {
     }
     override val importNothing = "В этом файле нет ссылок для импорта."
 
+    override val backup = "Резервная копия"
+    override val backupHint = "Один файл со всем, что есть в этом браузере, — заметками, файлами, группами " +
+        "и порядком, а не только ссылками. Именно он вернёт этот браузер к жизни, если база данных " +
+        "пропадёт; загрузить его обратно можно через «Импорт» выше."
+    override val exportBackup = "Скачать копию"
+    override val backupFailed = "Не удалось создать резервную копию."
+    override val restoreFailed = "Не удалось восстановить эту резервную копию."
+
+    override val dbFailureTitle = "stramus не может открыть свою базу данных"
+    override val dbFailureTooNew = "База данных в этом браузере создана более новой версией stramus, чем " +
+        "запущенная сейчас, а IndexedDB не умеет понижать версию. Обновление stramus — или возврат к той " +
+        "версии, что была, — сразу вернёт ваши коллекции, ничего не потеряв."
+    override val dbFailureGeneric = "Локальная база данных не открылась, поэтому на этой странице ничего " +
+        "не работает по-настоящему. Сохранённое никуда не делось — оно на диске."
+    override val dbFailureBackup = "Скачать резервную копию"
+    override val dbFailureBackupDone = "Резервная копия сохранена."
+    override val dbFailureBackupFailed = "Не удалось создать резервную копию."
+    override val dbFailureReload = "Перезагрузить"
+    override val dbFailureBlocked = "База данных открыта в другой вкладке stramus. Закройте остальные вкладки " +
+        "и попробуйте снова."
+    override fun dbFailureRestoreServerHint(email: String) = "Выполнен вход как $email, значит ваши коллекции " +
+        "есть и на сервере. Копию в этом браузере можно удалить и получить обратно при следующей синхронизации."
+    override val dbFailureRestoreServer = "Удалить и восстановить из аккаунта"
+    override val dbFailureRestoreServerConfirm =
+        "Удалить базу данных в этом браузере и загрузить коллекции заново из аккаунта?"
+    override val dbFailureResetHint = "В этом браузере нет аккаунта, поэтому здешние данные больше нигде не " +
+        "хранятся. Скачайте резервную копию выше, прежде чем начинать заново, — удалённую базу вернуть нельзя."
+    override val dbFailureReset = "Удалить базу и начать заново"
+    override val dbFailureResetConfirm = "Удалить базу данных в этом браузере? Всё сохранённое здесь будет " +
+        "потеряно, если вы не скачали резервную копию."
+
     override val sortTitle = "По названию"
     override val sortUrl = "По адресу"
     override val sortDomain = "По домену"
@@ -1905,6 +2004,39 @@ private object FrStrings : Strings {
         else -> "$added liens importés ; $skipped étaient déjà enregistrés."
     }
     override val importNothing = "Aucun lien à importer dans ce fichier."
+
+    override val backup = "Sauvegarde"
+    override val backupHint = "Un fichier contenant tout ce que ce navigateur détient — notes, fichiers, " +
+        "groupes et ordre, pas seulement les liens. C'est lui qui remet ce navigateur en état si sa base " +
+        "de données disparaît ; il se recharge via « Importer » ci-dessus."
+    override val exportBackup = "Télécharger la sauvegarde"
+    override val backupFailed = "La sauvegarde n'a pas pu être créée."
+    override val restoreFailed = "Cette sauvegarde n'a pas pu être restaurée."
+
+    override val dbFailureTitle = "stramus ne peut pas ouvrir sa base de données"
+    override val dbFailureTooNew = "La base de données de ce navigateur a été écrite par une version de " +
+        "stramus plus récente que celle exécutée ici, et IndexedDB ne sait pas revenir en arrière. Mettre " +
+        "stramus à jour — ou rouvrir la version que vous aviez — ramène vos collections intactes."
+    override val dbFailureGeneric = "La base de données locale ne s'est pas ouverte : rien sur cette page " +
+        "n'est réel. Ce qui est enregistré ici est toujours sur le disque."
+    override val dbFailureBackup = "Télécharger la sauvegarde"
+    override val dbFailureBackupDone = "Sauvegarde enregistrée."
+    override val dbFailureBackupFailed = "La sauvegarde n'a pas pu être créée."
+    override val dbFailureReload = "Recharger"
+    override val dbFailureBlocked = "La base de données est ouverte dans un autre onglet stramus. Fermez les " +
+        "autres et réessayez."
+    override fun dbFailureRestoreServerHint(email: String) = "Connecté en tant que $email : vos collections " +
+        "sont aussi sur le serveur. La copie de ce navigateur peut être supprimée puis récupérée à la " +
+        "prochaine synchronisation."
+    override val dbFailureRestoreServer = "Supprimer et restaurer depuis le compte"
+    override val dbFailureRestoreServerConfirm =
+        "Supprimer la base de données de ce navigateur et récupérer vos collections depuis votre compte ?"
+    override val dbFailureResetHint = "Aucun compte sur ce navigateur : ce qui est ici n'existe nulle part " +
+        "ailleurs. Téléchargez la sauvegarde ci-dessus avant de repartir de zéro — une base supprimée ne " +
+        "revient pas."
+    override val dbFailureReset = "Supprimer la base et repartir de zéro"
+    override val dbFailureResetConfirm = "Supprimer la base de données de ce navigateur ? Tout ce qui y est " +
+        "enregistré sera perdu si vous n'avez pas téléchargé de sauvegarde."
 
     override val sortTitle = "Titre A–Z"
     override val sortUrl = "URL"
@@ -2359,6 +2491,39 @@ private object EsStrings : Strings {
     }
     override val importNothing = "No hay enlaces para importar en ese archivo."
 
+    override val backup = "Copia de seguridad"
+    override val backupHint = "Un archivo con todo lo que hay en este navegador: notas, archivos, grupos y " +
+        "orden, no solo los enlaces. Es lo que devuelve este navegador a su sitio si su base de datos se " +
+        "pierde; se recupera desde «Importar», arriba."
+    override val exportBackup = "Descargar copia"
+    override val backupFailed = "No se pudo crear la copia de seguridad."
+    override val restoreFailed = "No se pudo restaurar esa copia de seguridad."
+
+    override val dbFailureTitle = "stramus no puede abrir su base de datos"
+    override val dbFailureTooNew = "La base de datos de este navegador la escribió una versión de stramus más " +
+        "nueva que la que se ejecuta aquí, e IndexedDB no puede bajar de versión. Actualizar stramus — o " +
+        "volver a abrir la versión que tenías — devuelve tus colecciones tal cual estaban."
+    override val dbFailureGeneric = "La base de datos local no se abrió, así que nada de esta página es real. " +
+        "Lo guardado aquí sigue en el disco."
+    override val dbFailureBackup = "Descargar copia de seguridad"
+    override val dbFailureBackupDone = "Copia de seguridad guardada."
+    override val dbFailureBackupFailed = "No se pudo crear la copia de seguridad."
+    override val dbFailureReload = "Recargar"
+    override val dbFailureBlocked = "La base de datos está abierta en otra pestaña de stramus. Cierra las " +
+        "demás e inténtalo de nuevo."
+    override fun dbFailureRestoreServerHint(email: String) = "Sesión iniciada como $email, así que tus " +
+        "colecciones también están en el servidor. La copia de este navegador puede borrarse y recuperarse " +
+        "en la siguiente sincronización."
+    override val dbFailureRestoreServer = "Borrar y restaurar desde la cuenta"
+    override val dbFailureRestoreServerConfirm =
+        "¿Borrar la base de datos de este navegador y recuperar tus colecciones desde tu cuenta?"
+    override val dbFailureResetHint = "En este navegador no hay cuenta, así que lo que hay aquí no está en " +
+        "ningún otro sitio. Descarga la copia de seguridad de arriba antes de empezar de cero: una base " +
+        "borrada no vuelve."
+    override val dbFailureReset = "Borrar la base y empezar de cero"
+    override val dbFailureResetConfirm = "¿Borrar la base de datos de este navegador? Todo lo guardado aquí " +
+        "se perderá si no has descargado una copia de seguridad."
+
     override val sortTitle = "Título A–Z"
     override val sortUrl = "URL"
     override val sortDomain = "Dominio"
@@ -2811,6 +2976,39 @@ private object DeStrings : Strings {
         else -> "$added Links importiert; $skipped waren bereits gespeichert."
     }
     override val importNothing = "Keine Links in dieser Datei zu importieren."
+
+    override val backup = "Sicherung"
+    override val backupHint = "Eine Datei mit allem, was in diesem Browser liegt — Notizen, Dateien, Gruppen " +
+        "und Reihenfolge, nicht nur die Links. Sie stellt diesen Browser wieder her, falls seine Datenbank " +
+        "verloren geht; zurück kommt sie über „Importieren“ weiter oben."
+    override val exportBackup = "Sicherung herunterladen"
+    override val backupFailed = "Die Sicherung konnte nicht erstellt werden."
+    override val restoreFailed = "Diese Sicherung ließ sich nicht wiederherstellen."
+
+    override val dbFailureTitle = "stramus kann seine Datenbank nicht öffnen"
+    override val dbFailureTooNew = "Die Datenbank dieses Browsers stammt von einer neueren stramus-Version " +
+        "als der hier laufenden, und IndexedDB kann keine Version zurückgehen. Ein Update von stramus — " +
+        "oder die alte Version wieder geöffnet — bringt Ihre Sammlungen unversehrt zurück."
+    override val dbFailureGeneric = "Die lokale Datenbank ließ sich nicht öffnen, deshalb ist auf dieser " +
+        "Seite nichts echt. Was hier gespeichert ist, liegt weiterhin auf der Festplatte."
+    override val dbFailureBackup = "Sicherung herunterladen"
+    override val dbFailureBackupDone = "Sicherung gespeichert."
+    override val dbFailureBackupFailed = "Die Sicherung konnte nicht erstellt werden."
+    override val dbFailureReload = "Neu laden"
+    override val dbFailureBlocked = "Die Datenbank ist in einem anderen stramus-Tab geöffnet. Schließen Sie " +
+        "die anderen und versuchen Sie es erneut."
+    override fun dbFailureRestoreServerHint(email: String) = "Angemeldet als $email — Ihre Sammlungen liegen " +
+        "also auch auf dem Server. Die Kopie in diesem Browser kann gelöscht und bei der nächsten " +
+        "Synchronisierung wieder geholt werden."
+    override val dbFailureRestoreServer = "Löschen und aus dem Konto wiederherstellen"
+    override val dbFailureRestoreServerConfirm =
+        "Die Datenbank dieses Browsers löschen und Ihre Sammlungen aus Ihrem Konto zurückholen?"
+    override val dbFailureResetHint = "In diesem Browser gibt es kein Konto, was hier liegt, liegt also " +
+        "nirgends sonst. Laden Sie die Sicherung oben herunter, bevor Sie neu anfangen — eine gelöschte " +
+        "Datenbank kommt nicht zurück."
+    override val dbFailureReset = "Datenbank löschen und neu anfangen"
+    override val dbFailureResetConfirm = "Die Datenbank dieses Browsers löschen? Alles hier Gespeicherte ist " +
+        "verloren, wenn Sie keine Sicherung heruntergeladen haben."
 
     override val sortTitle = "Titel A–Z"
     override val sortUrl = "URL"
@@ -3265,6 +3463,38 @@ private object PtBrStrings : Strings {
     }
     override val importNothing = "Nenhum link para importar nesse arquivo."
 
+    override val backup = "Backup"
+    override val backupHint = "Um arquivo com tudo o que existe neste navegador — notas, arquivos, grupos e " +
+        "ordem, não só os links. É ele que devolve este navegador ao que era se o banco de dados se " +
+        "perder; para voltar, use “Importar” acima."
+    override val exportBackup = "Baixar backup"
+    override val backupFailed = "Não foi possível criar o backup."
+    override val restoreFailed = "Não foi possível restaurar esse backup."
+
+    override val dbFailureTitle = "o stramus não consegue abrir seu banco de dados"
+    override val dbFailureTooNew = "O banco de dados deste navegador foi escrito por uma versão do stramus " +
+        "mais nova que a executada aqui, e o IndexedDB não volta uma versão. Atualizar o stramus — ou " +
+        "reabrir a versão que você tinha — traz suas coleções de volta inteiras."
+    override val dbFailureGeneric = "O banco de dados local não abriu, então nada nesta página é real. O que " +
+        "está salvo aqui continua no disco."
+    override val dbFailureBackup = "Baixar backup"
+    override val dbFailureBackupDone = "Backup salvo."
+    override val dbFailureBackupFailed = "Não foi possível criar o backup."
+    override val dbFailureReload = "Recarregar"
+    override val dbFailureBlocked = "O banco de dados está aberto em outra aba do stramus. Feche as outras e " +
+        "tente de novo."
+    override fun dbFailureRestoreServerHint(email: String) = "Conectado como $email, então suas coleções " +
+        "também estão no servidor. A cópia deste navegador pode ser apagada e buscada de volta na próxima " +
+        "sincronização."
+    override val dbFailureRestoreServer = "Apagar e restaurar da conta"
+    override val dbFailureRestoreServerConfirm =
+        "Apagar o banco de dados deste navegador e buscar suas coleções de volta na sua conta?"
+    override val dbFailureResetHint = "Não há conta neste navegador, então o que está aqui não está em mais " +
+        "lugar nenhum. Baixe o backup acima antes de recomeçar — um banco apagado não volta."
+    override val dbFailureReset = "Apagar o banco e recomeçar"
+    override val dbFailureResetConfirm = "Apagar o banco de dados deste navegador? Tudo o que está salvo aqui " +
+        "será perdido se você não tiver baixado um backup."
+
     override val sortTitle = "Título A–Z"
     override val sortUrl = "URL"
     override val sortDomain = "Domínio"
@@ -3709,6 +3939,31 @@ private object ZhCnStrings : Strings {
         else -> "已导入 $added 个链接；$skipped 个此前已保存。"
     }
     override val importNothing = "该文件中没有可导入的链接。"
+
+    override val backup = "备份"
+    override val backupHint = "一个文件，装下这个浏览器里的全部内容——笔记、文件、分组和排序，而不只是链接。" +
+        "万一数据库丢失，正是它把这个浏览器恢复原样；从上面的“导入”把它读回来。"
+    override val exportBackup = "下载备份"
+    override val backupFailed = "无法创建备份。"
+    override val restoreFailed = "无法恢复该备份。"
+
+    override val dbFailureTitle = "stramus 无法打开自己的数据库"
+    override val dbFailureTooNew = "这个浏览器里的数据库由比当前运行的更新版本的 stramus 写入，而 IndexedDB " +
+        "无法降级。升级 stramus，或者重新打开你原本用的那个版本，收藏就会原封不动地回来。"
+    override val dbFailureGeneric = "本地数据库没能打开，所以这个页面上的一切都不是真的。保存在这里的数据仍在磁盘上。"
+    override val dbFailureBackup = "下载备份"
+    override val dbFailureBackupDone = "备份已保存。"
+    override val dbFailureBackupFailed = "无法创建备份。"
+    override val dbFailureReload = "重新加载"
+    override val dbFailureBlocked = "数据库正被另一个 stramus 标签页占用。请关闭其他标签页后重试。"
+    override fun dbFailureRestoreServerHint(email: String) = "已登录为 $email，收藏同样保存在服务器上。" +
+        "可以删除这个浏览器里的副本，下一次同步时再取回来。"
+    override val dbFailureRestoreServer = "删除并从账户恢复"
+    override val dbFailureRestoreServerConfirm = "删除这个浏览器的数据库，并从你的账户重新取回收藏？"
+    override val dbFailureResetHint = "这个浏览器没有登录账户，因此这里的数据别处没有。重新开始之前先下载上面的备份" +
+        "——删掉的数据库找不回来。"
+    override val dbFailureReset = "删除数据库并重新开始"
+    override val dbFailureResetConfirm = "删除这个浏览器的数据库？如果没有下载过备份，这里保存的一切都会丢失。"
 
     override val sortTitle = "标题 A–Z"
     override val sortUrl = "网址"
@@ -4160,6 +4415,37 @@ private object JaStrings : Strings {
     }
     override val importNothing = "このファイルにはインポートできるリンクがありません。"
 
+    override val backup = "バックアップ"
+    override val backupHint = "このブラウザーにあるすべて——リンクだけでなく、メモ、ファイル、グループ、並び順——を" +
+        "収めた 1 つのファイルです。データベースが失われたとき、このブラウザーを元に戻すのがこれ。" +
+        "戻すときは上の「インポート」から読み込みます。"
+    override val exportBackup = "バックアップをダウンロード"
+    override val backupFailed = "バックアップを作成できませんでした。"
+    override val restoreFailed = "そのバックアップは復元できませんでした。"
+
+    override val dbFailureTitle = "stramus がデータベースを開けません"
+    override val dbFailureTooNew = "このブラウザーのデータベースは、ここで動いているものより新しいバージョンの " +
+        "stramus が書き込んだもので、IndexedDB はバージョンを下げられません。stramus を更新するか、" +
+        "以前のバージョンを開き直せば、コレクションはそのまま戻ります。"
+    override val dbFailureGeneric = "ローカルのデータベースが開けなかったため、このページの表示は実体を伴いません。" +
+        "ここに保存したものはディスクに残っています。"
+    override val dbFailureBackup = "バックアップをダウンロード"
+    override val dbFailureBackupDone = "バックアップを保存しました。"
+    override val dbFailureBackupFailed = "バックアップを作成できませんでした。"
+    override val dbFailureReload = "再読み込み"
+    override val dbFailureBlocked = "別の stramus のタブがデータベースを開いています。ほかのタブを閉じてから" +
+        "もう一度お試しください。"
+    override fun dbFailureRestoreServerHint(email: String) = "$email でサインイン中です。コレクションは" +
+        "サーバーにもあります。このブラウザーの複製は削除しても、次の同期で取り戻せます。"
+    override val dbFailureRestoreServer = "削除してアカウントから復元"
+    override val dbFailureRestoreServerConfirm = "このブラウザーのデータベースを削除し、アカウントから" +
+        "コレクションを取り直しますか？"
+    override val dbFailureResetHint = "このブラウザーにはアカウントがないため、ここにあるものはほかのどこにも" +
+        "ありません。やり直す前に上のバックアップをダウンロードしてください——削除したデータベースは戻りません。"
+    override val dbFailureReset = "データベースを削除してやり直す"
+    override val dbFailureResetConfirm = "このブラウザーのデータベースを削除しますか？バックアップを" +
+        "ダウンロードしていない場合、ここに保存したものはすべて失われます。"
+
     override val sortTitle = "タイトル A–Z"
     override val sortUrl = "URL"
     override val sortDomain = "ドメイン"
@@ -4610,6 +4896,37 @@ private object KoStrings : Strings {
         else -> "링크 $added 개를 가져왔습니다. $skipped 개는 이미 저장되어 있었습니다."
     }
     override val importNothing = "이 파일에는 가져올 링크가 없습니다."
+
+    override val backup = "백업"
+    override val backupHint = "이 브라우저에 있는 모든 것을 담은 파일 하나 — 링크뿐 아니라 메모, 파일, 그룹, " +
+        "순서까지. 데이터베이스를 잃었을 때 이 브라우저를 되돌려 놓는 것이 바로 이 파일이며, 위의 " +
+        "‘가져오기’로 다시 불러옵니다."
+    override val exportBackup = "백업 내려받기"
+    override val backupFailed = "백업을 만들지 못했습니다."
+    override val restoreFailed = "그 백업은 복원하지 못했습니다."
+
+    override val dbFailureTitle = "stramus가 데이터베이스를 열지 못했습니다"
+    override val dbFailureTooNew = "이 브라우저의 데이터베이스는 지금 실행 중인 것보다 새로운 stramus 버전이 " +
+        "쓴 것이고, IndexedDB는 버전을 되돌리지 못합니다. stramus를 업데이트하거나 쓰던 버전을 다시 열면 " +
+        "컬렉션이 그대로 돌아옵니다."
+    override val dbFailureGeneric = "로컬 데이터베이스가 열리지 않아 이 페이지의 어떤 것도 실제가 아닙니다. " +
+        "여기 저장한 내용은 여전히 디스크에 있습니다."
+    override val dbFailureBackup = "백업 내려받기"
+    override val dbFailureBackupDone = "백업을 저장했습니다."
+    override val dbFailureBackupFailed = "백업을 만들지 못했습니다."
+    override val dbFailureReload = "새로고침"
+    override val dbFailureBlocked = "다른 stramus 탭이 데이터베이스를 열고 있습니다. 나머지 탭을 닫고 다시 " +
+        "시도하세요."
+    override fun dbFailureRestoreServerHint(email: String) = "$email(으)로 로그인되어 있어 컬렉션이 서버에도 " +
+        "있습니다. 이 브라우저의 사본은 지우고 다음 동기화 때 다시 받아올 수 있습니다."
+    override val dbFailureRestoreServer = "삭제하고 계정에서 복원"
+    override val dbFailureRestoreServerConfirm = "이 브라우저의 데이터베이스를 지우고 계정에서 컬렉션을 다시 " +
+        "받아올까요?"
+    override val dbFailureResetHint = "이 브라우저에는 계정이 없어서 여기 있는 것은 다른 어디에도 없습니다. " +
+        "다시 시작하기 전에 위의 백업을 내려받으세요 — 지운 데이터베이스는 되돌릴 수 없습니다."
+    override val dbFailureReset = "데이터베이스를 지우고 처음부터"
+    override val dbFailureResetConfirm = "이 브라우저의 데이터베이스를 지울까요? 백업을 내려받지 않았다면 여기 " +
+        "저장한 모든 것이 사라집니다."
 
     override val sortTitle = "제목 A–Z"
     override val sortUrl = "URL"
@@ -5064,6 +5381,39 @@ private object ItStrings : Strings {
     }
     override val importNothing = "Nessun link da importare in quel file."
 
+    override val backup = "Backup"
+    override val backupHint = "Un unico file con tutto ciò che c'è in questo browser: note, file, gruppi e " +
+        "ordine, non solo i link. È quello che rimette a posto questo browser se il suo database va perso; " +
+        "si ricarica da «Importa» qui sopra."
+    override val exportBackup = "Scarica il backup"
+    override val backupFailed = "Non è stato possibile creare il backup."
+    override val restoreFailed = "Non è stato possibile ripristinare quel backup."
+
+    override val dbFailureTitle = "stramus non riesce ad aprire il suo database"
+    override val dbFailureTooNew = "Il database di questo browser è stato scritto da una versione di stramus " +
+        "più recente di quella in esecuzione qui, e IndexedDB non sa tornare a una versione precedente. " +
+        "Aggiornare stramus — o riaprire la versione che avevi — riporta indietro le tue raccolte intatte."
+    override val dbFailureGeneric = "Il database locale non si è aperto, quindi niente in questa pagina è " +
+        "reale. Ciò che è salvato qui è ancora su disco."
+    override val dbFailureBackup = "Scarica il backup"
+    override val dbFailureBackupDone = "Backup salvato."
+    override val dbFailureBackupFailed = "Non è stato possibile creare il backup."
+    override val dbFailureReload = "Ricarica"
+    override val dbFailureBlocked = "Il database è aperto in un'altra scheda di stramus. Chiudi le altre e " +
+        "riprova."
+    override fun dbFailureRestoreServerHint(email: String) = "Hai effettuato l'accesso come $email, quindi " +
+        "le tue raccolte sono anche sul server. La copia di questo browser può essere eliminata e " +
+        "recuperata alla prossima sincronizzazione."
+    override val dbFailureRestoreServer = "Elimina e ripristina dall'account"
+    override val dbFailureRestoreServerConfirm =
+        "Eliminare il database di questo browser e recuperare le raccolte dal tuo account?"
+    override val dbFailureResetHint = "Su questo browser non c'è un account, quindi ciò che è qui non è da " +
+        "nessun'altra parte. Scarica il backup qui sopra prima di ricominciare: un database eliminato non " +
+        "torna."
+    override val dbFailureReset = "Elimina il database e ricomincia"
+    override val dbFailureResetConfirm = "Eliminare il database di questo browser? Tutto ciò che è salvato " +
+        "qui andrà perso se non hai scaricato un backup."
+
     override val sortTitle = "Titolo A–Z"
     override val sortUrl = "URL"
     override val sortDomain = "Dominio"
@@ -5515,6 +5865,38 @@ private object TrStrings : Strings {
         else -> "$added bağlantı içe aktarıldı; $skipped tanesi zaten kayıtlıydı."
     }
     override val importNothing = "O dosyada içe aktarılacak bağlantı yok."
+
+    override val backup = "Yedek"
+    override val backupHint = "Bu tarayıcıdaki her şeyi taşıyan tek dosya: yalnızca bağlantılar değil, " +
+        "notlar, dosyalar, gruplar ve sıralama da. Veritabanı kaybolursa bu tarayıcıyı eski haline " +
+        "döndüren şey budur; geri yüklemek için yukarıdaki “İçe aktar”ı kullanın."
+    override val exportBackup = "Yedeği indir"
+    override val backupFailed = "Yedek oluşturulamadı."
+    override val restoreFailed = "Bu yedek geri yüklenemedi."
+
+    override val dbFailureTitle = "stramus veritabanını açamıyor"
+    override val dbFailureTooNew = "Bu tarayıcının veritabanını, burada çalışandan daha yeni bir stramus " +
+        "sürümü yazmış; IndexedDB ise sürüm düşüremez. stramus'u güncellemek — ya da eskiden kullandığınız " +
+        "sürümü yeniden açmak — koleksiyonlarınızı olduğu gibi geri getirir."
+    override val dbFailureGeneric = "Yerel veritabanı açılmadı, bu yüzden bu sayfadaki hiçbir şey gerçek " +
+        "değil. Burada kayıtlı olanlar hâlâ diskte duruyor."
+    override val dbFailureBackup = "Yedeği indir"
+    override val dbFailureBackupDone = "Yedek kaydedildi."
+    override val dbFailureBackupFailed = "Yedek oluşturulamadı."
+    override val dbFailureReload = "Yeniden yükle"
+    override val dbFailureBlocked = "Veritabanı başka bir stramus sekmesinde açık. Diğerlerini kapatıp " +
+        "yeniden deneyin."
+    override fun dbFailureRestoreServerHint(email: String) = "$email olarak oturum açıksınız; " +
+        "koleksiyonlarınız sunucuda da duruyor. Bu tarayıcıdaki kopya silinip bir sonraki eşitlemede geri " +
+        "alınabilir."
+    override val dbFailureRestoreServer = "Sil ve hesaptan geri yükle"
+    override val dbFailureRestoreServerConfirm =
+        "Bu tarayıcının veritabanı silinip koleksiyonlarınız hesabınızdan yeniden alınsın mı?"
+    override val dbFailureResetHint = "Bu tarayıcıda hesap yok, dolayısıyla buradakiler başka hiçbir yerde " +
+        "değil. Sıfırdan başlamadan önce yukarıdaki yedeği indirin — silinen veritabanı geri gelmez."
+    override val dbFailureReset = "Veritabanını sil ve sıfırdan başla"
+    override val dbFailureResetConfirm = "Bu tarayıcının veritabanı silinsin mi? Yedek indirmediyseniz " +
+        "burada kayıtlı olan her şey kaybolur."
 
     override val sortTitle = "Başlık A–Z"
     override val sortUrl = "URL"

@@ -357,4 +357,4 @@ val AccountDialog = FC<AccountDialogProps> { props ->
 /** The wall clock, as the user reads it — the only thing the badge says about time. */
 internal fun nowLocalTime(): String = js("new Date().toLocaleTimeString()") as String
 
-private fun confirmDialog(message: String): Boolean = js("window.confirm(message)") as Boolean
+internal fun confirmDialog(message: String): Boolean = js("window.confirm(message)") as Boolean

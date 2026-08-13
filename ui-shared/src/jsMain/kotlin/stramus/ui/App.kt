@@ -30,7 +30,10 @@ import react.useRef
 import react.useState
 import stramus.core.ai.TriageAssignment
 import stramus.core.db.StramusStore
+import stramus.core.db.exportStramusBackup
+import stramus.core.db.looksLikeStramusBackup
 import stramus.core.db.openStramusStore
+import stramus.core.db.restoreStramusBackup
 import stramus.core.platform.GoogleSignIn
 import stramus.core.sync.StramusApi
 import stramus.core.sync.SyncEngine
@@ -757,6 +760,10 @@ val App = FC<AppProps> { props ->
 
     var store by useState<StramusStore?>(null)
 
+    // Why there is no store, when there is no store: what opening the database threw. Nothing else in
+    // the app reads it — it goes straight to [DbRecovery], which is drawn over everything else.
+    var dbFailure by useState<Throwable?>(null)
+
     // The server, and this database's side of the conversation with it. Made once, and made whether or
     // not anyone is signed in: the badge has to be able to say "not signed in", and the account dialog
     // has to have something to sign in *with*.
@@ -1016,7 +1023,19 @@ val App = FC<AppProps> { props ->
             // The seed is only ever used by a database that has never held anything (see `StoreSeed`),
             // and it is in the language the user arrived with — the one the browser asked for, since
             // nobody has chosen one yet on the install this actually happens on.
-            val s = openStramusStore(seed = t.seed)
+            //
+            // Everything below depends on the store, so a database that will not open ends this
+            // coroutine — and used to end it silently, leaving the cached paint on screen and every
+            // click doing nothing. It is caught instead and handed to [DbRecovery], which is the only
+            // part of the app that can still do something useful without a database.
+            val s = try {
+                openStramusStore(seed = t.seed)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                dbFailure = e
+                return@launch
+            }
             // Before the first card is drawn, so a cached icon is there from the very first paint.
             initFaviconCache(s.favicons)
             // Before the first keystroke, so the very first search is already ranked by what the user
@@ -1390,11 +1409,17 @@ val App = FC<AppProps> { props ->
             val s = store
             val hasLocalWork = s != null && !s.seeded &&
                 s.collections.all().any { collection -> s.cards.count(collection.id) > 0 }
-            if (hasLocalWork) {
+            // The database was deliberately thrown away a moment ago so the account could put it back
+            // (see [DbRecovery]): what is in it now is the welcome note this start seeded itself, and it
+            // is not this user's first collection — it is a duplicate waiting to be pushed up. Discard
+            // it, exactly as joining an account from a second device does.
+            val restoring = prefGet(RESTORE_FROM_SERVER_PREF) == "1"
+            if (restoring) prefRemove(RESTORE_FROM_SERVER_PREF)
+            if (hasLocalWork && !restoring) {
                 joinPrompt = Uuid.parse(me.userId)
                 accountOpen = true
             } else {
-                runCatching { e.signIn(Uuid.parse(me.userId), api.deviceId) }
+                runCatching { e.signIn(Uuid.parse(me.userId), api.deviceId, discardLocal = restoring) }
                 syncUi = SyncUi(SyncStatus.IDLE, me.email)
                 runSync()
             }
@@ -3841,7 +3866,16 @@ val App = FC<AppProps> { props ->
                 }
             }
         }
-        if (onboardingOpen) {
+        // Over everything, and closing over nothing: with no database open, every other surface of the
+        // app is a picture of what was in the paint cache and nothing behind it works.
+        dbFailure?.let { failure ->
+            DbRecovery {
+                strings = t
+                this.failure = failure
+                this.api = api
+            }
+        }
+        if (onboardingOpen && dbFailure == null) {
             OnboardingModal {
                 strings = t
                 // The one capability only the extension has — reading the browser's own open tabs —
@@ -4001,9 +4035,27 @@ val App = FC<AppProps> { props ->
                 // The other direction: a bookmarks file or a CSV read back in. It creates whatever the
                 // file names — sections, collections, card sections — so the sidebar and the open
                 // collection are both re-read from the database once it is done.
+                onExportBackup = {
+                    importStatus = null
+                    scope.launch {
+                        runCatching { downloadLargeFile("stramus-backup.json", "application/json", exportStramusBackup()) }
+                            .onFailure { importStatus = t.backupFailed }
+                    }
+                }
                 onImport = { name, text ->
                     val s = store
-                    if (s != null) {
+                    if (looksLikeStramusBackup(text)) {
+                        // A backup is not a list of links to fold into what is here: it is the database
+                        // itself, rows and keys and all, and it goes back underneath the app (see
+                        // `Backup.kt`). Nothing in the page would see those writes, so the page starts
+                        // again — which is also the plainest way to say that it worked.
+                        importStatus = null
+                        scope.launch {
+                            runCatching { restoreStramusBackup(text) }
+                                .onSuccess { reloadPage() }
+                                .onFailure { importStatus = t.restoreFailed }
+                        }
+                    } else if (s != null) {
                         importStatus = null
                         scope.launch {
                             val result = importFile(s, name, text, t.importedTitle)

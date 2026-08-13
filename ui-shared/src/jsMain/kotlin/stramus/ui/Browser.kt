@@ -26,6 +26,7 @@ private external interface BrowserWindow {
 
 private external interface JsLocation {
     fun assign(url: String)
+    fun reload()
 }
 
 private external interface JsNavigator {
@@ -626,6 +627,36 @@ internal fun downloadFile(filename: String, mime: String, content: String) {
     doc.body.appendChild(a)
     a.click()
     doc.body.removeChild(a)
+}
+
+/**
+ * The same download, for a file with no modest size to rely on: a whole-database backup carries every
+ * note and every saved file as base64, and a `data:` URI of that length is refused outright by some
+ * browsers ([downloadFile] is fine for the link exports, which are text and small).
+ *
+ * The object URL is released a minute later rather than at once — the click only *starts* the download,
+ * and revoking while it runs cancels it.
+ */
+internal fun downloadLargeFile(filename: String, mime: String, content: String) {
+    val doc = browserWindow().document
+    val url = createObjectUrl(content, mime)
+    val a = doc.createElement("a")
+    a.setAttribute("href", url)
+    a.setAttribute("download", filename)
+    doc.body.appendChild(a)
+    a.click()
+    doc.body.removeChild(a)
+    setTimeout({ revokeObjectUrl(url) }, 60_000)
+}
+
+private val createObjectUrl: (String, String) -> String =
+    js("(function (content, mime) { return URL.createObjectURL(new Blob([content], { type: mime })); })")
+
+private val revokeObjectUrl: (String) -> Unit = js("(function (url) { URL.revokeObjectURL(url); })")
+
+/** Start the page over — what a database repaired underneath the running app needs to be seen. */
+internal fun reloadPage() {
+    browserWindow().location.reload()
 }
 
 /**

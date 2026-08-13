@@ -146,7 +146,14 @@ external interface SettingsModalProps : Props {
     var onExportCsv: () -> Unit
     var onExportBookmarks: () -> Unit
 
-    /** A file the user picked to import, by name and contents. See `importFile`. */
+    /** The whole database in one file — see `Backup.kt`, and [Strings.backupHint] for why it is apart. */
+    var onExportBackup: () -> Unit
+
+    /**
+     * A file the user picked to import, by name and contents. A backup file taken by [onExportBackup]
+     * is recognised as one and restored rather than read for its links; everything else goes through
+     * `importFile`.
+     */
     var onImport: (name: String, text: String) -> Unit
 
     /** What the last import did, in the user's words — null until one has been done. */
@@ -734,6 +741,26 @@ private fun ChildrenBuilder.dataPane(props: SettingsModalProps, s: Strings) {
                 onClick = { props.onExportBookmarks() }
                 icon("upload")
                 +" ${s.exportBookmarks}"
+            }
+        }
+    }
+
+    // ---- The whole database, as opposed to the links in it ----
+    //
+    // The two exports above are for taking your links *somewhere else*, and drop everything that would
+    // not survive the trip — notes, files, groups, order. This one is for getting back to here: it is
+    // the file that answers "my browser lost the database", and the one the import below can restore.
+    div {
+        className = ClassName("settings-section")
+        h4 { +s.backup }
+        p { className = ClassName("settings-hint"); +s.backupHint }
+        div {
+            className = ClassName("settings-actions")
+            button {
+                className = ClassName("btn")
+                onClick = { props.onExportBackup() }
+                icon("upload")
+                +" ${s.exportBackup}"
             }
         }
     }
