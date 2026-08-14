@@ -326,8 +326,11 @@
            under one theme is not a mark that has to be picked again under the other. */
         .col-icon { flex: 0 0 auto; display: inline-flex; font-size: 15px; margin-right: 7px; color: var(--muted); }
         /* The mark in a sidebar row is also the way to change it: a click on it opens the picker. The
-           wrapper is what makes that a target worth aiming at, and what says so on hover. */
-        .col-icon-btn { flex: 0 0 auto; display: inline-flex; align-items: center; cursor: pointer; border-radius: var(--r-pill); }
+           wrapper is what makes that a target worth aiming at, and what says so on hover. The gap to the
+           name is the wrapper's, not the mark's: left on the mark it would sit *inside* the target, and
+           the halo drawn on hover would hang off to one side of the glyph instead of around it. */
+        .col-icon-btn { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border-radius: var(--r-pill); margin-right: 7px; }
+        .col-icon-btn > .col-icon { margin-right: 0; }
         .col-icon-btn:hover { background: var(--panel); box-shadow: 0 0 0 2px var(--panel); }
         .col-icon[data-color="blue"] { color: var(--ci-blue); }
         .col-icon[data-color="purple"] { color: var(--ci-purple); }
