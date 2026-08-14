@@ -22,6 +22,11 @@ Il pannello delle schede elenca ogni scheda di ogni finestra. Trascinane una in 
 salva un'intera finestra in un colpo solo. Una scheda salvata può essere chiusa lì per lì — è proprio
 questo il punto.
 
+Salva una pagina senza aprire stramus.
+Una scorciatoia da tastiera, un clic destro o il pulsante nella barra degli strumenti salvano la pagina
+in cui ti trovi — o qualsiasi link al suo interno — da qualunque scheda. Una notifica dice "salvato" lì
+per lì, e alla prossima apertura di stramus diventa una card.
+
 Organizzale come pensi tu.
 Le sezioni nella barra laterale contengono raccolte; le raccolte contengono schede (card); le card
 possono essere raggruppate sotto titoli scelti da te. Tutto funziona trascinando, e ciò che viene
@@ -46,10 +51,16 @@ Tienine una parte per te.
 Una sezione può essere bloccata con un PIN, così ciò che c'è dietro non compare a schermo quando la
 condividi.
 
+Come piace a te.
+Cinque temi, ognuno con la sua metà chiara e la sua metà scura, un colore d'accento tuo e uno sfondo
+dietro l'app — una sfumatura o una tua immagine. Una raccolta può portare un segno: un simbolo colorato
+o un'emoji. Due densità delle card e tre raggi degli angoli, se la cosa ti interessa.
+
 E il resto.
-Temi chiaro e scuro. Undici lingue dell'interfaccia, dall'inglese al turco. Importazione dai preferiti o
-da un file CSV; esportazione verso entrambi. Ordinamento delle schede. Una cache dei favicon, così i tuoi
-link mantengono le loro icone anche offline.
+Undici lingue dell'interfaccia, dall'inglese al turco. Importazione dai preferiti, da un file CSV, da
+un'esportazione OneTab o da una di Toby; esportazione verso preferiti o CSV, oppure l'intero database in
+un unico file di backup. I fotogrammi dei video salvati, spenti finché non li accendi. Ordinamento delle
+schede. Una cache dei favicon, così i tuoi link mantengono le loro icone anche offline.
 
 Privata per costruzione.
 Nessuna analisi, nessuna telemetria, nessun tracciamento, nessuna pubblicità — con o senza account. Senza
@@ -68,6 +79,14 @@ icone.
 
 Un PIN su una sezione la toglie dallo schermo; non è cifratura, e non la nasconde al server. La
 informativa sulla privacy lo dice chiaramente, e dice anche cos'altro comporta avere un account.
+
+Novità della 1.4.0.
+Salvare una pagina senza aprire stramus — ed è per questo che questa versione chiede tre permessi che
+prima non chiedeva: storage, per trattenere ciò che hai salvato finché stramus non è aperto;
+contextMenus, per le due voci del clic destro; notifications, per il "salvato" che segue. Temi, colori
+d'accento e sfondi. Segni per le raccolte. Fotogrammi dei video salvati, spenti per impostazione
+predefinita. Importazione da OneTab e Toby. Un file di backup con l'intero database, e una via di
+ritorno se un giorno il browser si rifiutasse di aprirlo.
 
 Informativa sulla privacy: https://stramus.space/privacy.html
 Codice sorgente: https://github.com/olluorg/stramus

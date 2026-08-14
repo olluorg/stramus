@@ -23,6 +23,11 @@ Le panneau des onglets liste chaque onglet de chaque fenêtre. Glissez-en un dan
 enregistrez toute une fenêtre d'un coup. Un onglet enregistré peut être fermé sur-le-champ — c'est bien
 le but.
 
+Enregistrez une page sans ouvrir stramus.
+Un raccourci clavier, un clic droit ou le bouton de la barre d'outils enregistre la page où vous êtes —
+ou n'importe quel lien dessus — depuis l'onglet où vous vous trouvez. Une notification dit
+« enregistré » sur-le-champ, et cela devient une carte à la prochaine ouverture de stramus.
+
 Organisez-les à votre façon.
 Les sections dans la barre latérale contiennent des collections, les collections contiennent des cartes,
 et les cartes peuvent être regroupées sous vos propres titres. Tout se fait par glisser-déposer, et tout
@@ -48,10 +53,17 @@ Gardez-en une partie pour vous.
 Une section peut être verrouillée par un code PIN, pour que ce qu'elle contient ne s'affiche pas à
 l'écran quand vous la partagez.
 
+À votre goût.
+Cinq thèmes, chacun avec sa moitié claire et sa moitié sombre, une couleur d'accent à vous, et un fond
+derrière l'application — un dégradé, ou votre propre image. Une collection peut porter une marque : un
+symbole en couleur, ou un émoji. Deux densités de cartes et trois rayons d'angles, si cela compte pour
+vous.
+
 Et le reste.
-Thèmes clair et sombre. Onze langues d'interface, de l'anglais au turc. Import depuis vos favoris ou un
-fichier CSV ; export dans l'un ou l'autre. Tri des onglets. Un cache de favicons, pour que vos liens
-gardent leurs icônes même hors ligne.
+Onze langues d'interface, de l'anglais au turc. Import depuis vos favoris, un fichier CSV, un export
+OneTab ou un export Toby ; export vers les favoris ou le CSV, ou toute la base en un seul fichier de
+sauvegarde. Les images des vidéos enregistrées, désactivées tant que vous ne les activez pas. Tri des
+onglets. Un cache de favicons, pour que vos liens gardent leurs icônes même hors ligne.
 
 Privé par construction.
 Aucune analyse, aucune télémétrie, aucun suivi, aucune publicité — avec ou sans compte. Sans compte,
@@ -70,6 +82,14 @@ plutôt qu'en confiant vos adresses enregistrées, une à une, à un service d'i
 Un code PIN sur une section la retire de l'écran ; ce n'est pas du chiffrement, et cela ne la cache pas
 au serveur. La politique de confidentialité le dit clairement, ainsi que ce qu'implique par ailleurs un
 compte.
+
+Nouveautés de la 1.4.0.
+Enregistrer une page sans ouvrir stramus — d'où les trois autorisations que cette version demande en
+plus : storage, pour garder ce que vous avez enregistré jusqu'à l'ouverture de stramus ; contextMenus,
+pour les deux entrées du clic droit ; notifications, pour le « enregistré » qui suit. Thèmes, couleurs
+d'accent et fonds. Marques pour les collections. Images des vidéos enregistrées, désactivées par défaut.
+Import depuis OneTab et Toby. Un fichier de sauvegarde contenant toute la base, et un chemin de retour
+si le navigateur refuse un jour de l'ouvrir.
 
 Politique de confidentialité : https://stramus.space/privacy.html
 Code source : https://github.com/olluorg/stramus

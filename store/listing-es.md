@@ -21,6 +21,11 @@ Guarda tus pestañas abiertas.
 El panel de pestañas lista todas las pestañas de todas las ventanas. Arrastra una a una colección, o
 guarda toda una ventana de una vez. Una pestaña guardada se puede cerrar en el acto — para eso sirve.
 
+Guarda una página sin abrir stramus.
+Un atajo de teclado, un clic derecho o el botón de la barra de herramientas guarda la página en la que
+estás — o cualquier enlace de ella — desde la pestaña en la que te encuentres. Una notificación dice
+"guardado" al momento, y se convierte en tarjeta la próxima vez que abras stramus.
+
 Organízalas a tu manera.
 Las secciones de la barra lateral contienen colecciones; las colecciones contienen tarjetas; las
 tarjetas se pueden agrupar bajo tus propios encabezados. Todo funciona arrastrando y soltando, y lo que
@@ -44,10 +49,17 @@ Guárdate una parte para ti.
 Una sección se puede bloquear con un PIN, para que lo que hay detrás no aparezca en pantalla cuando la
 compartes.
 
+A tu gusto.
+Cinco temas, cada uno con su mitad clara y su mitad oscura, un color de acento tuyo y un fondo detrás de
+la aplicación — un degradado o una imagen propia. Una colección puede llevar una marca: un símbolo con
+color, o un emoji. Dos densidades de tarjeta y tres radios de esquina, por si eso te importa.
+
 Y el resto.
-Temas claro y oscuro. Once idiomas de interfaz, del inglés al turco. Importar desde tus marcadores o un
-archivo CSV; exportar de vuelta a cualquiera de los dos. Ordenar pestañas. Una caché de favicons, para
-que tus enlaces conserven sus iconos sin conexión.
+Once idiomas de interfaz, del inglés al turco. Importar desde tus marcadores, un archivo CSV, una
+exportación de OneTab o una de Toby; exportar de vuelta a marcadores o CSV, o llevarte toda la base de
+datos en un único archivo de copia de seguridad. Fotogramas de los vídeos guardados, apagados hasta que
+los enciendas. Ordenar pestañas. Una caché de favicons, para que tus enlaces conserven sus iconos sin
+conexión.
 
 Privado por construcción.
 Sin analítica, sin telemetría, sin rastreo, sin publicidad — con o sin cuenta. Sin cuenta, ninguno de tus
@@ -64,6 +76,14 @@ entregar tus direcciones guardadas, una a una, a un servicio público de iconos.
 
 Un PIN en una sección la quita de la pantalla; no es cifrado, y no la oculta del servidor. La política de
 privacidad lo dice con claridad, y también qué más significa tener una cuenta.
+
+Novedades de la 1.4.0.
+Guardar una página sin abrir stramus — por eso esta versión pide tres permisos que antes no pedía:
+storage, para retener lo guardado hasta que stramus esté abierto; contextMenus, para las dos entradas
+del clic derecho; notifications, para el "guardado" posterior. Temas, colores de acento y fondos. Marcas
+para las colecciones. Fotogramas de los vídeos guardados, desactivados por defecto. Importación desde
+OneTab y Toby. Un archivo de copia de seguridad con toda la base de datos, y un camino de vuelta si el
+navegador un día se niega a abrirla.
 
 Política de privacidad: https://stramus.space/privacy.html
 Código fuente: https://github.com/olluorg/stramus

@@ -86,7 +86,7 @@
 <body>
 <main>
     <h1>stramus — Privacy Policy</h1>
-    <p class="updated">Last updated: 14 July 2026</p>
+    <p class="updated">Last updated: 14 August 2026</p>
 
     <p class="lede">
         stramus works without an account, and without one it sends nothing anywhere: your collections,
@@ -97,8 +97,8 @@
 
     <h2>Without an account</h2>
     <p>
-        Everything stramus knows lives in a database inside your browser's own storage (SQLite, on the
-        browser's file system). That is:
+        Everything stramus knows lives in a database inside your browser's own storage (IndexedDB, the
+        store every browser keeps for the pages it runs). That is:
     </p>
     <ul>
         <li>the collections, sections and cards you create — their titles, links, notes and order;</li>
@@ -106,12 +106,18 @@
         <li>icons of the sites you have saved, cached so that a card still shows one when offline;</li>
         <li>how often and how recently you have opened each page <em>from stramus</em>, which is what puts
             the pages you actually use at the top of the search box;</li>
-        <li>your settings: theme, language, sort order, the assistant you chose, and any section PINs.</li>
+        <li>your settings: theme, language, sort order, the assistant you chose, and any section PINs;</li>
+        <li>a picture you chose as the background, if you chose one — kept, downscaled, in the browser's
+            own preference storage rather than in the database, and never sent anywhere. Picking one of the
+            ready-made backgrounds instead keeps no picture at all: those are drawn by your browser.</li>
     </ul>
     <p>
         None of it is uploaded anywhere. There is nowhere for it to go: with no account, stramus talks to
         no server of ours at all. You can take it with you at any time — Settings offers an export to CSV
-        and to a bookmarks file — and removing the extension removes the database with it.
+        and to a bookmarks file, and, under Backup, a copy of the whole database in one file (which is
+        more than the exports: the cached icons, the counters and the PIN of a locked section are in it
+        too, so it is a file to keep as carefully as you would the browser itself) — and removing the
+        extension removes the database with it.
     </p>
 
     <h2>With an account</h2>
@@ -165,7 +171,9 @@
     <h3>How long things are kept</h3>
     <p>
         For as long as the account exists. Deleting something deletes its contents there and then — the
-        title, the address, the text, the file are gone from the server and are not kept back anywhere.
+        title, the address, the text are gone from the server and are not kept back anywhere; the bytes of
+        a file go with the next sweep, which runs daily, since a file may be shared by more than one card
+        and it is the last card that takes it with it.
         What remains is a marker: this row, identified by a random id, was deleted at this time. It holds
         nothing of what the row said, and it is there because it is the only way your other browser can
         be told to stop showing something it already has. Those markers last as long as the account does.
@@ -179,7 +187,10 @@
             about you, in the same form it holds it.</li>
         <li><strong>Deletion.</strong> Deleting the account erases it — the rows, the files, the devices,
             the sessions, the account itself. It is not a flag; nothing is kept back. What is on your
-            machine stays on your machine.</li>
+            machine stays on your machine, unless you tick the box beside that button, which empties this
+            browser's database as well: the collections, the files, the counters, the cached icons. That
+            one is off unless you ask for it, and it cannot be undone from here — take a backup first if
+            you may want any of it back.</li>
         <li><strong>Signing out.</strong> Leaves your data exactly where it was: it was yours before there
             was an account, and it still is.</li>
     </ul>
@@ -203,6 +214,17 @@
             drawing a link to a site you have already visited requires asking nobody at all. For a site you
             have <em>not</em> visited the browser has no icon, and the icon is fetched as described under
             <a href="#icons">Site icons</a> below.</li>
+        <li><strong>storage</strong> — to hold a page you saved without stramus open. The keyboard shortcut,
+            the right-click entries and the toolbar button all work from any tab, and there may be no
+            stramus tab to make a card in at that moment, so the page waits in the browser's own extension
+            storage — its title, its address, the address of its icon, and nothing else — until one is
+            open. It becomes a card then, and the queue is emptied. Nothing about it is sent anywhere.</li>
+        <li><strong>contextMenus</strong> — for the two entries in the right-click menu, &ldquo;Save page to
+            stramus&rdquo; and &ldquo;Save link to stramus&rdquo;. They read the page or the link you
+            clicked, at the moment you click them, and nothing else on the page.</li>
+        <li><strong>notifications</strong> — to say &ldquo;saved&rdquo; after one of those, which is the
+            only way you would know: there may be no stramus tab open to show it on screen. The message is
+            the page's own title, shown by your browser and sent nowhere.</li>
         <li><strong>access to the stramus server</strong> — used only when you have an account, and only to
             sync what this page describes.</li>
     </ul>
@@ -290,7 +312,7 @@
     <hr>
 
     <h1 lang="ru">stramus — политика конфиденциальности</h1>
-    <p class="updated" lang="ru">Последнее обновление: 14 июля 2026</p>
+    <p class="updated" lang="ru">Последнее обновление: 14 августа 2026</p>
 
     <div lang="ru">
         <p class="lede">
@@ -302,8 +324,8 @@
 
         <h2>Без аккаунта</h2>
         <p>
-            Всё, что известно stramus, лежит в базе данных внутри хранилища браузера (SQLite на его
-            собственной файловой системе). А именно:
+            Всё, что известно stramus, лежит в базе данных внутри хранилища браузера (IndexedDB — то
+            хранилище, которое браузер держит для запущенных в нём страниц). А именно:
         </p>
         <ul>
             <li>коллекции, разделы и карточки, которые вы создали, — их названия, ссылки, заметки и порядок;</li>
@@ -311,12 +333,18 @@
             <li>иконки сохранённых сайтов, кэшированные, чтобы карточка не оставалась пустой без сети;</li>
             <li>как часто и как недавно вы открывали каждую страницу <em>из stramus</em> — именно это поднимает
                 нужные вам страницы наверх в строке поиска;</li>
-            <li>настройки: тема, язык, порядок сортировки, выбранный ассистент и PIN-коды разделов.</li>
+            <li>настройки: тема, язык, порядок сортировки, выбранный ассистент и PIN-коды разделов;</li>
+            <li>картинка, выбранная фоном, если вы её выбрали, — она лежит уменьшенной в хранилище настроек
+                браузера, а не в базе, и никуда не отправляется. Готовые фоны из списка не хранят картинку
+                вовсе: их рисует сам браузер.</li>
         </ul>
         <p>
             Ничего из этого никуда не выгружается — и выгружать некуда: без аккаунта stramus вообще не
-            разговаривает с нашим сервером. Забрать свои данные можно в любой момент (в настройках есть
-            экспорт в CSV и в файл закладок), а удаление расширения удаляет базу вместе с ним.
+            разговаривает с нашим сервером. Забрать свои данные можно в любой момент: в настройках есть
+            экспорт в CSV и в файл закладок, а в разделе «Резервная копия» — вся база одним файлом. В нём
+            больше, чем в экспортах: туда попадают и кэш иконок, и счётчики открытий, и PIN запертого
+            раздела, так что хранить этот файл стоит так же бережно, как сам браузер. Удаление расширения
+            удаляет базу вместе с ним.
         </p>
 
         <h2>С аккаунтом</h2>
@@ -370,8 +398,10 @@
 
         <h3>Сколько всё это хранится</h3>
         <p>
-            Пока существует аккаунт. Удаление стирает содержимое сразу — название, ссылка, текст, файл
-            уходят с сервера и нигде не придерживаются. Остаётся только отметка: строка с таким-то
+            Пока существует аккаунт. Удаление стирает содержимое сразу — название, ссылка, текст уходят с
+            сервера и нигде не придерживаются; байты файла уходят со следующей уборкой, а она раз в сутки:
+            один файл может быть нужен нескольким карточкам, и уносит его последняя из них. Остаётся
+            только отметка: строка с таким-то
             случайным идентификатором удалена тогда-то. В ней нет ничего из того, что в строке было, и
             она нужна затем, что иначе второму браузеру нечем сказать: перестань показывать то, что у
             тебя уже есть. Такие отметки живут, пока существует аккаунт. Коды входа живут десять минут;
@@ -383,7 +413,11 @@
             <li><strong>Копия всего.</strong> В окне аккаунта есть экспорт: сервер отдаёт всё, что о вас
                 хранит, в том же виде, в котором хранит.</li>
             <li><strong>Удаление.</strong> Удаление аккаунта стирает его — строки, файлы, устройства, сессии,
-                сам аккаунт. Это не флажок; ничего не остаётся. То, что лежит на вашей машине, остаётся у вас.</li>
+                сам аккаунт. Это не флажок; ничего не остаётся. То, что лежит на вашей машине, остаётся у вас
+                — если только вы не поставите галочку рядом с той же кнопкой: она вдобавок опустошает базу
+                этого браузера, вместе с коллекциями, файлами, счётчиками и кэшем иконок. Галочка снята,
+                пока вы её не поставите, и отменить это отсюда нельзя — сделайте резервную копию, если
+                что-то из этого может ещё понадобиться.</li>
             <li><strong>Выход.</strong> Оставляет ваши данные ровно там, где они были: они были вашими до
                 аккаунта и остаются вашими после.</li>
         </ul>
@@ -406,6 +440,17 @@
                 где вы уже были, иконка берётся оттуда и спрашивать не приходится никого. Для сайта, где вы
                 <em>не</em> были, у браузера иконки нет — как она добывается тогда, описано ниже в разделе
                 <a href="#icons-ru">Иконки сайтов</a>.</li>
+            <li><strong>storage</strong> — придержать страницу, сохранённую без открытого stramus. Горячая
+                клавиша, пункты правого клика и кнопка на панели работают из любой вкладки, а вкладки
+                stramus в этот момент может не быть — и страница ждёт в собственном хранилище расширения:
+                заголовок, адрес, адрес иконки, больше ничего. Как только stramus открыт, она становится
+                карточкой, а очередь очищается. Наружу оттуда не уходит ничего.</li>
+            <li><strong>contextMenus</strong> — два пункта в меню правого клика: «Сохранить страницу в
+                stramus» и «Сохранить ссылку в stramus». Они читают ту страницу или ту ссылку, по которой вы
+                кликнули, в момент клика, и ничего больше на странице.</li>
+            <li><strong>notifications</strong> — сказать «сохранено» после такого сохранения: иначе вы об
+                этом никак не узнаете, ведь открытой вкладки stramus может и не быть. В уведомлении —
+                заголовок самой страницы, показывает его браузер, и никуда оно не отправляется.</li>
             <li><strong>доступ к серверу stramus</strong> — используется только при наличии аккаунта и только
                 для синхронизации того, что описано на этой странице.</li>
         </ul>

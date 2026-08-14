@@ -8,8 +8,14 @@ domain, and browser automation is an extension — so this is a manual pass.
 
 ## Package
 
-Upload `C:\Users\user\Downloads\stramus-extension-1.2.1.zip`
-(also at https://github.com/olluorg/stramus/releases/tag/v1.2.1).
+Upload `stramus-extension-1.4.0.zip`, off the release the `v1.4.0` tag builds
+(https://github.com/olluorg/stramus/releases/tag/v1.4.0).
+
+**This update adds permissions, which is not an ordinary update.** `notifications` carries a warning of
+its own, so Chrome disables the extension for everybody who already has it until they agree to the new
+list — expect that, and do not read the install count stalling as a failed rollout. The three new ones
+are `storage`, `contextMenus` and `notifications`, all in aid of one feature: saving the page you are on
+without switching to a stramus tab first. Their justifications are below, with the rest.
 
 1.2.0 was tagged and released but never uploaded: it declared no output language to Chrome's built-in
 model, which put a console error in the extension's error list on `chrome://extensions` — the first
@@ -77,18 +83,41 @@ pre-filled and greyed out. Do not retype them anywhere.
   > happen only when the user presses "Sign in with Google". An account is optional and the extension is
   > fully usable without one.
 
+- `storage`
+
+  > A page saved by the keyboard shortcut, the right-click menu or the toolbar button waits in
+  > chrome.storage.local until a stramus tab is open to turn it into a card. All three work from any tab,
+  > and there may be no stramus tab at that moment. What is stored is the page's title, its address and
+  > the address of its icon; it is removed as soon as the card exists. Nothing is transmitted.
+
+- `contextMenus`
+
+  > The two right-click entries, "Save page to stramus" and "Save link to stramus". They act on the page
+  > or the link the user clicked, at the moment they click it. There is no content script and nothing is
+  > read from the page besides what the click itself supplies.
+
+- `notifications`
+
+  > To confirm that one of those saves happened. It is the only feedback available: the save works with
+  > no stramus tab open, so there may be no window to show it in. The notification is the saved page's
+  > own title, displayed by the browser and sent nowhere.
+
 - Host permission `https://api.stramus.space/*`
 
-  > Our own server, and the only host the extension contacts. It is asked for two things:
+  > Our own server, and the only host the extension requests permission for. It is asked for two things:
   > synchronisation, which happens only while the user is signed in, and the anonymous favicon lookup
-  > described above, which carries no account. No other host is requested; there is no <all_urls>, no
-  > content script, and no injection into any page the user visits.
+  > described above, which carries no account. No other host permission is requested; there is no
+  > <all_urls>, no content script, and no injection into any page the user visits. (The one other host
+  > the browser may contact is i.ytimg.com, and only if the user switches video previews on — an ordinary
+  > <img> load, which needs no host permission. See the note under "Two things a reviewer may ask
+  > about".)
 
 **Remote code:** No.
 
 > The extension executes no code it did not ship with; everything in the package is compiled from
-> https://github.com/olluorg/stramus. The 'wasm-unsafe-eval' in the CSP is for the SQLite WebAssembly
-> module that ships inside the package, not for anything fetched at runtime.
+> https://github.com/olluorg/stramus. The content security policy is `script-src 'self'; object-src
+> 'self'` — no eval of any kind and no WebAssembly at all: the database is the browser's own IndexedDB,
+> so there is no engine to load.
 
 **Data usage** — tick these four, leave the rest:
 
@@ -115,14 +144,22 @@ not used for creditworthiness or lending. All three hold.
 | Regions | All |
 | Pricing | Free |
 
-## Two things a reviewer may ask about
+## Three things a reviewer may ask about
 
-Both are user-initiated navigations rather than data collection, and both are in the privacy policy:
+None is data collection, and all three are in the privacy policy:
 
 - Choosing ChatGPT, Gemini or Claude as the assistant means a question the user types opens a chat with
   that service in a new tab, with the question in it. The default, where the browser has an on-device
   model, answers locally and sends nothing.
 - A web search from the search box goes to the user's own default search engine.
+- **Video previews** (new in 1.4.0, and the reason `i.ytimg.com` may appear in a network log). Off unless
+  the user switches them on in Settings → Appearance. Switched on, a card standing for a saved YouTube
+  video draws that video's published still frame by pointing an `<img>` at
+  `i.ytimg.com/vi/<id>/mqdefault.jpg` — the address built from the video id in the saved link, the same
+  one any embed of that video loads. It is an ordinary image request made by the user's browser, with
+  `referrerpolicy="no-referrer"`, so Google sees the video id and the IP address and nothing of ours.
+  Nothing is fetched to our server, stored with the card or re-encoded; switch the setting off and the
+  request is not made at all.
 
 ## After submitting
 
