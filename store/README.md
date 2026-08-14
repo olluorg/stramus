@@ -18,7 +18,16 @@ and greyed out for a language that ships in the ZIP.
 
 - [ ] A developer account, with the one-off $5 registration fee paid (`https://chrome.google.com/webstore/devconsole`).
 - [ ] `version` in `extension/src/jsMain/resources/manifest.json` bumped — the store rejects a re-upload
-      of a version it already has.
+      of a version it already has. `APP_VERSION` in `ui-shared/.../About.kt` says the same number, and
+      nothing checks that for you: it is what the About pane shows.
+- [ ] Whether the manifest asks for a permission the published version does not. One that carries a
+      warning (`notifications` did, in 1.4.0) leaves the extension **disabled for every existing user**
+      until they accept the new list — worth knowing before the install count appears to fall over, and
+      worth a line in the listing's "What's new" so it does not read as a fault.
+- [ ] The privacy policy read against what the build actually does — it ships from this repo
+      (`webapp/src/jsMain/resources/privacy.html`) and is the answer to the console's own privacy
+      questions, so a feature that reaches the network and is not in it is a false answer, not an
+      omission.
 - [ ] A tag pushed: `git tag v1.0.0 && git push origin v1.0.0`. The `release` workflow builds the
       extension and attaches `stramus-extension-1.0.0.zip` to a GitHub Release; that ZIP is what gets
       uploaded. (It also refuses to build if the tag and the manifest disagree about the version.)
@@ -69,18 +78,23 @@ against a local server means adding the line back in your own working copy — a
 
 | Asset | Size | Where it comes from |
 | --- | --- | --- |
-| Store icon | 128×128 PNG | [`store-icon-128.png`](store-icon-128.png) ✔ — made from `logo.png`, not the same file as the extension's own `logo-128.png` (see below) |
+| Store icon | 128×128 PNG | [`store-icon-128.png`](store-icon-128.png) ✔ — generated, `cd tools/screenshots && node store-icon.mjs`; not the same file as the extension's own `logo-128.png` (see below) |
 | Screenshots (1–5, at least 1) | 1280×800 PNG | generated — `tools/screenshots`, see below |
 | Small promo tile (optional) | 440×280 PNG | to be made, if the listing is to be eligible for featuring |
 | Marquee (optional) | 1400×560 PNG | only needed for the store's front page |
 
 The store icon is its own file rather than the extension's `logo-128.png`, which is drawn to fill its
-canvas: its star sits 2px from the left edge and 18px from the right. That is right for a toolbar, where
-padding only makes an icon smaller, and wrong for the store, which asks for the graphic to sit inside
-roughly 96×96 with room around it and draws the result on a card next to other people's icons.
-`store-icon-128.png` is the 600px `logo.png` scaled into that 96×96 and positioned so its alpha-weighted
-centre lands in the middle of the canvas — centring the glow by its bounding box leaves it visibly
-lopsided, because the glow is not symmetrical.
+canvas. That is right for a toolbar, where padding only makes an icon smaller, and wrong for the store,
+which asks for the graphic to sit inside roughly 96×96 with room around it and draws the result on a
+card next to other people's icons. `store-icon.mjs` renders exactly that: the mark from `logo.svg`, at
+96px, centred in a transparent 128×128.
+
+It goes through a browser — Playwright's Chromium, already there for the screenshots — rather than an
+image library, and that is the point of it. The mark is not a picture but a mask over a gradient whose
+ends are `oklch(from var(--accent) …)`; only a browser resolves those, so this is the one way to get the
+store icon and the app's own header drawing the same blue. **Regenerate it whenever the mark changes.**
+It did change in 1.4.0, and the listing kept the old star for a while — a store card showing a logo the
+extension no longer has is the kind of thing nobody notices until a user does.
 
 [`screenshots.md`](screenshots.md) is the procedure — `tools/screenshots` drives the built extension
 with Playwright in a throwaway profile and produces exactly 1280×800 PNGs with no browser chrome in
@@ -132,19 +146,36 @@ with your tabs and your browsing history — from the same keystroke.
   and nothing more), and `chrome.identity.launchWebAuthFlow` is the fallback where that is unavailable.
   Both happen only when the user presses "Sign in with Google"; an account is optional and the extension
   is fully usable without one.
+- **storage** — where a page saved without stramus open waits until it can become a card. The keyboard
+  shortcut, the right-click entries and the toolbar button all work from any tab, and there may be no
+  stramus tab to write into at that moment; `background.js` stages the page's title, address and icon
+  address into `chrome.storage.local`, and `App.kt`'s `reconcilePendingCaptures` turns the queue into
+  cards and empties it the moment one is open. Nothing about it is transmitted.
+- **contextMenus** — the two right-click entries, "Save page to stramus" and "Save link to stramus".
+  They act on the page or the link that was clicked, at the moment it is clicked; there is no content
+  script and nothing else on the page is read.
+- **notifications** — the "saved" that follows one of those. It is the only feedback there can be: the
+  save works with no stramus tab open, so there may be no window of ours to show it in. The message is
+  the saved page's own title.
+
+These last three arrived together in 1.4.0 and are one feature between them. Worth knowing before the
+submission: `notifications` carries an install-time warning, so Chrome disables the extension for
+existing users until they accept the new list.
 
 **Host permissions:** `https://api.stramus.space/*` — our own server, and the only host the extension
-talks to. It is asked for two things. Synchronisation, which happens only while the user is signed in:
+asks permission for. It is asked for two things. Synchronisation, which happens only while the user is signed in:
 an extension with no account never syncs anything. And `GET /v1/favicon?host=…`, the icon proxy
 described under **favicon** above, which is anonymous, carries no account and is asked only for a host
 the browser's own favicon store has nothing for — so a signed-out extension does reach this host, and
 what it says when it does is the name of a site, with nothing attached to identify whose it is.
-Nothing else is requested: there is no `<all_urls>`, no content script and no injection into any page
-the user visits.
+No other host permission is requested: there is no `<all_urls>`, no content script and no injection into
+any page the user visits. One host is reached without a host permission, because an `<img>` needs none —
+`i.ytimg.com`, and only where the user has switched video previews on; see the bullet below.
 
 **Remote code:** No. The extension executes no code it did not ship with; everything in the ZIP is
-compiled from this repository. The `wasm-unsafe-eval` in the CSP is for the SQLite WebAssembly module
-that ships *inside* the extension, not for anything fetched at runtime.
+compiled from this repository. The CSP is `script-src 'self'; object-src 'self'` — no eval of any kind
+and no WebAssembly anywhere: the database is the browser's own IndexedDB (kidx over it — see
+`core/build.gradle.kts`), so there is no engine to fetch or to instantiate.
 
 **Data usage.** An account is optional, and without one nothing about the user is collected: the only
 thing that leaves the machine is the icon proxy's anonymous question about a host, which is attached to
@@ -178,8 +209,10 @@ rather than data collection, and both of which are described in the privacy poli
 - A web search from the search box goes to the user's own default search engine.
 - **Video previews** are off unless the user turns them on (Settings → Appearance → "Video previews").
   Turned on, a card standing for a YouTube video draws the still frame YouTube publishes for it, by
-  pointing an `<img>` at `i.ytimg.com` — the address YouTube's own public oEmbed endpoint hands out for
-  that video, and the one every embed of it on the web loads. That request is the user's browser asking
+  pointing an `<img>` at `i.ytimg.com/vi/<id>/mqdefault.jpg` — the fixed address YouTube publishes every
+  video's frame at, and the one every embed of it on the web loads. The address is built from the video
+  id read out of the saved link (`youtubeVideoId` in `core`); nothing is fetched to work it out, and no
+  API of YouTube's is called. That request is the user's browser asking
   Google for a picture, so Google sees the video id and the user's IP address, and the setting says so
   in as many words before it is switched on. Nothing is collected by us and nothing is stored: the
   frame is not kept with the card, not re-encoded and not carried to our server — only displayed, at

@@ -21,6 +21,11 @@ Speichere deine offenen Tabs.
 Die Tab-Leiste zeigt jeden Tab in jedem Fenster. Ziehe einen in eine Sammlung, oder speichere gleich ein
 ganzes Fenster. Ein gespeicherter Tab kann sofort geschlossen werden — genau darum geht es.
 
+Speichere eine Seite, ohne stramus zu öffnen.
+Ein Tastenkürzel, ein Rechtsklick oder die Schaltfläche in der Symbolleiste speichert die Seite, auf der
+du gerade bist — oder jeden Link darauf —, aus welchem Tab auch immer. Eine Benachrichtigung sagt sofort
+"gespeichert", und beim nächsten Öffnen von stramus wird daraus eine Karte.
+
 Ordne sie, wie du denkst.
 Bereiche in der Seitenleiste enthalten Sammlungen, Sammlungen enthalten Karten, und Karten lassen sich
 unter eigenen Überschriften gruppieren. Alles per Drag-and-drop, und alles, was aus Versehen passiert,
@@ -45,10 +50,17 @@ Behalte einen Teil für dich.
 Ein Bereich lässt sich mit einer PIN sperren, sodass das, was dahinter liegt, nicht auf dem Bildschirm
 erscheint, wenn du ihn teilst.
 
+Mach es zu deinem.
+Fünf Designs, jedes mit einer hellen und einer dunklen Hälfte, eine Akzentfarbe deiner Wahl und ein
+Hintergrund hinter der App — ein Verlauf oder ein eigenes Bild. Eine Sammlung lässt sich mit einem
+farbigen Zeichen oder einem Emoji markieren. Zwei Kartendichten und drei Eckenradien, falls dir so etwas
+wichtig ist.
+
 Und der Rest.
-Helles und dunkles Design. Elf Sprachen für die Oberfläche, von Englisch bis Türkisch. Import aus deinen
-Lesezeichen oder einer CSV-Datei; Export in beide zurück. Tabs sortieren. Ein Favicon-Cache, damit deine
-Links ihre Symbole auch offline behalten.
+Elf Sprachen für die Oberfläche, von Englisch bis Türkisch. Import aus deinen Lesezeichen, einer
+CSV-Datei, einem OneTab- oder einem Toby-Export; Export zurück in Lesezeichen oder CSV, oder die ganze
+Datenbank als eine einzige Sicherungsdatei. Standbilder für gespeicherte Videos, aus, bis du sie
+einschaltest. Tabs sortieren. Ein Favicon-Cache, damit deine Links ihre Symbole auch offline behalten.
 
 Privat, von Grund auf.
 Keine Analyse, keine Telemetrie, kein Tracking, keine Werbung — mit oder ohne Konto. Ohne Konto verlässt
@@ -66,6 +78,14 @@ Icon-Dienst einzeln mitzuteilen.
 Eine PIN auf einem Bereich hält ihn vom Bildschirm fern; sie ist keine Verschlüsselung und verbirgt den
 Bereich nicht vor dem Server. Das steht so klar in der Datenschutzerklärung, ebenso wie das, was ein
 Konto sonst noch bedeutet.
+
+Neu in 1.4.0.
+Eine Seite speichern, ohne stramus zu öffnen — deshalb fragt diese Version nach drei Berechtigungen, die
+sie vorher nicht brauchte: storage, um das Gespeicherte zu halten, bis stramus offen ist; contextMenus
+für die beiden Einträge im Rechtsklickmenü; notifications für das "gespeichert" danach. Designs,
+Akzentfarben und Hintergründe. Markierungen für Sammlungen. Standbilder für gespeicherte Videos,
+standardmäßig aus. Import aus OneTab und Toby. Eine Sicherungsdatei mit der ganzen Datenbank — und ein
+Weg zurück, falls der Browser sie eines Tages nicht mehr öffnen will.
 
 Datenschutzerklärung: https://stramus.space/privacy.html
 Quellcode: https://github.com/olluorg/stramus

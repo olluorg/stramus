@@ -253,6 +253,15 @@ class Accounts(
             RefreshTokens.deleteWhere { where { RefreshTokens.userId eq userId } }
             Devices.deleteWhere { where { Devices.userId eq userId } }
             Identities.deleteWhere { where { Identities.userId eq userId } }
+            // The cloud triage's own two, which are exactly the case the paragraph above warns about:
+            // added later, and easy to miss here. [AiCache] is the one that matters — a cached answer
+            // holds this account's collection and section names, in the model's own words — but the
+            // month's tally goes too, there being nothing to keep it for. Named even though the feature
+            // ships switched off (see the client's `CLOUD_TRIAGE_ENABLED`): a server that ran with a key
+            // at any point has rows here, and a list only corrected once the feature is on is a list
+            // corrected too late.
+            AiCache.deleteWhere { where { AiCache.userId eq userId } }
+            AiUsage.deleteWhere { where { AiUsage.userId eq userId } }
 
             val user = Users.findOne { where { Users.id eq userId } }
             if (user != null) {

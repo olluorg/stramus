@@ -21,6 +21,11 @@ Save your open tabs.
 The tab pane lists every tab in every window. Drag one into a collection, or save a whole window at
 once. A tab that is saved can be closed on the spot — that is the point.
 
+Save a page without opening stramus.
+A keyboard shortcut, a right-click, or the toolbar button saves the page you are on — or any link on it
+— from whatever tab you are in. It says "saved" there and then, and becomes a card the next time you
+open stramus.
+
 Organise them the way you think.
 Sections in the sidebar hold collections; collections hold cards; cards can be grouped under headings
 of your own. Everything is drag-and-drop, and anything undone by accident can be undone.
@@ -42,10 +47,16 @@ the settings, and your question opens in a chat with them instead.
 Keep some of it to yourself.
 A section can be locked with a PIN, so that what is behind it is not on screen when you share it.
 
+Make it yours.
+Five themes, each with a light and a dark half, an accent colour of your own, and a background behind
+the app — a gradient, or a picture you pick. Mark a collection with a glyph in a colour, or an emoji.
+Two card densities and three corner radii, if you care about that sort of thing.
+
 And the rest of it.
-Light and dark themes. Eleven interface languages, from English to Turkish. Import from your bookmarks
-or a CSV file; export back to either. Tab sorting. A favicon cache, so your links keep their icons
-offline.
+Eleven interface languages, from English to Turkish. Import from your bookmarks, a CSV file, a OneTab
+export or a Toby one; export back to bookmarks or CSV, or take the whole database as a single backup
+file. Still frames for saved videos, off until you switch them on. Tab sorting. A favicon cache, so your
+links keep their icons offline.
 
 Private by construction.
 No analytics, no telemetry, no tracking, no advertising — with or without an account. Without one, none
@@ -62,6 +73,13 @@ service one request at a time.
 
 A PIN on a section keeps it off your screen; it is not encryption, and it does not hide the section
 from the server. The privacy policy says so plainly, and says what else an account means.
+
+New in 1.4.0.
+Saving a page without opening stramus — which is why this version asks for three permissions it did not
+before: storage, to hold what you saved until stramus is open; contextMenus, for the two right-click
+entries; notifications, for the "saved" that follows. Themes, accent colours and backgrounds. Marks for
+collections. Still frames for saved videos, off by default. Import from OneTab and Toby. A backup file
+holding the whole database, and a way back in if the browser ever refuses to open it.
 
 Privacy policy: https://stramus.space/privacy.html
 Source code: https://github.com/olluorg/stramus

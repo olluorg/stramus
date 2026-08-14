@@ -21,6 +21,11 @@ Açık sekmelerinizi kaydedin.
 Sekme paneli, her penceredeki her sekmeyi listeler. Birini bir koleksiyona sürükleyin, ya da tüm bir
 pencereyi tek seferde kaydedin. Kaydedilen bir sekme hemen kapatılabilir — amaç zaten budur.
 
+stramus'u açmadan bir sayfayı kaydedin.
+Bir klavye kısayolu, bir sağ tık ya da araç çubuğundaki düğme, hangi sekmede olursanız olun bulunduğunuz
+sayfayı — ya da üzerindeki herhangi bir bağlantıyı — kaydeder. Bir bildirim hemen "kaydedildi" der;
+stramus'u bir sonraki açışınızda ise bu bir karta dönüşür.
+
 Kendi düşündüğünüz gibi düzenleyin.
 Kenar çubuğundaki bölümler koleksiyonları, koleksiyonlar kartları barındırır; kartlar da kendi
 belirlediğiniz başlıklar altında gruplanabilir. Her şey sürükle-bırak ile yapılır, ve yanlışlıkla geri
@@ -44,10 +49,16 @@ seçin; sorunuz bunun yerine onlarla bir sohbette açılsın.
 Bir kısmını kendinize saklayın.
 Bir bölüm PIN ile kilitlenebilir, böylece onu paylaştığınızda arkasındaki içerik ekranda görünmez.
 
+Kendinize göre.
+Beş tema, her birinin açık ve koyu bir yarısı, kendi seçtiğiniz bir vurgu rengi ve uygulamanın arkasında
+bir arka plan — bir geçiş ya da kendi resminiz. Bir koleksiyona renkli bir simge veya bir emoji ile
+işaret koyabilirsiniz. İki kart yoğunluğu ve üç köşe yuvarlaklığı, bunlar sizin için önemliyse.
+
 Ve gerisi.
-Açık ve koyu temalar. İngilizceden Türkçeye kadar on bir arayüz dili. Yer imlerinizden veya bir CSV
-dosyasından içe aktarma; ikisine de dışa aktarma. Sekme sıralama. Bağlantılarınızın simgelerini çevrimdışı
-da korumasını sağlayan bir favicon önbelleği.
+İngilizceden Türkçeye kadar on bir arayüz dili. Yer imlerinizden, bir CSV dosyasından, bir OneTab veya
+bir Toby dışa aktarımından içe aktarma; yer imlerine ve CSV'ye geri dışa aktarma ya da tüm veritabanını
+tek bir yedek dosyası olarak alma. Kaydedilen videoların donuk kareleri — siz açana kadar kapalı. Sekme
+sıralama. Bağlantılarınızın simgelerini çevrimdışı da korumasını sağlayan bir favicon önbelleği.
 
 Yapısı gereği gizli.
 Hesap olsun ya da olmasın; analiz yok, telemetri yok, izleme yok, reklam yok. Hesap yokken hiçbir
@@ -64,6 +75,14 @@ olarak, hiçbir hesapla ilişkilendirilmeden ve hiçbir şey kaydedilmeden.
 
 Bir bölümdeki PIN, onu ekrandan kaldırır; bu bir şifreleme değildir ve bölümü sunucudan gizlemez. Gizlilik
 politikası bunu açıkça belirtir, ve bir hesabın başka ne anlama geldiğini de anlatır.
+
+1.4.0'daki yenilikler.
+stramus'u açmadan sayfa kaydetme — bu sürümün daha önce istemediği üç izni istemesinin sebebi budur:
+storage, kaydettiğinizi stramus açılana kadar tutmak için; contextMenus, sağ tık menüsündeki iki girdi
+için; notifications, ardından gelen "kaydedildi" için. Temalar, vurgu renkleri ve arka planlar.
+Koleksiyon işaretleri. Kaydedilen videoların donuk kareleri, varsayılan olarak kapalı. OneTab ve Toby'den
+içe aktarma. Tüm veritabanını içeren bir yedek dosyası ve tarayıcı bir gün onu açmayı reddederse geri
+dönüş yolu.
 
 Gizlilik politikası: https://stramus.space/privacy.html
 Kaynak kodu: https://github.com/olluorg/stramus

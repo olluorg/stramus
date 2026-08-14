@@ -55,7 +55,10 @@ jobs:
         run: |
           npx playwright install --with-deps chromium
           sudo apt-get update
-          sudo apt-get install -y xvfb
+          # fonts-noto-cjk is not decoration: the settings shot lists all eleven interface languages as
+          # buttons, and on a runner without CJK coverage 日本語 and 한국어 render as empty boxes — a
+          # listing screenshot that says the Japanese and Korean support is broken when it is not.
+          sudo apt-get install -y xvfb fonts-noto-cjk
 
       - name: Capture screenshots
         working-directory: tools/screenshots

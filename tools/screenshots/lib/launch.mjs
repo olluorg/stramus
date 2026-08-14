@@ -47,6 +47,11 @@ export async function launchExtension({ headless = false, video = false, videoDi
 
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless,
+    // `headless: true` alone runs Playwright's headless *shell*, a build with no extension support at
+    // all: the extension silently never loads and the first thing that notices is the ID lookup below
+    // failing. Naming the channel picks the full Chromium instead, in its own headless mode, which
+    // does load one. Only for headless — a headed run is already the full browser.
+    ...(headless ? { channel: 'chromium' } : {}),
     viewport: VIEWPORT,
     deviceScaleFactor: 1,
     colorScheme: 'light',
@@ -68,12 +73,21 @@ export async function launchExtension({ headless = false, video = false, videoDi
   };
 }
 
-// The manifest declares no background service worker (chrome_url_overrides.newtab is a plain
-// page, not a script Chrome needs to run in the background) — there is never a 'serviceworker'
-// event to wait for. `chrome://newtab/` is Chrome's own redirect to the overriding extension's
-// page, so navigating there and reading back the resolved URL is what recovers the (per-launch
-// random) extension ID without needing one.
+// The ID is random per launch, so it has to be read back from the running browser rather than known.
+// Two ways, and the first one only became available in 1.4.0: the extension now has a background
+// service worker (background.js, for the captures that work with no stramus tab open), and its URL
+// carries the ID. Playwright hands it over directly, with no page to navigate and no chrome:// URL
+// involved — which is what makes `--headless` work at all, headless Chromium refusing to navigate to
+// chrome://newtab/ with ERR_INVALID_URL.
+//
+// The old way is kept behind it: `chrome://newtab/` redirects to whichever extension overrides the
+// page, so the resolved URL names the extension. It is the fallback for a build whose worker has not
+// woken yet, and it is why headed runs went on working before there was a worker at all.
 async function resolveExtensionId(context) {
+  const worker = context.serviceWorkers()[0]
+    ?? (await context.waitForEvent('serviceworker', { timeout: 10_000 }).catch(() => null));
+  if (worker) return new URL(worker.url()).host;
+
   const page = context.pages()[0] ?? (await context.newPage());
   await page.goto('chrome://newtab/');
   const { host } = new URL(page.url());

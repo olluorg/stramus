@@ -7,8 +7,9 @@ The extension is in the Chrome Web Store:
 <https://chromewebstore.google.com/detail/accjfifjflckbinniekamhehcjdampjh>. The web version is at
 <https://stramus.space>, with nothing to install and no account to make.
 
-Written in Kotlin/JS (React via kotlin-wrappers). Data lives in SQLite running in the browser on top
-of IndexedDB, through [Kormium](https://github.com/olluorg/korm) and its `kormium-sqlite-js` engine.
+Written in Kotlin/JS (React via kotlin-wrappers). Data lives in the browser's own IndexedDB, through
+[Kormium](https://github.com/olluorg/korm)'s `kidx` — no SQLite and no WebAssembly on the client side;
+the server is the only place a real SQLite file exists.
 Everything is stored locally in the browser: the server and an account are an optional add-on that
 gives you the same collections on a second device, and nothing more.
 
@@ -310,10 +311,11 @@ Lucide's own and exist in English only.
 ./gradlew :webapp:jsBrowserDistribution :extension:jsBrowserDistribution
 ```
 
-Tests run on the JVM: `core` builds for both `js` (the app) and `jvm` (tests only) — so card
-ordering, local database migration, and merge rules are checked against real SQLite instead of by eye
-in a browser. The most important one is `EndToEndSyncTest`: two client stores and a real server over
-HTTP.
+Tests run on the JVM: `core` builds for both `js` (the app) and `jvm` (tests only) — so card ordering,
+the triage's prompt and plan logic, and the merge rules are checked there rather than by eye in a
+browser, against the server's real SQLite. What only exists in the browser — the store itself and its
+migrations — is `:core:jsNodeTest`, under `fake-indexeddb`. The most important one is
+`EndToEndSyncTest`: two client stores and a real server over HTTP.
 
 ## Kormium from a sibling checkout
 

@@ -9,6 +9,16 @@ export class SkipShot extends Error {}
 
 export async function openApp(page, newTabUrl) {
   await page.goto(newTabUrl);
+  // A first-ever open shows the onboarding modal (1.3.4 and up), and its backdrop swallows every
+  // click a scenario tries to make — which is exactly how every shot failed the first time this was
+  // run against a build newer than the shots. Mark it seen and load again: it is the same preference
+  // the modal writes when a person dismisses it, and a listing screenshot is meant to show the app
+  // as somebody who already uses it sees it, not the door they came through once.
+  //
+  // Set after the first load rather than through an init script, so it lands on the extension's own
+  // origin and nowhere else: scenarios open real sites too, and none of them wants our key.
+  await page.evaluate(() => localStorage.setItem('onboardingSeen', '1'));
+  await page.reload();
   await page.locator('main.content').waitFor({ state: 'visible' });
 }
 

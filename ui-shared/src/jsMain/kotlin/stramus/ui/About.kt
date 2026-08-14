@@ -9,7 +9,7 @@ import web.cssom.ClassName
 
 /** Kept in step with `version` in extension/src/jsMain/resources/manifest.json by hand — there is no
  *  build step that reads one into the other. */
-const val APP_VERSION = "1.3.4"
+const val APP_VERSION = "1.4.0"
 
 private fun currentYear(): Int = js("new Date().getFullYear()") as Int
 
@@ -33,12 +33,28 @@ internal fun ChildrenBuilder.aboutPane(s: Strings) {
                 rel = "noopener"
                 +s.aboutHomepage
             }
-            // The two libraries the collection-icon picker ships, named because their licences ask to
-            // be: Lucide is ISC, Twemoji's graphics are CC-BY 4.0. Not translated — these are names and
-            // licence tags, and they read the same in every language the app speaks.
+            // What the collection-icon picker is made of, named because the licences ask to be. Not
+            // translated — these are names and licence tags, and they read the same in every language
+            // the app speaks.
+            //
+            // CC-BY asks for three things and not one: the author, the licence *as a link*, and a word
+            // on whether the material was changed. It was — `tools/icon-data/generate.py` keeps each
+            // drawing exactly as Twemoji drew it and throws away the `<svg>` around it, `Icon.kt`
+            // supplying one of its own — so the note says so rather than leaving a reader to assume
+            // these are the files as published. The keywords the picker searches by are a third party
+            // again, and their own licence (Unicode's) asks for a notice too.
             span {
                 className = ClassName("about-credits")
-                +"Icons: Lucide (ISC) · Emoji: Twemoji (CC-BY 4.0)"
+                +"Icons: Lucide (ISC), © Lucide Contributors. Emoji: Twemoji, © Twitter and "
+                +"contributors, graphics licensed "
+                a {
+                    href = "https://creativecommons.org/licenses/by/4.0/"
+                    asDynamic().target = "_blank"
+                    rel = "noopener"
+                    +"CC-BY 4.0"
+                }
+                +" — each drawing as published, rewrapped in this app's own SVG. Emoji keywords: "
+                +"Unicode CLDR, by way of emojibase."
             }
         }
     }

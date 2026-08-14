@@ -21,6 +21,11 @@ Salve suas abas abertas.
 O painel de abas lista cada aba em cada janela. Arraste uma para uma coleção, ou salve a janela inteira
 de uma vez. Uma aba salva pode ser fechada na hora — é exatamente para isso que serve.
 
+Salve uma página sem abrir o stramus.
+Um atalho de teclado, um clique com o botão direito ou o botão da barra de ferramentas salva a página em
+que você está — ou qualquer link nela — a partir de qualquer aba. Uma notificação diz "salvo" na hora, e
+isso vira um cartão na próxima vez que você abrir o stramus.
+
 Organize do seu jeito.
 As seções na barra lateral guardam coleções; as coleções guardam cartões; os cartões podem ser agrupados
 sob títulos criados por você. Tudo é arrastar e soltar, e o que for desfeito por acidente pode ser
@@ -44,10 +49,16 @@ Guarde uma parte só para você.
 Uma seção pode ser bloqueada com um PIN, para que o que está atrás dela não apareça na tela quando você
 a compartilha.
 
+Do seu jeito, também na aparência.
+Cinco temas, cada um com uma metade clara e uma escura, uma cor de destaque sua e um fundo atrás do
+aplicativo — um gradiente ou uma imagem sua. Uma coleção pode receber uma marca: um símbolo colorido ou
+um emoji. Duas densidades de cartão e três raios de canto, se isso importa para você.
+
 E o resto.
-Temas claro e escuro. Onze idiomas de interface, do inglês ao turco. Importação dos favoritos ou de um
-arquivo CSV; exportação de volta para os dois. Ordenação de abas. Um cache de favicons, para que seus
-links mantenham os ícones mesmo offline.
+Onze idiomas de interface, do inglês ao turco. Importação dos favoritos, de um arquivo CSV, de uma
+exportação do OneTab ou de uma do Toby; exportação de volta para favoritos ou CSV, ou o banco inteiro em
+um único arquivo de backup. Quadros dos vídeos salvos, desligados até você ligá-los. Ordenação de abas.
+Um cache de favicons, para que seus links mantenham os ícones mesmo offline.
 
 Privado por construção.
 Sem análise, sem telemetria, sem rastreamento, sem publicidade — com ou sem conta. Sem conta, nenhum dos
@@ -64,6 +75,14 @@ seus endereços salvos, um a um, a um serviço público de ícones.
 
 Um PIN numa seção a tira da tela; não é criptografia, e não a esconde do servidor. A política de
 privacidade diz isso claramente, e diz também o que mais uma conta significa.
+
+Novidades da 1.4.0.
+Salvar uma página sem abrir o stramus — é por isso que esta versão pede três permissões que antes não
+pedia: storage, para segurar o que foi salvo até o stramus estar aberto; contextMenus, para as duas
+entradas do clique direito; notifications, para o "salvo" que vem depois. Temas, cores de destaque e
+fundos. Marcas para coleções. Quadros dos vídeos salvos, desligados por padrão. Importação do OneTab e
+do Toby. Um arquivo de backup com o banco inteiro, e um caminho de volta se o navegador um dia se
+recusar a abri-lo.
 
 Política de privacidade: https://stramus.space/privacy.html
 Código-fonte: https://github.com/olluorg/stramus

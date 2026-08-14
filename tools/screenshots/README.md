@@ -56,6 +56,19 @@ cp output/0{1,2,3,4,5}-*.png ../../store/screenshots/
 Surfaces mapped but not yet scripted (rename/lock flow variants, the account/sign-in dialog, tab
 triage, the file viewer, per-language listing shots): same pattern, just not written yet.
 
+## The store icon
+
+[`store-icon.mjs`](store-icon.mjs) renders `store/store-icon-128.png` — the 128×128 the Web Store asks
+for separately from the package. It is here rather than in `tools/icon-data` because it needs the same
+Chromium: the mark is a mask over an `oklch(from …)` gradient, and only a browser resolves those, which
+is what keeps the store icon the same blue as the app's own header.
+
+```sh
+node store-icon.mjs
+```
+
+Run it whenever `logo.svg` changes.
+
 ## The promo video's clips
 
 [`capture-promo-clips.mjs`](capture-promo-clips.mjs) is a separate one-off script (not in
@@ -80,17 +93,41 @@ representative frame. See `../promo-video/README.md` for what happens to the out
   `dragstart`/`dragover`/`drop`), not pointer events — Playwright's built-in `locator.dragTo()`
   synthesizes mouse movement, which these handlers don't listen for. `lib/dom.mjs`'s `dragHold`/
   `dragDrop` dispatch real `DragEvent`/`DataTransfer` objects from inside the page instead.
-- **Resolving the extension's ID**: the manifest has no `background.service_worker` — the new-tab
-  override is a plain page, not a script Chrome runs in the background — so there is no
-  `serviceworker` context event to wait for (waiting for one, as an earlier version of
-  `lib/launch.mjs` did, just times out). `resolveExtensionId` instead navigates to
-  `chrome://newtab/`, which Chrome itself redirects to the overriding extension's page, and reads
-  the (per-launch random) ID back off the resolved URL.
-- **Headless / CI**: Chromium's headless mode has historically been unreliable with loaded
-  extensions depending on version; the CI workflow runs headed under `xvfb` instead, which is the
-  well-trodden path. `--headless` here is for local convenience only — try it, and fall back to
-  dropping `--headless` (or wrapping the command in `xvfb-run` yourself) if a shot silently comes back
-  blank.
+- **Resolving the extension's ID**: since 1.4.0 the manifest *does* declare a
+  `background.service_worker` (background.js, for saving a page with no stramus tab open), and its URL
+  carries the per-launch random ID — so `resolveExtensionId` asks Playwright for the worker and reads
+  the ID off that. The old route is kept behind it: `chrome://newtab/` redirects to whichever extension
+  overrides the page. It is the fallback for a worker that has not woken yet, and it is what the tool
+  used before there was a worker at all — but it cannot be the first choice any more, headless Chromium
+  refusing `chrome://newtab/` outright with `ERR_INVALID_URL`.
+- **Headless / CI**: `--headless` works, with one catch that costs an afternoon if you meet it blind.
+  Playwright's `headless: true` runs the *headless shell*, a build with no extension support at all:
+  the extension never loads, nothing says so, and the first symptom is the ID lookup failing.
+  `lib/launch.mjs` passes `channel: 'chromium'` alongside `headless` for exactly this — that picks the
+  full browser in its own headless mode, which does load extensions. The CI workflow still runs headed
+  under `xvfb`; both work.
+- **Fonts**: the settings shot lists all eleven interface languages, so a machine without CJK coverage
+  renders 日本語 and 한국어 as empty boxes and quietly produces a screenshot that libels the product.
+  `sudo apt-get install fonts-noto-cjk` (the CI workflow does this). On WSL, where Windows already has
+  the fonts and `sudo` may not be wanted, point fontconfig at them for the one run instead — no system
+  or home config touched:
+
+  ```sh
+  cat > /tmp/fonts.conf <<'EOF'
+  <?xml version="1.0"?>
+  <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+  <fontconfig>
+    <include ignore_missing="yes">/etc/fonts/fonts.conf</include>
+    <dir>/mnt/c/Windows/Fonts</dir>
+    <cachedir>/tmp/fontcache</cachedir>
+  </fontconfig>
+  EOF
+  FONTCONFIG_FILE=/tmp/fonts.conf node capture.mjs --shot 05-settings --headless
+  ```
+- **The onboarding modal**: a first-ever open shows it, and its backdrop eats every click a scenario
+  makes — which is how all five shots failed the first time this ran against a build newer than the
+  shots themselves. `openApp` now sets `onboardingSeen` and reloads, so scenarios see the app as
+  somebody who already uses it does.
 - **The AI assistant shot** requires Chrome 138+ with the on-device model already downloaded (not
   just downloadable — see `checkLocalAiAvailable` in `lib/dom.mjs`), same requirement
   `screenshots.md` documents for the manual procedure. It's the one shot most likely to skip in a
