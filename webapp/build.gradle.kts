@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpack
+
 plugins {
     kotlin("multiplatform")
 }
@@ -29,4 +31,14 @@ kotlin {
             }
         }
     }
+}
+
+/*
+ * No source map in the production bundle — see the extension's build for the reasoning, which applies
+ * here with one addition: `pages.yml` publishes this whole directory, so unlike the extension's (which
+ * `release.yml` at least strips from the ZIP) this map was actually being served, five megabytes of it,
+ * to anyone who opened the site. The development build keeps its map.
+ */
+tasks.named<KotlinWebpack>("jsBrowserProductionWebpack") {
+    sourceMaps = false
 }

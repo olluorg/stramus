@@ -1,5 +1,6 @@
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
+import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpack
 
 plugins {
     kotlin("multiplatform")
@@ -88,4 +89,22 @@ kotlin {
             }
         }
     }
+}
+
+/*
+ * Only the *development* build wants a source map. `commonWebpackConfig` above is common to both, so
+ * without this the production build spent every assembly writing a 5.2 MB `stramus.js.map` next to a
+ * 2.7 MB bundle — two thirds of everything in `build/dist`, for a file nobody reads. `release.yml`
+ * already excludes `*.map` from the ZIP that goes to the Web Store, and a stack trace off a minified
+ * bundle is not how this gets debugged anyway: that is what the development build, which keeps its
+ * map, is for.
+ *
+ * `sourceMaps` is the whole switch, and `devtool` above is not the other half of it: the generated
+ * webpack config writes the `source-map-loader` rule and the `config.devtool` line together, in one
+ * block that `sourceMaps = false` drops entirely. What is left is webpack's own default for
+ * `mode: production` — no map — and no loader reading the per-module .map files the Kotlin compiler
+ * wrote only to throw the result away.
+ */
+tasks.named<KotlinWebpack>("jsBrowserProductionWebpack") {
+    sourceMaps = false
 }
