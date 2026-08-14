@@ -48,7 +48,11 @@ jobs:
         run: ./gradlew :extension:jsBrowserDistribution --no-daemon
 
       # Package the loadable extension directory. Source maps are dropped to keep the
-      # artifact lean and Web-Store-friendly; the manifest + bundle + wasm are kept.
+      # artifact lean and Web-Store-friendly; the manifest + bundle are kept — and so is
+      # stramus.js.LICENSE.txt, which webpack writes beside the bundle and which used to be
+      # dropped along with the maps. It is not build litter: it carries the copyright notices
+      # of what is compiled into the bundle (React's, MIT), and MIT asks that those travel with
+      # the copies. A few hundred bytes is not worth being in breach of.
       # Manual runs (workflow_dispatch) have no tag to read a version from, so the
       # manifest is the source of truth there; tag pushes already validated the two agree.
       - name: Package extension ZIP
@@ -64,10 +68,10 @@ jobs:
           # The manifest names its strings out of _locales; without them Chrome refuses to load the
           # extension at all ("Localization used, but default_locale wasn't specified"). Resources
           # are copied by the build, so their absence would mean the build changed under us.
-          for required in manifest.json _locales/en/messages.json _locales/ru/messages.json; do
+          for required in manifest.json _locales/en/messages.json _locales/ru/messages.json stramus.js.LICENSE.txt; do
             [ -f "$required" ] || { echo "Missing from the bundle: $required" >&2; exit 1; }
           done
-          zip -r "$GITHUB_WORKSPACE/$OUT" . -x '*.map' -x '*.LICENSE.txt'
+          zip -r "$GITHUB_WORKSPACE/$OUT" . -x '*.map'
 
       # GitHub Releases require a tag, which a manual run doesn't have — upload the
       # ZIP as a workflow artifact instead so the build stays inspectable/downloadable.
