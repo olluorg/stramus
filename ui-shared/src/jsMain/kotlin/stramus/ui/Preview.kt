@@ -103,6 +103,11 @@ val PreviewLayer = FC<Props> {
                 src = shown.text
                 alt = ""
                 draggable = false
+                // Nothing of ours travels with the request, exactly as on the inline cover a card wears
+                // (`CardTile.kt`): the page this is drawn over is no business of the server holding the
+                // picture. The two must agree — the privacy policy and the store listing both promise
+                // this of *every* frame, and a promise kept on one of the two paths is not kept.
+                asDynamic()["referrerPolicy"] = "no-referrer"
                 // Redrawn without the picture rather than closed — see the note on this component. The
                 // frame is remembered as broken first, so the redraw does not simply try it again.
                 onError = {
