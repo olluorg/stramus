@@ -1250,7 +1250,9 @@ val App = FC<AppProps> { props ->
     // directly and holds no [AiAssistant] at all — its whole catalog lives on the server, which is the
     // one thing that abstraction was never shaped to carry. `TabTriageModal` is handed [ai] and [api]
     // both, and reads whichever its own `cloud` prop says to.
-    val triageCloud = aiTriageCloud && signedIn
+    // [CLOUD_TRIAGE_ENABLED] is what holds this shut in 1.4.0 — see it for why the switch below it is
+    // left standing rather than removed.
+    val triageCloud = CLOUD_TRIAGE_ENABLED && aiTriageCloud && signedIn
     // Cloud availability is found out by asking, the same as the local model finding out it needs a
     // download — nothing here is known in advance the way [aiLocalAvailable] has to wait for Chrome.
     val triageAvailable = if (triageCloud) true else aiLocalAvailable == true

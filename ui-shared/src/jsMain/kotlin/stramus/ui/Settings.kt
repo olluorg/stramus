@@ -625,7 +625,8 @@ private fun ChildrenBuilder.tabsPane(props: SettingsModalProps, s: Strings) {
         // ever turn on is not a setting, it is a question the page has no business asking yet. And it
         // only means anything once the feature above is itself on — the model this asks is a choice
         // about triage, not a second way to turn triage on.
-        if (props.aiTriage && props.signedIn) {
+        // And not at all where the build does not offer the cloud model — see [CLOUD_TRIAGE_ENABLED].
+        if (CLOUD_TRIAGE_ENABLED && props.aiTriage && props.signedIn) {
             toggleRow(
                 s.aiTriageCloudSetting, s.aiTriageCloudSettingHint, props.aiTriageCloud,
                 listOf(true to s.on, false to s.off),

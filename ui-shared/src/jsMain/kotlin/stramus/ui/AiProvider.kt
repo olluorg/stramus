@@ -75,3 +75,21 @@ internal const val AI_TRIAGE_PREF = "aiTriage"
  * for. Shown only to a signed-in account (see `App.kt`), because it is meaningless without one.
  */
 internal const val AI_TRIAGE_CLOUD_PREF = "aiTriageCloud"
+
+/**
+ * Whether the cloud model is offered at all in this build. **Off**, and deliberately so for 1.4.0: the
+ * feature works, but what it means for the user has not been written down yet — the privacy policy still
+ * says no third party is in this and that the server treats a card as an opaque blob, and both stop being
+ * true the moment a window of tabs is described to OpenRouter against this account's own catalog. The
+ * code ships dormant and is turned on in the release that says so out loud.
+ *
+ * Gated here rather than by leaving `STRAMUS_OPENROUTER_API_KEY` unset on the server, which would not be
+ * the same thing: `cloudTriage` sends every open tab's title and url before the server has a chance to
+ * answer 501, so the tabs would leave the browser regardless. Off means the question is never asked.
+ *
+ * Two readers, and both are needed: [stramus.ui.App]'s `triageCloud` (what a run actually does) and the
+ * settings row that offers the choice — a switch left on screen for something that cannot happen is worse
+ * than no switch. [AI_TRIAGE_CLOUD_PREF] itself is left alone: a user who turned it on gets it back,
+ * still on, whenever this becomes true again.
+ */
+internal const val CLOUD_TRIAGE_ENABLED = false
