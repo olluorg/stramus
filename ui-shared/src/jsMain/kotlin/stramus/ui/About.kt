@@ -4,7 +4,6 @@ import react.ChildrenBuilder
 import react.dom.html.ReactHTML.a
 import react.dom.html.ReactHTML.div
 import react.dom.html.ReactHTML.h4
-import react.dom.html.ReactHTML.img
 import react.dom.html.ReactHTML.span
 import web.cssom.ClassName
 
@@ -21,12 +20,7 @@ internal fun ChildrenBuilder.aboutPane(s: Strings) {
         h4 { +s.about }
         div {
             className = ClassName("about-pane")
-            img {
-                className = ClassName("brand-logo")
-                src = "logo-128.png"
-                alt = ""
-                draggable = false
-            }
+            brandMark("brand-logo")
             span { className = ClassName("about-name"); +"stramus" }
             span { className = ClassName("about-version"); +s.aboutVersion(APP_VERSION) }
             span { className = ClassName("about-copyright"); +s.aboutCopyright(currentYear().toString()) }

@@ -12,7 +12,6 @@ import react.dom.html.ReactHTML.h1
 import react.dom.html.ReactHTML.h2
 import react.dom.html.ReactHTML.h3
 import react.dom.html.ReactHTML.header
-import react.dom.html.ReactHTML.img
 import react.dom.html.ReactHTML.p
 import react.dom.html.ReactHTML.section
 import react.dom.html.ReactHTML.span
@@ -23,6 +22,7 @@ import stramus.core.sync.ApiException
 import stramus.core.sync.StramusApi
 import stramus.ui.Lang
 import stramus.ui.Strings
+import stramus.ui.brandMark
 import web.cssom.ClassName
 
 /** Where the source and the extension live — the two links the page makes a promise about. */
@@ -88,10 +88,7 @@ val Landing = FC<LandingProps> { props ->
             className = ClassName("lp-head")
             div {
                 className = ClassName("lp-brand")
-                img {
-                    src = "logo-128.png"
-                    alt = "stramus"
-                }
+                brandMark("lp-logo")
                 span { +"stramus" }
             }
             div {

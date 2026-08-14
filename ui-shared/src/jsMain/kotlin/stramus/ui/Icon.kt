@@ -232,3 +232,21 @@ internal fun ChildrenBuilder.emojiGlyph(code: String, extraClassName: String? = 
         dangerouslySetInnerHTML = innerHtml("""<svg viewBox="0 0 36 36">$body</svg>""")
     }
 }
+
+/**
+ * Draws the brand mark: an empty span for the stylesheet to paint.
+ *
+ * Deliberately not an inline `<svg>` like the glyphs above. The shape is `logo.svg` used as a CSS
+ * mask and the colour is a gradient behind it, which is what makes the mark animatable — a gradient
+ * can be swept, rotated and recoloured by keyframes, and a `fill` attribute can do none of that. See
+ * `.brand-mark` in index.html for the paint, and the `.brand-logo`/`.lp-logo` rules for the size.
+ *
+ * Public where the rest of this file is internal: the web app's front page puts the same mark in its
+ * header, and it lives in another Gradle module.
+ */
+fun ChildrenBuilder.brandMark(extraClassName: String? = null) {
+    span {
+        className = ClassName(if (extraClassName != null) "brand-mark $extraClassName" else "brand-mark")
+        ariaHidden = true
+    }
+}
