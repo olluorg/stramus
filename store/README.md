@@ -109,10 +109,15 @@ persuading:
 1. A full new tab page: sections in the sidebar, a collection of cards open, the whole thing populated.
 2. The tab pane on the right, mid-save: open tabs about to become a collection.
 3. The search box open, with results from cards, tabs and history at once.
-4. The assistant answering in its window over the collection — about the links in the collection that
-   is open, which is what it is given. (The window is badged "AI" whichever assistant is chosen; that
-   it is the on-device one is visible in Settings → AI, not here.)
-5. Settings: theme, language, the assistant, export.
+4. Settings: the themes, the accent, the background, the languages.
+
+Four, not five. The assistant used to be shot 4 — the model answering in its window over the open
+collection — and it is no longer in the listing, because it is the one shot that cannot be generated:
+`04-assistant` needs Chrome's on-device model *already downloaded*, which neither a throwaway profile
+nor a CI runner has, so the only way to keep it was to shoot it by hand and re-shoot it by hand every
+time the UI moved. It skipped one release and showed the previous logo; that is the failure mode. The
+scenario is still in `tools/screenshots` (as a bonus shot, out of the store set) for anyone who wants
+it on a machine that can take it.
 
 Chrome does not scale them for you: 1280×800 exactly, and the browser chrome should not be in frame.
 

@@ -35,7 +35,7 @@ pre-filled and greyed out. Do not retype them anywhere.
 | Homepage URL | `https://stramus.space/` |
 | Support URL | `https://github.com/olluorg/stramus/issues` |
 | Store icon | [`store-icon-128.png`](store-icon-128.png) — upload it; the console asks for this one separately and does not take it from the package |
-| Screenshots | `store/screenshots/01-collection.png` … `05-settings.png`, in that order |
+| Screenshots | `store/screenshots/01-collection.png`, `02-tabs.png`, `03-search.png`, `05-settings.png` — four, in that order; see README.md for why the assistant shot is not among them |
 | Promo tiles | leave empty — optional, and only needed to be eligible for featuring |
 
 ## Privacy practices

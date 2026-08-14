@@ -39,7 +39,7 @@ Promoting a run's output into the actual listing is a manual step, on purpose �
 assets, and `store/screenshots/*.png` shouldn't change without someone looking at the diff first:
 
 ```sh
-cp output/0{1,2,3,4,5}-*.png ../../store/screenshots/
+cp output/0{1,2,3,5}-*.png ../../store/screenshots/
 ```
 
 ## Adding a shot
@@ -130,5 +130,7 @@ representative frame. See `../promo-video/README.md` for what happens to the out
   somebody who already uses it does.
 - **The AI assistant shot** requires Chrome 138+ with the on-device model already downloaded (not
   just downloadable — see `checkLocalAiAvailable` in `lib/dom.mjs`), same requirement
-  `screenshots.md` documents for the manual procedure. It's the one shot most likely to skip in a
-  fresh CI runner.
+  `screenshots.md` documents for the manual procedure. Neither a throwaway profile nor a CI runner has
+  it, so `04-assistant` always skips in both — which is why it is a bonus shot now and not part of
+  `--store`: a listing image that only one machine in the world can regenerate is a listing image that
+  goes stale.
