@@ -288,18 +288,6 @@ private const val PANEL_OVER_WALLPAPER = 0.74
 private const val BG_OVER_WALLPAPER = 0.5
 private const val BORDER_OVER_WALLPAPER = 0.55
 
-/**
- * The name in the sidebar, and the chip the mark beside it sits on.
- *
- * The brand is one colour and stays one colour — but a deep purple written on a near-black panel is a
- * word nobody can read, so the dark lighting gets the same hue lightened rather than a different
- * colour. The mark has the opposite problem: it is a pale gradient star, which stands out on a dark
- * panel and dissolves into a light one, so on light themes it is given a chip of that same purple to
- * sit on and on dark ones it is left to speak for itself.
- */
-private const val BRAND_LIGHT = "#50219B"
-private const val BRAND_DARK = "#b39cee"
-
 /*
  * Where each piece of it is kept. `theme` and `accent` were already these two names before there was
  * anything else here, and they keep them: an install that has been choosing a theme for a year has no
@@ -364,7 +352,6 @@ internal fun saveWallpaper(image: String?): Boolean {
  */
 internal fun applyAppearance(a: Appearance) {
     val c = a.colors()
-    val dark = a.isDark()
     val wallpaper = a.hasWallpaper()
 
     // A panel over a wallpaper is glass, not paint: enough of its own colour to hold text, enough of
@@ -382,8 +369,6 @@ internal fun applyAppearance(a: Appearance) {
     setRootVar("--accent", c.accent)
     setRootVar("--accent-soft", c.accentSoft)
     setRootVar("--danger", c.danger)
-    setRootVar("--brand", if (dark) BRAND_DARK else BRAND_LIGHT)
-    setRootVar("--brand-chip", if (dark) "transparent" else BRAND_LIGHT)
     setRootVar("--page-bg", a.backgroundCss())
 
     // `data-theme` still says what the *user* asked for, not what it resolved to: the stylesheet's own

@@ -17,9 +17,6 @@
             --accent: #3b82f6;
             --accent-soft: #eaf1fe;
             --danger: #ef4444;
-            /* The wordmark, and the chip the mark beside it sits on. See Theme.kt. */
-            --brand: #50219B;
-            --brand-chip: #50219B;
             /* What a collection can be marked in (see `COLLECTION_COLORS`): the same eight hues the
                accent is chosen from, each with a value per lighting — a colour that reads on white is
                a colour that disappears on near-black, and a mark nobody can see is not a mark. */
@@ -37,8 +34,6 @@
                 --accent: #4b8bf5;
                 --accent-soft: #22304d;
                 --danger: #f26060;
-                --brand: #b39cee;
-                --brand-chip: transparent;
                 --ci-blue: #4b8bf5; --ci-purple: #a78bfa; --ci-indigo: #818cf8; --ci-teal: #2dd4bf;
                 --ci-green: #4ade80; --ci-amber: #fbbf24; --ci-orange: #fb923c; --ci-rose: #fb7185;
             }
@@ -53,8 +48,6 @@
             --accent: #4b8bf5;
             --accent-soft: #22304d;
             --danger: #f26060;
-            --brand: #b39cee;
-            --brand-chip: transparent;
             --ci-blue: #4b8bf5; --ci-purple: #a78bfa; --ci-indigo: #818cf8; --ci-teal: #2dd4bf;
             --ci-green: #4ade80; --ci-amber: #fbbf24; --ci-orange: #fb923c; --ci-rose: #fb7185;
         }
@@ -67,8 +60,6 @@
             --accent: #3b82f6;
             --accent-soft: #eaf1fe;
             --danger: #ef4444;
-            --brand: #50219B;
-            --brand-chip: #50219B;
             --ci-blue: #3b82f6; --ci-purple: #8b5cf6; --ci-indigo: #4f46e5; --ci-teal: #0d9488;
             --ci-green: #16a34a; --ci-amber: #d97706; --ci-orange: #ea580c; --ci-rose: #e11d48;
         }
@@ -643,17 +634,52 @@
 
         /* Brand row + sidebar collapse controls */
         .brand { display: flex; align-items: center; gap: 8px; }
-        /* The mark is a pale gradient star: it stands out on a dark panel and all but dissolves into
-           a light one, so light themes give it a chip of the brand's own purple to sit on and dark
-           ones leave it to speak for itself (--brand-chip is transparent there). The padding keeps
-           the star off the edge of that chip; box-sizing keeps the 22px square a 22px square. */
-        .brand-logo {
-            width: 22px; height: 22px; flex: 0 0 22px; padding: 2px;
-            border-radius: var(--r-pill); background: var(--brand-chip, transparent);
+        /* ---- The brand mark ---------------------------------------------------------------------
+           The mark is not a drawn shape but a hole: logo.svg used as a mask, with paint behind it
+           (`brandMark()` in Icon.kt renders the empty span this paints). Everything about its colour
+           is then ordinary CSS, which is the point — a gradient can be swept, turned and recoloured
+           by keyframes, and an SVG `fill` attribute can do none of that.
+
+           Both ends of the gradient are the accent itself turned a little either way, by relative
+           colour, rather than a second brand colour that would fight it: the mark stays the user's
+           own accent through all nine of them, and only picks up a lit side and a shaded one. Where
+           relative colour is not understood the two stops fall back to the flat accent, which is the
+           mark as it was before the gradient. */
+        @property --logo-angle {
+            syntax: "<angle>";
+            inherits: true;
+            initial-value: 135deg;
         }
-        /* The name is one colour in both lightings — the same purple, lightened where it would
-           otherwise be a deep violet word written on a near-black panel. */
-        .brand-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--brand, #50219B); }
+        .brand-mark {
+            --logo-hi: var(--accent);
+            --logo-lo: var(--accent);
+            display: block; flex: none;
+            background: linear-gradient(var(--logo-angle), var(--logo-hi), var(--accent) 50%, var(--logo-lo));
+            -webkit-mask: url(logo.svg) center / contain no-repeat;
+            mask: url(logo.svg) center / contain no-repeat;
+        }
+        @supports (color: oklch(from red l c h)) {
+            .brand-mark {
+                --logo-hi: oklch(from var(--accent) calc(l + 0.10) c calc(h - 30));
+                --logo-lo: oklch(from var(--accent) calc(l - 0.05) calc(c * 1.05) calc(h + 34));
+            }
+        }
+        /* What the gradient was built for. The sweep *turns* rather than the paint sliding past, so
+           the mark keeps its own colours and only changes which way they run — the one animation that
+           cannot end up showing a colour the theme never asked for. It is on the brand row's hover
+           while we are still deciding: drop the `:hover` to have it always running.
+
+           --logo-angle is registered above precisely so this works. An unregistered custom property
+           is a string as far as animation is concerned, and a string cannot be interpolated: the
+           angle would jump from one keyframe to the other instead of turning. */
+        @keyframes logo-sweep { to { --logo-angle: 495deg; } }
+        .brand:hover .brand-mark { animation: logo-sweep 4s linear infinite; }
+        @media (prefers-reduced-motion: reduce) {
+            .brand:hover .brand-mark { animation: none; }
+        }
+        .brand-logo { width: 22px; height: 22px; }
+        /* The name is the mark's colour, written out: one accent for both halves of the wordmark. */
+        .brand-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--accent); }
         .icon.collapse-btn { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px; opacity: .7; }
         .icon.collapse-btn:hover { color: var(--accent); opacity: 1; }
         /* The Tabs pane's quick list/cards switch, beside the collapse button — the same choice as the
@@ -1449,8 +1475,8 @@
 
         /* ---- About (a settings pane) ------------------------------------------------------------ */
         .about-pane { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding-top: 8px; }
-        .about-pane .brand-logo { width: 56px; height: 56px; padding: 5px; border-radius: var(--r-card); margin: 4px 0; }
-        .about-name { font-size: 18px; font-weight: 600; color: var(--brand, #50219B); }
+        .about-pane .brand-logo { width: 56px; height: 56px; margin: 4px 0; }
+        .about-name { font-size: 18px; font-weight: 600; color: var(--accent); }
         .about-version, .about-copyright { font-size: 13px; color: var(--muted, #8b949e); }
         /* Who drew the icons — the licences of the two libraries ask to be named. */
         .about-credits { font-size: 11px; color: var(--muted, #8b949e); opacity: .8; }

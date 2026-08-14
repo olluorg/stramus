@@ -35,8 +35,17 @@
     padding: 20px 0;
     flex-wrap: wrap;
 }
-.lp-brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; }
-.lp-brand img { width: 28px; height: 28px; border-radius: 6px; }
+/* The mark and the name are one accent-coloured wordmark — the mark is drawn in currentColor, so the
+   colour on `.lp-brand` reaches both halves of it at once. */
+.lp-brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; color: var(--accent); }
+/* Size only: the mark is painted by `.brand-mark` in index.html, which is where its gradient and the
+   sweep that turns it live. The header's is the one place the mark stands alone rather than beside a
+   sidebar's worth of furniture, so it runs the sweep on the row's hover as the app's does. */
+.lp-brand .lp-logo { width: 28px; height: 28px; }
+.lp-brand:hover .lp-logo { animation: logo-sweep 4s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+    .lp-brand:hover .lp-logo { animation: none; }
+}
 
 .lp-nav { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
 .lp-nav a { color: var(--muted); text-decoration: none; font-size: 13px; }

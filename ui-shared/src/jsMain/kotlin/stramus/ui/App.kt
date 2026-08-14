@@ -14,7 +14,6 @@ import react.dom.html.ReactHTML.aside
 import react.dom.html.ReactHTML.button
 import react.dom.html.ReactHTML.div
 import react.dom.html.ReactHTML.h2
-import react.dom.html.ReactHTML.img
 import react.dom.html.ReactHTML.input
 import react.dom.html.ReactHTML.li
 import react.dom.html.ReactHTML.main
@@ -2709,12 +2708,7 @@ val App = FC<AppProps> { props ->
                     className = ClassName("sidebar-scroll")
                     div {
                         className = ClassName("brand")
-                        img {
-                            className = ClassName("brand-logo")
-                            src = "logo-128.png"
-                            alt = ""
-                            draggable = false
-                        }
+                        brandMark("brand-logo")
                         span {
                             className = ClassName("brand-name")
                             +"stramus"
