@@ -17,6 +17,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # First, because it is a second long and needs no JDK: the version in two files that disagree,
+      # a locale missing a key the manifest names, a listing still describing the previous release, a
+      # screenshot that is no longer 1280x800. None of that needs a build to notice, and all of it is
+      # invisible until after a release has gone out. See tools/README.md.
+      - name: Consistency checks
+        run: python3 tools/preflight.py
+
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:

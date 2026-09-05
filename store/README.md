@@ -16,10 +16,24 @@ and greyed out for a language that ships in the ZIP.
 
 ## Before uploading
 
+Most of this list is now a script — [`tools/release.sh`](../tools/release.sh) bumps the version,
+runs [`tools/preflight.py`](../tools/preflight.py) over everything below that a machine can read, runs
+the tests and packs the ZIP:
+
+```sh
+tools/release.sh 1.5.0        # bump, check, test, pack
+# read the diff, write the "what's new" lines below, commit
+tools/release.sh --tag --push # tag v1.5.0 and push it
+```
+
+What it cannot decide is what the rest of this list is: whether the screenshots still show this UI,
+whether the privacy policy still describes this build, whether the permission list grew a warning.
+
 - [ ] A developer account, with the one-off $5 registration fee paid (`https://chrome.google.com/webstore/devconsole`).
 - [ ] `version` in `extension/src/jsMain/resources/manifest.json` bumped — the store rejects a re-upload
-      of a version it already has. `APP_VERSION` in `ui-shared/.../About.kt` says the same number, and
-      nothing checks that for you: it is what the About pane shows.
+      of a version it already has. `APP_VERSION` in `ui-shared/.../About.kt` says the same number; it is
+      what the About pane shows, it is kept in step by hand, and `tools/preflight.py` is what notices
+      when the hand forgot.
 - [ ] Whether the manifest asks for a permission the published version does not. One that carries a
       warning (`notifications` did, in 1.4.0) leaves the extension **disabled for every existing user**
       until they accept the new list — worth knowing before the install count appears to fall over, and
@@ -28,11 +42,16 @@ and greyed out for a language that ships in the ZIP.
       (`webapp/src/jsMain/resources/privacy.html`) and is the answer to the console's own privacy
       questions, so a feature that reaches the network and is not in it is a false answer, not an
       omission.
-- [ ] A tag pushed: `git tag v1.0.0 && git push origin v1.0.0`. The `release` workflow builds the
-      extension and attaches `stramus-extension-1.0.0.zip` to a GitHub Release; that ZIP is what gets
-      uploaded. (It also refuses to build if the tag and the manifest disagree about the version.)
+- [ ] Every listing's "what's new" line rewritten for this version — `preflight` fails a tag build on a
+      listing that still names the previous one, since that is a store page describing the last release.
+- [ ] A tag pushed: `tools/release.sh --tag --push`, or by hand,
+      `git tag v1.0.0 && git push origin v1.0.0`. The `release` workflow builds the extension and
+      attaches `stramus-extension-1.0.0.zip` to a GitHub Release; that ZIP is what gets uploaded, and
+      `tools/package-extension.sh` is what packs it there and locally alike. (The workflow runs the same
+      preflight first, so a tag that disagrees with the manifest fails before anything is built.)
 - [ ] Screenshots generated (see below) — `cd tools/screenshots && node capture.mjs`, then copy the
-      output into `store/screenshots/` after a look.
+      output into `store/screenshots/` after a look. Sizes are checked by preflight; whether they still
+      show the current UI is not.
 - [ ] Everything keyed on the extension's ID repointed at the *published* ID — see below. Publishing
       assigns the ID of the store item, which is not the ID an unpacked build gets.
 
