@@ -113,6 +113,15 @@ interface Strings {
      */
     val collectionIconTabGlyphs: String
     val collectionIconTabEmoji: String
+
+    /**
+     * The third thing a collection can be marked with: the icon of a site it holds links to. Offered
+     * from the collection's own links, commonest first — see `CollectionIcon.kt`.
+     */
+    val collectionIconTabFavicons: String
+
+    /** That tab, on a collection with no links in it at all — which is not "nothing matched". */
+    val collectionIconNoSites: String
     val collectionIconSearch: String
     val collectionIconRandom: String
     val collectionIconNothing: String
@@ -131,6 +140,13 @@ interface Strings {
     val addCardHint: String
     val deleteCardHint: String
 
+    /**
+     * The bin in a group's header: it empties the group without deleting the group. The ungrouped area
+     * is what it is really for — that one is no section, so it has no × to be deleted by, and its cards
+     * could only be cleared one tile at a time.
+     */
+    val clearGroupHint: String
+
     /** The group's "open all" button — [count] is how many of its cards are links, the rest skipped. */
     fun openAllHint(count: Int): String
 
@@ -139,10 +155,22 @@ interface Strings {
     fun confirmDeleteSection(title: String, cards: Int): String
     fun confirmDeleteCollection(title: String, cards: Int): String
     fun confirmDeleteCardSection(title: String, cards: Int): String
+    fun confirmClearGroup(title: String, cards: Int): String
+
+    /**
+     * The section the deleted collection was the last of. An empty section is a real place — a
+     * collection can be added straight to it — so it is offered, not swept up: the app used to take it
+     * silently, and with it a name the user had chosen. Never asked for the default section, which
+     * cannot be deleted at all.
+     */
+    fun confirmDeleteEmptiedSection(title: String): String
     fun deletedSection(title: String): String
     fun deletedCollection(title: String): String
+    /** Both went, on one offer to take both back — see [confirmDeleteEmptiedSection]. */
+    fun deletedCollectionAndSection(collection: String, section: String): String
     fun deletedCardSection(title: String): String
     fun deletedCard(title: String): String
+    fun clearedGroup(title: String, cards: Int): String
 
     /** A card dragged into another collection is offered back the same way a deletion is. */
     fun movedCard(title: String): String
@@ -333,11 +361,10 @@ interface Strings {
 
     // Read-only collections
     /**
-     * The two ends of the toggle in the collection's header — the locking one is a bare icon, so its
-     * tooltip is the only place it says what it does — and the badge a guarded collection wears.
+     * The two ends of the toggle in the collection's header — a bare icon at both, so the tooltip is
+     * the only place either says what it does — and the badge a guarded collection wears.
      */
     val makeReadOnlyHint: String
-    val allowEditing: String
     val allowEditingHint: String
     val readOnlyBadge: String
     val readOnlyHint: String
@@ -640,15 +667,55 @@ interface Strings {
     val signInAccount: String
     val signOut: String
     val syncNow: String
+
+    /**
+     * Ask the server for the whole account again, rather than for what has changed since this device
+     * last looked. The way back from a cursor that has run ahead of the reading — a delta that stopped
+     * short once leaves a device believing it has seen rows it never got.
+     */
+    val refetchAccount: String
     fun syncedAt(time: String): String
     fun conflictCopies(count: Int): String
     val joinAccountTitle: String
     val joinAccountHint: String
     val joinAccountKeep: String
     val joinAccountDiscard: String
+    /**
+     * The third answer: neither keep both copies side by side nor throw one away, but work out which
+     * rows are the same row and join them. See `stramus.core.merge` for what "the same" means.
+     */
+    val joinAccountMerge: String
+
+    // Joining the duplicates a merge-by-row-id leaves behind. The preview is the whole safety of it, so
+    // these say what is about to happen in the plainest words that fit, and what was left out of it.
+    val mergeDuplicates: String
+    val mergeTitle: String
+    val mergeHint: String
+    val mergeScanning: String
+    val mergeNothing: String
+    val mergeApply: String
+    val mergeOneDevice: String
+    val mergeUndo: String
+    val mergeUndoHint: String
+    val mergeUndone: String
+    /** How many rows this one is made of — “×2” on a pair, “×3” where three of them turned out to be one. */
+    fun mergeFuseBadge(rows: Int): String
+    fun mergeCollectionCounts(duplicateCards: Int, cardSections: Int): String
+    fun mergeDone(sections: Int, collections: Int, cards: Int): String
+    fun mergeSkipped(lockedSections: Int, readOnlyCollections: Int): String
     val exportAccountData: String
     val exportAccountDataHint: String
     val exportAccountDataFailed: String
+    /**
+     * Emptying this browser, on its own — not as a rider on deleting the account, which is a different
+     * wish, asks the server's permission first, and is no use at all when the server does not answer.
+     */
+    val eraseEverything: String
+    val eraseEverythingHint: String
+    val eraseEverythingConfirm: String
+    /** Asked a second time: the copy being taken is the one on the screen. */
+    val eraseEverythingAgain: String
+
     val deleteAccount: String
     val deleteAccountHint: String
     val deleteAccountConfirm: String
@@ -716,6 +783,8 @@ private object EnStrings : Strings {
     override val collectionIconHint = "Icon and colour"
     override val collectionIconTabGlyphs = "Icons"
     override val collectionIconTabEmoji = "Emoji"
+    override val collectionIconTabFavicons = "Sites"
+    override val collectionIconNoSites = "No links in this collection yet"
     override val collectionIconSearch = "Search icons"
     override val collectionIconRandom = "Random icon"
     override val collectionIconNothing = "Nothing matches that"
@@ -731,6 +800,7 @@ private object EnStrings : Strings {
     override val deleteCardSectionHint = "Delete this group — its cards stay in the collection, ungrouped"
     override val addCardHint = "Add a link — or, from the menu, a note or a file"
     override val deleteCardHint = "Delete this card"
+    override val clearGroupHint = "Delete every card in this group — the group itself stays"
     override fun openAllHint(count: Int) = "Open all $count cards as new tabs"
 
     override fun confirmDeleteSection(title: String, cards: Int) =
@@ -739,10 +809,18 @@ private object EnStrings : Strings {
         "“$title” holds $cards saved items. Delete the collection?"
     override fun confirmDeleteCardSection(title: String, cards: Int) =
         "“$title” holds $cards cards. Delete the group? The cards stay, ungrouped."
+    override fun confirmClearGroup(title: String, cards: Int) =
+        "“$title” holds $cards cards. Delete all of them? The group stays."
+    override fun confirmDeleteEmptiedSection(title: String) =
+        "“$title” is empty now. Delete the section as well?"
     override fun deletedSection(title: String) = "Section “$title” deleted"
     override fun deletedCollection(title: String) = "Collection “$title” deleted"
+    override fun deletedCollectionAndSection(collection: String, section: String) =
+        "Collection “$collection” and section “$section” deleted"
     override fun deletedCardSection(title: String) = "Group “$title” deleted"
     override fun deletedCard(title: String) = "“$title” deleted"
+    override fun clearedGroup(title: String, cards: Int) =
+        "$cards cards deleted from “$title”"
     override fun movedCard(title: String) = "“$title” moved"
     override val sortedCards = "Cards sorted"
     override val undo = "Undo"
@@ -886,7 +964,6 @@ private object EnStrings : Strings {
         "forgotten PIN."
 
     override val makeReadOnlyHint = "Make read-only: nothing can then be added, changed or deleted here."
-    override val allowEditing = "Allow editing"
     override val allowEditingHint = "Allow editing again."
     override val readOnlyBadge = "read-only"
     override val readOnlyHint = "Read-only: nothing here can be added, changed or deleted."
@@ -1108,6 +1185,7 @@ private object EnStrings : Strings {
     override val signInAccount = "Sign in"
     override val signOut = "Sign out"
     override val syncNow = "Sync now"
+    override val refetchAccount = "Read the account again"
     override fun syncedAt(time: String) = "Synced at $time"
     override fun conflictCopies(count: Int) =
         if (count == 1) "A note was edited on two devices at once. Both versions were kept."
@@ -1116,9 +1194,46 @@ private object EnStrings : Strings {
     override val joinAccountHint = "You can add them to the account, or leave them behind and take what the account already holds."
     override val joinAccountKeep = "Add them to the account"
     override val joinAccountDiscard = "Use the account's collections"
+    override val joinAccountMerge = "Join them up"
+    override val mergeDuplicates = "Find duplicates"
+    override val mergeTitle = "Join duplicates"
+    override val mergeHint = "These look like the same thing saved twice. Untick anything that is not."
+    override val mergeScanning = "Looking…"
+    override val mergeNothing = "Nothing here is doubled."
+    override val mergeApply = "Join"
+    override val mergeOneDevice = "Do this on one device — the others get the result by syncing."
+    override val mergeUndo = "Undo the join"
+    override val mergeUndoHint = "This window is the way back. Closing it keeps the join."
+    override val mergeUndone = "The join was undone."
+    override fun mergeFuseBadge(rows: Int) = "×$rows"
+    override fun mergeCollectionCounts(duplicateCards: Int, cardSections: Int) = buildString {
+        if (duplicateCards > 0) append("$duplicateCards duplicate cards")
+        if (cardSections > 0) {
+            if (isNotEmpty()) append(", ")
+            append("$cardSections groups")
+        }
+    }
+    override fun mergeDone(sections: Int, collections: Int, cards: Int) =
+        "Joined: $sections sections, $collections collections, $cards cards."
+    override fun mergeSkipped(lockedSections: Int, readOnlyCollections: Int) = buildString {
+        append("Left alone: ")
+        if (lockedSections > 0) append("$lockedSections locked sections")
+        if (readOnlyCollections > 0) {
+            if (!endsWith(" ")) append(", ")
+            append("$readOnlyCollections read-only collections")
+        }
+        append(".")
+    }
     override val exportAccountData = "Download my data"
     override val exportAccountDataHint = "Every row the server holds about this account, as JSON."
     override val exportAccountDataFailed = "Could not download the export."
+    override val eraseEverything = "Erase everything in this browser"
+    override val eraseEverythingHint =
+        "The collections, the files, the statistics, the cached icons and the unsaved drafts, all of it, here. The account and what is on the server are left alone — sign out or delete the account for those. Take a backup first."
+    override val eraseEverythingConfirm =
+        "Erase every collection, file and note in this browser? The account and the server are not touched."
+    override val eraseEverythingAgain =
+        "This is the copy you are looking at. Once it is gone, only a backup or the account brings it back. Erase it?"
     override val deleteAccount = "Delete account"
     override val deleteAccountHint = "Erases everything the server holds. What is on this machine stays."
     override val deleteAccountConfirm = "Delete the account and everything the server holds? This cannot be undone."
@@ -1208,6 +1323,8 @@ private object RuStrings : Strings {
     override val collectionIconHint = "Иконка и цвет"
     override val collectionIconTabGlyphs = "Иконки"
     override val collectionIconTabEmoji = "Эмодзи"
+    override val collectionIconTabFavicons = "Сайты"
+    override val collectionIconNoSites = "В этой коллекции пока нет ссылок"
     override val collectionIconSearch = "Поиск иконок"
     override val collectionIconRandom = "Случайная иконка"
     override val collectionIconNothing = "Ничего не нашлось"
@@ -1223,6 +1340,7 @@ private object RuStrings : Strings {
     override val deleteCardSectionHint = "Удалить секцию — её карточки останутся в коллекции, без секции"
     override val addCardHint = "Добавить ссылку — или, из меню, заметку либо файл"
     override val deleteCardHint = "Удалить карточку"
+    override val clearGroupHint = "Удалить все карточки этой секции — сама секция останется"
     override fun openAllHint(count: Int) = "Открыть все карточки ($count) в новых вкладках"
 
     override fun confirmDeleteSection(title: String, cards: Int) =
@@ -1231,10 +1349,18 @@ private object RuStrings : Strings {
         "В коллекции «$title» сохранено элементов: $cards. Удалить коллекцию?"
     override fun confirmDeleteCardSection(title: String, cards: Int) =
         "В секции «$title» карточек: $cards. Удалить секцию? Карточки останутся — без секции."
+    override fun confirmClearGroup(title: String, cards: Int) =
+        "В секции «$title» карточек: $cards. Удалить их все? Секция останется."
+    override fun confirmDeleteEmptiedSection(title: String) =
+        "Раздел «$title» опустел. Удалить и его?"
     override fun deletedSection(title: String) = "Раздел «$title» удалён"
     override fun deletedCollection(title: String) = "Коллекция «$title» удалена"
+    override fun deletedCollectionAndSection(collection: String, section: String) =
+        "Коллекция «$collection» и раздел «$section» удалены"
     override fun deletedCardSection(title: String) = "Секция «$title» удалена"
     override fun deletedCard(title: String) = "«$title» удалена"
+    override fun clearedGroup(title: String, cards: Int) =
+        "Из секции «$title» удалено карточек: $cards"
     override fun movedCard(title: String) = "«$title» перенесена"
     override val sortedCards = "Карточки отсортированы"
     override val undo = "Вернуть"
@@ -1379,7 +1505,6 @@ private object RuStrings : Strings {
 
     override val makeReadOnlyHint = "Сделать только для чтения: ничего нельзя будет добавить, изменить " +
         "или удалить."
-    override val allowEditing = "Разрешить правку"
     override val allowEditingHint = "Снова разрешить правку."
     override val readOnlyBadge = "только чтение"
     override val readOnlyHint = "Только чтение: ничего нельзя добавить, изменить или удалить."
@@ -1602,6 +1727,7 @@ private object RuStrings : Strings {
     override val signInAccount = "Войти"
     override val signOut = "Выйти"
     override val syncNow = "Синхронизировать"
+    override val refetchAccount = "Перечитать аккаунт"
     override fun syncedAt(time: String) = "Синхронизировано в $time"
     override fun conflictCopies(count: Int) =
         if (count == 1) "Заметку правили на двух устройствах сразу. Обе версии сохранены."
@@ -1610,9 +1736,46 @@ private object RuStrings : Strings {
     override val joinAccountHint = "Их можно добавить в аккаунт — или оставить здесь и взять то, что в аккаунте уже есть."
     override val joinAccountKeep = "Добавить в аккаунт"
     override val joinAccountDiscard = "Взять коллекции из аккаунта"
+    override val joinAccountMerge = "Объединить"
+    override val mergeDuplicates = "Найти дубликаты"
+    override val mergeTitle = "Объединить дубликаты"
+    override val mergeHint = "Похоже, это одно и то же, сохранённое дважды. Снимите галочку с того, что таковым не является."
+    override val mergeScanning = "Ищем…"
+    override val mergeNothing = "Ничего задвоенного не нашлось."
+    override val mergeApply = "Объединить"
+    override val mergeOneDevice = "Делайте это на одном устройстве — остальные получат результат синхронизацией."
+    override val mergeUndo = "Отменить объединение"
+    override val mergeUndoHint = "Это окно — путь назад. Если закрыть его, объединение останется."
+    override val mergeUndone = "Объединение отменено."
+    override fun mergeFuseBadge(rows: Int) = "×$rows"
+    override fun mergeCollectionCounts(duplicateCards: Int, cardSections: Int) = buildString {
+        if (duplicateCards > 0) append("дублей карточек: $duplicateCards")
+        if (cardSections > 0) {
+            if (isNotEmpty()) append(", ")
+            append("секций: $cardSections")
+        }
+    }
+    override fun mergeDone(sections: Int, collections: Int, cards: Int) =
+        "Объединено: разделов — $sections, коллекций — $collections, карточек — $cards."
+    override fun mergeSkipped(lockedSections: Int, readOnlyCollections: Int) = buildString {
+        append("Не тронуто: ")
+        if (lockedSections > 0) append("разделов под PIN — $lockedSections")
+        if (readOnlyCollections > 0) {
+            if (!endsWith(" ")) append(", ")
+            append("коллекций только для чтения — $readOnlyCollections")
+        }
+        append(".")
+    }
     override val exportAccountData = "Скачать мои данные"
     override val exportAccountDataHint = "Всё, что сервер хранит об этом аккаунте, в формате JSON."
     override val exportAccountDataFailed = "Не удалось скачать экспорт."
+    override val eraseEverything = "Стереть все данные в этом браузере"
+    override val eraseEverythingHint =
+        "Коллекции, файлы, статистику, кэш иконок и несохранённые черновики — всё, что лежит здесь. Аккаунт и то, что на сервере, остаются нетронутыми: для них есть выход из аккаунта и удаление аккаунта. Сначала сделайте бэкап."
+    override val eraseEverythingConfirm =
+        "Стереть все коллекции, файлы и заметки в этом браузере? Аккаунт и сервер не затрагиваются."
+    override val eraseEverythingAgain =
+        "Это та самая копия, которую вы сейчас видите. После этого её вернёт только бэкап или аккаунт. Стереть?"
     override val deleteAccount = "Удалить аккаунт"
     override val deleteAccountHint = "Стирает всё, что хранит сервер. То, что на этой машине, остаётся."
     override val deleteAccountConfirm = "Удалить аккаунт и всё, что хранит сервер? Это не отменить."
@@ -1702,6 +1865,8 @@ private object FrStrings : Strings {
     override val collectionIconHint = "Icône et couleur"
     override val collectionIconTabGlyphs = "Icônes"
     override val collectionIconTabEmoji = "Émoji"
+    override val collectionIconTabFavicons = "Sites"
+    override val collectionIconNoSites = "Pas encore de liens dans cette collection"
     override val collectionIconSearch = "Rechercher une icône"
     override val collectionIconRandom = "Icône au hasard"
     override val collectionIconNothing = "Aucun résultat"
@@ -1717,6 +1882,7 @@ private object FrStrings : Strings {
     override val deleteCardSectionHint = "Supprimer ce groupe — ses cartes restent dans la collection, sans groupe"
     override val addCardHint = "Ajouter un lien — ou, depuis le menu, une note ou un fichier"
     override val deleteCardHint = "Supprimer cette carte"
+    override val clearGroupHint = "Supprimer toutes les cartes de ce groupe — le groupe, lui, reste"
     override fun openAllHint(count: Int) = "Ouvrir les $count cartes dans de nouveaux onglets"
 
     override fun confirmDeleteSection(title: String, cards: Int) =
@@ -1725,10 +1891,18 @@ private object FrStrings : Strings {
         "« $title » contient $cards éléments enregistrés. Supprimer la collection ?"
     override fun confirmDeleteCardSection(title: String, cards: Int) =
         "« $title » contient $cards cartes. Supprimer le groupe ? Les cartes restent, sans groupe."
+    override fun confirmClearGroup(title: String, cards: Int) =
+        "« $title » contient $cards cartes. Toutes les supprimer ? Le groupe reste."
+    override fun confirmDeleteEmptiedSection(title: String) =
+        "« $title » est vide à présent. Supprimer aussi la section ?"
     override fun deletedSection(title: String) = "Section « $title » supprimée"
     override fun deletedCollection(title: String) = "Collection « $title » supprimée"
+    override fun deletedCollectionAndSection(collection: String, section: String) =
+        "Collection « $collection » et section « $section » supprimées"
     override fun deletedCardSection(title: String) = "Groupe « $title » supprimé"
     override fun deletedCard(title: String) = "« $title » supprimée"
+    override fun clearedGroup(title: String, cards: Int) =
+        "$cards cartes supprimées de « $title »"
     override fun movedCard(title: String) = "« $title » déplacée"
     override val sortedCards = "Cartes triées"
     override val undo = "Annuler"
@@ -1872,7 +2046,6 @@ private object FrStrings : Strings {
         "aucun moyen de réinitialiser un code PIN oublié."
 
     override val makeReadOnlyHint = "Rendre en lecture seule : plus rien ne pourra être ajouté, modifié ou supprimé ici."
-    override val allowEditing = "Autoriser la modification"
     override val allowEditingHint = "Autoriser à nouveau la modification."
     override val readOnlyBadge = "lecture seule"
     override val readOnlyHint = "Lecture seule : rien ici ne peut être ajouté, modifié ou supprimé."
@@ -2097,6 +2270,7 @@ private object FrStrings : Strings {
     override val signInAccount = "Se connecter"
     override val signOut = "Se déconnecter"
     override val syncNow = "Synchroniser maintenant"
+    override val refetchAccount = "Relire le compte"
     override fun syncedAt(time: String) = "Synchronisé à $time"
     override fun conflictCopies(count: Int) =
         if (count == 1) "Une note a été modifiée sur deux appareils à la fois. Les deux versions ont été conservées."
@@ -2105,9 +2279,46 @@ private object FrStrings : Strings {
     override val joinAccountHint = "Vous pouvez les ajouter au compte, ou les laisser ici et reprendre ce que le compte contient déjà."
     override val joinAccountKeep = "Les ajouter au compte"
     override val joinAccountDiscard = "Utiliser les collections du compte"
+    override val joinAccountMerge = "Fusionner"
+    override val mergeDuplicates = "Trouver les doublons"
+    override val mergeTitle = "Fusionner les doublons"
+    override val mergeHint = "Ceci semble être la même chose enregistrée deux fois. Décochez ce qui ne l'est pas."
+    override val mergeScanning = "Recherche…"
+    override val mergeNothing = "Rien n'est en double ici."
+    override val mergeApply = "Fusionner"
+    override val mergeOneDevice = "Faites-le sur un seul appareil — les autres recevront le résultat par la synchronisation."
+    override val mergeUndo = "Annuler la fusion"
+    override val mergeUndoHint = "Cette fenêtre est le chemin du retour. La fermer conserve la fusion."
+    override val mergeUndone = "La fusion a été annulée."
+    override fun mergeFuseBadge(rows: Int) = "×$rows"
+    override fun mergeCollectionCounts(duplicateCards: Int, cardSections: Int) = buildString {
+        if (duplicateCards > 0) append("$duplicateCards cartes en double")
+        if (cardSections > 0) {
+            if (isNotEmpty()) append(", ")
+            append("$cardSections groupes")
+        }
+    }
+    override fun mergeDone(sections: Int, collections: Int, cards: Int) =
+        "Fusionné : $sections sections, $collections collections, $cards cartes."
+    override fun mergeSkipped(lockedSections: Int, readOnlyCollections: Int) = buildString {
+        append("Laissé tel quel : ")
+        if (lockedSections > 0) append("$lockedSections sections verrouillées")
+        if (readOnlyCollections > 0) {
+            if (!endsWith(" ")) append(", ")
+            append("$readOnlyCollections collections en lecture seule")
+        }
+        append(".")
+    }
     override val exportAccountData = "Télécharger mes données"
     override val exportAccountDataHint = "Toutes les données que le serveur détient sur ce compte, au format JSON."
     override val exportAccountDataFailed = "Impossible de télécharger l'export."
+    override val eraseEverything = "Effacer tout dans ce navigateur"
+    override val eraseEverythingHint =
+        "Les collections, les fichiers, les statistiques, les icônes en cache et les brouillons non enregistrés — tout ce qui est ici. Le compte et ce qui est sur le serveur ne sont pas touchés. Faites d'abord une sauvegarde."
+    override val eraseEverythingConfirm =
+        "Effacer toutes les collections, tous les fichiers et toutes les notes de ce navigateur ? Le compte et le serveur ne sont pas touchés."
+    override val eraseEverythingAgain =
+        "C'est la copie que vous avez sous les yeux. Ensuite, seule une sauvegarde ou le compte la ramènera. Effacer ?"
     override val deleteAccount = "Supprimer le compte"
     override val deleteAccountHint = "Efface tout ce que le serveur détient. Ce qui est sur cet ordinateur reste."
     override val deleteAccountConfirm = "Supprimer le compte et tout ce que le serveur détient ? Cette action est irréversible."
@@ -2197,6 +2408,8 @@ private object EsStrings : Strings {
     override val collectionIconHint = "Icono y color"
     override val collectionIconTabGlyphs = "Iconos"
     override val collectionIconTabEmoji = "Emoji"
+    override val collectionIconTabFavicons = "Sitios"
+    override val collectionIconNoSites = "Aún no hay enlaces en esta colección"
     override val collectionIconSearch = "Buscar iconos"
     override val collectionIconRandom = "Icono al azar"
     override val collectionIconNothing = "No hay coincidencias"
@@ -2212,6 +2425,7 @@ private object EsStrings : Strings {
     override val deleteCardSectionHint = "Eliminar este grupo — sus tarjetas se quedan en la colección, sin grupo"
     override val addCardHint = "Añadir un enlace — o, desde el menú, una nota o un archivo"
     override val deleteCardHint = "Eliminar esta tarjeta"
+    override val clearGroupHint = "Eliminar todas las tarjetas de este grupo — el grupo se queda"
     override fun openAllHint(count: Int) = "Abrir las $count tarjetas en pestañas nuevas"
 
     override fun confirmDeleteSection(title: String, cards: Int) =
@@ -2220,10 +2434,18 @@ private object EsStrings : Strings {
         "«$title» contiene $cards elementos guardados. ¿Eliminar la colección?"
     override fun confirmDeleteCardSection(title: String, cards: Int) =
         "«$title» contiene $cards tarjetas. ¿Eliminar el grupo? Las tarjetas se quedan, sin grupo."
+    override fun confirmClearGroup(title: String, cards: Int) =
+        "«$title» contiene $cards tarjetas. ¿Eliminarlas todas? El grupo se queda."
+    override fun confirmDeleteEmptiedSection(title: String) =
+        "«$title» ha quedado vacía. ¿Eliminar también la sección?"
     override fun deletedSection(title: String) = "Sección «$title» eliminada"
     override fun deletedCollection(title: String) = "Colección «$title» eliminada"
+    override fun deletedCollectionAndSection(collection: String, section: String) =
+        "Colección «$collection» y sección «$section» eliminadas"
     override fun deletedCardSection(title: String) = "Grupo «$title» eliminado"
     override fun deletedCard(title: String) = "«$title» eliminada"
+    override fun clearedGroup(title: String, cards: Int) =
+        "$cards tarjetas eliminadas de «$title»"
     override fun movedCard(title: String) = "«$title» movida"
     override val sortedCards = "Tarjetas ordenadas"
     override val undo = "Deshacer"
@@ -2367,7 +2589,6 @@ private object EsStrings : Strings {
         "restablecer un PIN olvidado."
 
     override val makeReadOnlyHint = "Hacer de solo lectura: nada podrá añadirse, cambiarse ni eliminarse aquí."
-    override val allowEditing = "Permitir edición"
     override val allowEditingHint = "Permitir edición de nuevo."
     override val readOnlyBadge = "solo lectura"
     override val readOnlyHint = "Solo lectura: nada aquí puede añadirse, cambiarse ni eliminarse."
@@ -2592,6 +2813,7 @@ private object EsStrings : Strings {
     override val signInAccount = "Iniciar sesión"
     override val signOut = "Cerrar sesión"
     override val syncNow = "Sincronizar ahora"
+    override val refetchAccount = "Volver a leer la cuenta"
     override fun syncedAt(time: String) = "Sincronizado a las $time"
     override fun conflictCopies(count: Int) =
         if (count == 1) "Una nota se editó en dos dispositivos a la vez. Se conservaron ambas versiones."
@@ -2600,9 +2822,46 @@ private object EsStrings : Strings {
     override val joinAccountHint = "Puedes añadirlas a la cuenta, o dejarlas aquí y quedarte con lo que la cuenta ya tiene."
     override val joinAccountKeep = "Añadirlas a la cuenta"
     override val joinAccountDiscard = "Usar las colecciones de la cuenta"
+    override val joinAccountMerge = "Unir"
+    override val mergeDuplicates = "Buscar duplicados"
+    override val mergeTitle = "Unir duplicados"
+    override val mergeHint = "Esto parece lo mismo guardado dos veces. Desmarca lo que no lo sea."
+    override val mergeScanning = "Buscando…"
+    override val mergeNothing = "Aquí no hay nada duplicado."
+    override val mergeApply = "Unir"
+    override val mergeOneDevice = "Hazlo en un solo dispositivo — los demás recibirán el resultado al sincronizar."
+    override val mergeUndo = "Deshacer la unión"
+    override val mergeUndoHint = "Esta ventana es el camino de vuelta. Cerrarla mantiene la unión."
+    override val mergeUndone = "La unión se ha deshecho."
+    override fun mergeFuseBadge(rows: Int) = "×$rows"
+    override fun mergeCollectionCounts(duplicateCards: Int, cardSections: Int) = buildString {
+        if (duplicateCards > 0) append("$duplicateCards tarjetas duplicadas")
+        if (cardSections > 0) {
+            if (isNotEmpty()) append(", ")
+            append("$cardSections grupos")
+        }
+    }
+    override fun mergeDone(sections: Int, collections: Int, cards: Int) =
+        "Unido: $sections secciones, $collections colecciones, $cards tarjetas."
+    override fun mergeSkipped(lockedSections: Int, readOnlyCollections: Int) = buildString {
+        append("Sin tocar: ")
+        if (lockedSections > 0) append("$lockedSections secciones bloqueadas")
+        if (readOnlyCollections > 0) {
+            if (!endsWith(" ")) append(", ")
+            append("$readOnlyCollections colecciones de solo lectura")
+        }
+        append(".")
+    }
     override val exportAccountData = "Descargar mis datos"
     override val exportAccountDataHint = "Todo lo que el servidor guarda sobre esta cuenta, en formato JSON."
     override val exportAccountDataFailed = "No se pudo descargar la exportación."
+    override val eraseEverything = "Borrar todo en este navegador"
+    override val eraseEverythingHint =
+        "Las colecciones, los archivos, las estadísticas, los iconos en caché y los borradores sin guardar: todo lo que hay aquí. La cuenta y lo que está en el servidor quedan intactos. Haz una copia de seguridad primero."
+    override val eraseEverythingConfirm =
+        "¿Borrar todas las colecciones, archivos y notas de este navegador? La cuenta y el servidor no se tocan."
+    override val eraseEverythingAgain =
+        "Esta es la copia que tienes delante. Después solo una copia de seguridad o la cuenta la devolverán. ¿Borrar?"
     override val deleteAccount = "Eliminar cuenta"
     override val deleteAccountHint = "Borra todo lo que guarda el servidor. Lo que está en este equipo permanece."
     override val deleteAccountConfirm = "¿Eliminar la cuenta y todo lo que guarda el servidor? Esto no se puede deshacer."
@@ -2692,6 +2951,8 @@ private object DeStrings : Strings {
     override val collectionIconHint = "Symbol und Farbe"
     override val collectionIconTabGlyphs = "Symbole"
     override val collectionIconTabEmoji = "Emoji"
+    override val collectionIconTabFavicons = "Seiten"
+    override val collectionIconNoSites = "Noch keine Links in dieser Sammlung"
     override val collectionIconSearch = "Symbole suchen"
     override val collectionIconRandom = "Zufälliges Symbol"
     override val collectionIconNothing = "Keine Treffer"
@@ -2707,6 +2968,7 @@ private object DeStrings : Strings {
     override val deleteCardSectionHint = "Diese Gruppe löschen — ihre Karten bleiben in der Sammlung, ohne Gruppe"
     override val addCardHint = "Einen Link hinzufügen — oder, über das Menü, eine Notiz oder eine Datei"
     override val deleteCardHint = "Diese Karte löschen"
+    override val clearGroupHint = "Alle Karten dieser Gruppe löschen — die Gruppe selbst bleibt"
     override fun openAllHint(count: Int) = "Alle $count Karten in neuen Tabs öffnen"
 
     override fun confirmDeleteSection(title: String, cards: Int) =
@@ -2715,10 +2977,18 @@ private object DeStrings : Strings {
         "„$title“ enthält $cards gespeicherte Einträge. Sammlung löschen?"
     override fun confirmDeleteCardSection(title: String, cards: Int) =
         "„$title“ enthält $cards Karten. Gruppe löschen? Die Karten bleiben — ohne Gruppe."
+    override fun confirmClearGroup(title: String, cards: Int) =
+        "„$title“ enthält $cards Karten. Alle löschen? Die Gruppe bleibt."
+    override fun confirmDeleteEmptiedSection(title: String) =
+        "„$title“ ist jetzt leer. Den Bereich auch löschen?"
     override fun deletedSection(title: String) = "Bereich „$title“ gelöscht"
     override fun deletedCollection(title: String) = "Sammlung „$title“ gelöscht"
+    override fun deletedCollectionAndSection(collection: String, section: String) =
+        "Sammlung „$collection“ und Bereich „$section“ gelöscht"
     override fun deletedCardSection(title: String) = "Gruppe „$title“ gelöscht"
     override fun deletedCard(title: String) = "„$title“ gelöscht"
+    override fun clearedGroup(title: String, cards: Int) =
+        "$cards Karten aus „$title“ gelöscht"
     override fun movedCard(title: String) = "„$title“ verschoben"
     override val sortedCards = "Karten sortiert"
     override val undo = "Rückgängig"
@@ -2862,7 +3132,6 @@ private object DeStrings : Strings {
         "PIN kann nicht zurückgesetzt werden."
 
     override val makeReadOnlyHint = "Schreibgeschützt machen: Hier kann dann nichts mehr hinzugefügt, geändert oder gelöscht werden."
-    override val allowEditing = "Bearbeitung erlauben"
     override val allowEditingHint = "Bearbeitung wieder erlauben."
     override val readOnlyBadge = "schreibgeschützt"
     override val readOnlyHint = "Schreibgeschützt: Hier kann nichts hinzugefügt, geändert oder gelöscht werden."
@@ -3087,6 +3356,7 @@ private object DeStrings : Strings {
     override val signInAccount = "Anmelden"
     override val signOut = "Abmelden"
     override val syncNow = "Jetzt synchronisieren"
+    override val refetchAccount = "Konto neu einlesen"
     override fun syncedAt(time: String) = "Synchronisiert um $time"
     override fun conflictCopies(count: Int) =
         if (count == 1) "Eine Notiz wurde auf zwei Geräten gleichzeitig bearbeitet. Beide Versionen wurden behalten."
@@ -3095,9 +3365,46 @@ private object DeStrings : Strings {
     override val joinAccountHint = "Du kannst sie zum Konto hinzufügen, oder sie hier lassen und übernehmen, was das Konto bereits hat."
     override val joinAccountKeep = "Zum Konto hinzufügen"
     override val joinAccountDiscard = "Sammlungen des Kontos verwenden"
+    override val joinAccountMerge = "Zusammenführen"
+    override val mergeDuplicates = "Duplikate finden"
+    override val mergeTitle = "Duplikate zusammenführen"
+    override val mergeHint = "Das sieht nach demselben aus, zweimal gespeichert. Häkchen entfernen, wo es nicht so ist."
+    override val mergeScanning = "Wird gesucht…"
+    override val mergeNothing = "Hier ist nichts doppelt."
+    override val mergeApply = "Zusammenführen"
+    override val mergeOneDevice = "Auf einem Gerät ausführen — die anderen bekommen das Ergebnis über die Synchronisierung."
+    override val mergeUndo = "Zusammenführen rückgängig"
+    override val mergeUndoHint = "Dieses Fenster ist der Weg zurück. Schließen behält die Zusammenführung."
+    override val mergeUndone = "Das Zusammenführen wurde rückgängig gemacht."
+    override fun mergeFuseBadge(rows: Int) = "×$rows"
+    override fun mergeCollectionCounts(duplicateCards: Int, cardSections: Int) = buildString {
+        if (duplicateCards > 0) append("$duplicateCards doppelte Karten")
+        if (cardSections > 0) {
+            if (isNotEmpty()) append(", ")
+            append("$cardSections Gruppen")
+        }
+    }
+    override fun mergeDone(sections: Int, collections: Int, cards: Int) =
+        "Zusammengeführt: $sections Abschnitte, $collections Sammlungen, $cards Karten."
+    override fun mergeSkipped(lockedSections: Int, readOnlyCollections: Int) = buildString {
+        append("Unberührt: ")
+        if (lockedSections > 0) append("$lockedSections gesperrte Abschnitte")
+        if (readOnlyCollections > 0) {
+            if (!endsWith(" ")) append(", ")
+            append("$readOnlyCollections schreibgeschützte Sammlungen")
+        }
+        append(".")
+    }
     override val exportAccountData = "Meine Daten herunterladen"
     override val exportAccountDataHint = "Alles, was der Server zu diesem Konto speichert, als JSON."
     override val exportAccountDataFailed = "Der Export konnte nicht heruntergeladen werden."
+    override val eraseEverything = "Alles in diesem Browser löschen"
+    override val eraseEverythingHint =
+        "Die Sammlungen, die Dateien, die Statistiken, die zwischengespeicherten Symbole und die ungespeicherten Entwürfe — alles, was hier liegt. Das Konto und was auf dem Server liegt, bleiben unberührt. Vorher ein Backup machen."
+    override val eraseEverythingConfirm =
+        "Alle Sammlungen, Dateien und Notizen in diesem Browser löschen? Konto und Server bleiben unberührt."
+    override val eraseEverythingAgain =
+        "Das ist die Kopie, die vor Ihnen liegt. Danach bringt sie nur ein Backup oder das Konto zurück. Löschen?"
     override val deleteAccount = "Konto löschen"
     override val deleteAccountHint = "Löscht alles, was der Server speichert. Was auf diesem Gerät ist, bleibt."
     override val deleteAccountConfirm = "Konto und alles, was der Server speichert, löschen? Das kann nicht rückgängig gemacht werden."
@@ -3187,6 +3494,8 @@ private object PtBrStrings : Strings {
     override val collectionIconHint = "Ícone e cor"
     override val collectionIconTabGlyphs = "Ícones"
     override val collectionIconTabEmoji = "Emoji"
+    override val collectionIconTabFavicons = "Sites"
+    override val collectionIconNoSites = "Ainda sem links nesta coleção"
     override val collectionIconSearch = "Buscar ícones"
     override val collectionIconRandom = "Ícone aleatório"
     override val collectionIconNothing = "Nada encontrado"
@@ -3202,6 +3511,7 @@ private object PtBrStrings : Strings {
     override val deleteCardSectionHint = "Excluir este grupo — seus cartões permanecem na coleção, sem grupo"
     override val addCardHint = "Adicionar um link — ou, pelo menu, uma nota ou um arquivo"
     override val deleteCardHint = "Excluir este cartão"
+    override val clearGroupHint = "Excluir todos os cartões deste grupo — o grupo permanece"
     override fun openAllHint(count: Int) = "Abrir os $count cartões em novas abas"
 
     override fun confirmDeleteSection(title: String, cards: Int) =
@@ -3210,10 +3520,18 @@ private object PtBrStrings : Strings {
         "“$title” contém $cards itens salvos. Excluir a coleção?"
     override fun confirmDeleteCardSection(title: String, cards: Int) =
         "“$title” contém $cards cartões. Excluir o grupo? Os cartões permanecem, sem grupo."
+    override fun confirmClearGroup(title: String, cards: Int) =
+        "“$title” contém $cards cartões. Excluir todos? O grupo permanece."
+    override fun confirmDeleteEmptiedSection(title: String) =
+        "“$title” ficou vazia. Excluir a seção também?"
     override fun deletedSection(title: String) = "Seção “$title” excluída"
     override fun deletedCollection(title: String) = "Coleção “$title” excluída"
+    override fun deletedCollectionAndSection(collection: String, section: String) =
+        "Coleção “$collection” e seção “$section” excluídas"
     override fun deletedCardSection(title: String) = "Grupo “$title” excluído"
     override fun deletedCard(title: String) = "“$title” excluído"
+    override fun clearedGroup(title: String, cards: Int) =
+        "$cards cartões excluídos de “$title”"
     override fun movedCard(title: String) = "“$title” movido"
     override val sortedCards = "Cartões ordenados"
     override val undo = "Desfazer"
@@ -3357,7 +3675,6 @@ private object PtBrStrings : Strings {
         "esquecido."
 
     override val makeReadOnlyHint = "Tornar somente leitura: nada poderá ser adicionado, alterado ou excluído aqui."
-    override val allowEditing = "Permitir edição"
     override val allowEditingHint = "Permitir edição novamente."
     override val readOnlyBadge = "somente leitura"
     override val readOnlyHint = "Somente leitura: nada aqui pode ser adicionado, alterado ou excluído."
@@ -3581,6 +3898,7 @@ private object PtBrStrings : Strings {
     override val signInAccount = "Entrar"
     override val signOut = "Sair"
     override val syncNow = "Sincronizar agora"
+    override val refetchAccount = "Reler a conta"
     override fun syncedAt(time: String) = "Sincronizado às $time"
     override fun conflictCopies(count: Int) =
         if (count == 1) "Uma nota foi editada em dois dispositivos ao mesmo tempo. As duas versões foram mantidas."
@@ -3589,9 +3907,46 @@ private object PtBrStrings : Strings {
     override val joinAccountHint = "Você pode adicioná-las à conta, ou deixá-las aqui e usar o que a conta já tem."
     override val joinAccountKeep = "Adicioná-las à conta"
     override val joinAccountDiscard = "Usar as coleções da conta"
+    override val joinAccountMerge = "Unir"
+    override val mergeDuplicates = "Encontrar duplicatas"
+    override val mergeTitle = "Unir duplicatas"
+    override val mergeHint = "Isto parece a mesma coisa salva duas vezes. Desmarque o que não for."
+    override val mergeScanning = "Procurando…"
+    override val mergeNothing = "Nada aqui está duplicado."
+    override val mergeApply = "Unir"
+    override val mergeOneDevice = "Faça isto em um só dispositivo — os outros recebem o resultado pela sincronização."
+    override val mergeUndo = "Desfazer a união"
+    override val mergeUndoHint = "Esta janela é o caminho de volta. Fechá-la mantém a união."
+    override val mergeUndone = "A união foi desfeita."
+    override fun mergeFuseBadge(rows: Int) = "×$rows"
+    override fun mergeCollectionCounts(duplicateCards: Int, cardSections: Int) = buildString {
+        if (duplicateCards > 0) append("$duplicateCards cartões duplicados")
+        if (cardSections > 0) {
+            if (isNotEmpty()) append(", ")
+            append("$cardSections grupos")
+        }
+    }
+    override fun mergeDone(sections: Int, collections: Int, cards: Int) =
+        "Unido: $sections seções, $collections coleções, $cards cartões."
+    override fun mergeSkipped(lockedSections: Int, readOnlyCollections: Int) = buildString {
+        append("Intocado: ")
+        if (lockedSections > 0) append("$lockedSections seções bloqueadas")
+        if (readOnlyCollections > 0) {
+            if (!endsWith(" ")) append(", ")
+            append("$readOnlyCollections coleções somente leitura")
+        }
+        append(".")
+    }
     override val exportAccountData = "Baixar meus dados"
     override val exportAccountDataHint = "Tudo o que o servidor guarda sobre esta conta, em JSON."
     override val exportAccountDataFailed = "Não foi possível baixar a exportação."
+    override val eraseEverything = "Apagar tudo neste navegador"
+    override val eraseEverythingHint =
+        "As coleções, os arquivos, as estatísticas, os ícones em cache e os rascunhos não salvos — tudo o que está aqui. A conta e o que está no servidor ficam intactos. Faça um backup antes."
+    override val eraseEverythingConfirm =
+        "Apagar todas as coleções, arquivos e notas deste navegador? A conta e o servidor não são tocados."
+    override val eraseEverythingAgain =
+        "Esta é a cópia que você está vendo. Depois disso, só um backup ou a conta a traz de volta. Apagar?"
     override val deleteAccount = "Excluir conta"
     override val deleteAccountHint = "Apaga tudo o que o servidor guarda. O que está neste computador permanece."
     override val deleteAccountConfirm = "Excluir a conta e tudo o que o servidor guarda? Isso não pode ser desfeito."
@@ -3681,6 +4036,8 @@ private object ZhCnStrings : Strings {
     override val collectionIconHint = "图标和颜色"
     override val collectionIconTabGlyphs = "图标"
     override val collectionIconTabEmoji = "表情"
+    override val collectionIconTabFavicons = "网站"
+    override val collectionIconNoSites = "这个收藏夹里还没有链接"
     override val collectionIconSearch = "搜索图标"
     override val collectionIconRandom = "随机图标"
     override val collectionIconNothing = "没有匹配项"
@@ -3696,6 +4053,7 @@ private object ZhCnStrings : Strings {
     override val deleteCardSectionHint = "删除此分组——其中的卡片仍保留在收藏夹中，只是不再分组"
     override val addCardHint = "添加一个链接——或从菜单中添加笔记或文件"
     override val deleteCardHint = "删除此卡片"
+    override val clearGroupHint = "删除此分组中的全部卡片——分组本身保留"
     override fun openAllHint(count: Int) = "在新标签页中打开全部 $count 张卡片"
 
     override fun confirmDeleteSection(title: String, cards: Int) =
@@ -3704,10 +4062,18 @@ private object ZhCnStrings : Strings {
         "“$title”中有 $cards 个已保存项目。删除该收藏夹？"
     override fun confirmDeleteCardSection(title: String, cards: Int) =
         "“$title”中有 $cards 张卡片。删除该分组？卡片会保留，只是不再分组。"
+    override fun confirmClearGroup(title: String, cards: Int) =
+        "“$title”中有 $cards 张卡片。全部删除？分组会保留。"
+    override fun confirmDeleteEmptiedSection(title: String) =
+        "“$title”已经空了。要一并删除这个分区吗？"
     override fun deletedSection(title: String) = "分区“$title”已删除"
     override fun deletedCollection(title: String) = "收藏夹“$title”已删除"
+    override fun deletedCollectionAndSection(collection: String, section: String) =
+        "已删除收藏夹“$collection”和分区“$section”"
     override fun deletedCardSection(title: String) = "分组“$title”已删除"
     override fun deletedCard(title: String) = "“$title”已删除"
+    override fun clearedGroup(title: String, cards: Int) =
+        "已从“$title”删除 $cards 张卡片"
     override fun movedCard(title: String) = "“$title”已移动"
     override val sortedCards = "卡片已排序"
     override val undo = "撤销"
@@ -3845,7 +4211,6 @@ private object ZhCnStrings : Strings {
         "搜索和导出结果中。忘记的 PIN 码无法找回。"
 
     override val makeReadOnlyHint = "设为只读：此后无法在这里添加、修改或删除任何内容。"
-    override val allowEditing = "允许编辑"
     override val allowEditingHint = "重新允许编辑。"
     override val readOnlyBadge = "只读"
     override val readOnlyHint = "只读：这里无法添加、修改或删除任何内容。"
@@ -4060,6 +4425,7 @@ private object ZhCnStrings : Strings {
     override val signInAccount = "登录"
     override val signOut = "退出登录"
     override val syncNow = "立即同步"
+    override val refetchAccount = "重新读取账户"
     override fun syncedAt(time: String) = "已于 $time 同步"
     override fun conflictCopies(count: Int) =
         if (count == 1) "有一条笔记在两台设备上同时被编辑。两个版本都已保留。"
@@ -4068,9 +4434,46 @@ private object ZhCnStrings : Strings {
     override val joinAccountHint = "你可以将它们加入账户，也可以留在本机，改用账户中已有的内容。"
     override val joinAccountKeep = "加入账户"
     override val joinAccountDiscard = "使用账户中的收藏夹"
+    override val joinAccountMerge = "合并"
+    override val mergeDuplicates = "查找重复项"
+    override val mergeTitle = "合并重复项"
+    override val mergeHint = "这些看起来是同一样东西保存了两次。不是的话请取消勾选。"
+    override val mergeScanning = "正在查找……"
+    override val mergeNothing = "这里没有重复的东西。"
+    override val mergeApply = "合并"
+    override val mergeOneDevice = "请只在一台设备上执行——其他设备会通过同步得到结果。"
+    override val mergeUndo = "撤销合并"
+    override val mergeUndoHint = "这个窗口就是退路。关闭它，合并就保留下来。"
+    override val mergeUndone = "合并已撤销。"
+    override fun mergeFuseBadge(rows: Int) = "×$rows"
+    override fun mergeCollectionCounts(duplicateCards: Int, cardSections: Int) = buildString {
+        if (duplicateCards > 0) append("重复卡片 $duplicateCards")
+        if (cardSections > 0) {
+            if (isNotEmpty()) append("，")
+            append("分组 $cardSections")
+        }
+    }
+    override fun mergeDone(sections: Int, collections: Int, cards: Int) =
+        "已合并：板块 $sections，收藏夹 $collections，卡片 $cards。"
+    override fun mergeSkipped(lockedSections: Int, readOnlyCollections: Int) = buildString {
+        append("未处理：")
+        if (lockedSections > 0) append("加锁板块 $lockedSections")
+        if (readOnlyCollections > 0) {
+            if (!endsWith("：")) append("，")
+            append("只读收藏夹 $readOnlyCollections")
+        }
+        append("。")
+    }
     override val exportAccountData = "下载我的数据"
     override val exportAccountDataHint = "服务器保存的与此账户相关的所有数据，格式为 JSON。"
     override val exportAccountDataFailed = "无法下载导出内容。"
+    override val eraseEverything = "清除此浏览器中的全部数据"
+    override val eraseEverythingHint =
+        "收藏夹、文件、统计、图标缓存和未保存的草稿——这里的一切。账户和服务器上的内容不受影响。请先做一份备份。"
+    override val eraseEverythingConfirm =
+        "清除此浏览器中的所有收藏夹、文件和笔记？账户和服务器不受影响。"
+    override val eraseEverythingAgain =
+        "这就是你眼前的这一份。之后只有备份或账户能找回它。确定清除吗？"
     override val deleteAccount = "删除账户"
     override val deleteAccountHint = "会清除服务器上保存的一切。本机上的内容会保留。"
     override val deleteAccountConfirm = "删除账户以及服务器上保存的一切？此操作无法撤销。"
@@ -4160,6 +4563,8 @@ private object JaStrings : Strings {
     override val collectionIconHint = "アイコンと色"
     override val collectionIconTabGlyphs = "アイコン"
     override val collectionIconTabEmoji = "絵文字"
+    override val collectionIconTabFavicons = "サイト"
+    override val collectionIconNoSites = "このコレクションにはまだリンクがありません"
     override val collectionIconSearch = "アイコンを検索"
     override val collectionIconRandom = "ランダムなアイコン"
     override val collectionIconNothing = "一致するものがありません"
@@ -4175,6 +4580,7 @@ private object JaStrings : Strings {
     override val deleteCardSectionHint = "このグループを削除——カードはグループなしでコレクションに残ります"
     override val addCardHint = "リンクを追加——またはメニューからメモやファイルを追加"
     override val deleteCardHint = "このカードを削除"
+    override val clearGroupHint = "このグループのカードをすべて削除（グループ自体は残ります）"
     override fun openAllHint(count: Int) = "$count 枚のカードすべてを新しいタブで開く"
 
     override fun confirmDeleteSection(title: String, cards: Int) =
@@ -4183,10 +4589,18 @@ private object JaStrings : Strings {
         "「$title」には $cards 件の保存済み項目があります。コレクションを削除しますか？"
     override fun confirmDeleteCardSection(title: String, cards: Int) =
         "「$title」には $cards 枚のカードがあります。グループを削除しますか？カードはグループなしで残ります。"
+    override fun confirmClearGroup(title: String, cards: Int) =
+        "「$title」には $cards 枚のカードがあります。すべて削除しますか？グループは残ります。"
+    override fun confirmDeleteEmptiedSection(title: String) =
+        "「$title」が空になりました。セクションも削除しますか？"
     override fun deletedSection(title: String) = "セクション「$title」を削除しました"
     override fun deletedCollection(title: String) = "コレクション「$title」を削除しました"
+    override fun deletedCollectionAndSection(collection: String, section: String) =
+        "コレクション「$collection」とセクション「$section」を削除しました"
     override fun deletedCardSection(title: String) = "グループ「$title」を削除しました"
     override fun deletedCard(title: String) = "「$title」を削除しました"
+    override fun clearedGroup(title: String, cards: Int) =
+        "「$title」からカードを $cards 枚削除しました"
     override fun movedCard(title: String) = "「$title」を移動しました"
     override val sortedCards = "カードを並べ替えました"
     override val undo = "元に戻す"
@@ -4327,7 +4741,6 @@ private object JaStrings : Strings {
         "そのカードは検索やエクスポートの対象になりません。忘れたPINをリセットする方法はありません。"
 
     override val makeReadOnlyHint = "読み取り専用にする：ここでは何も追加・変更・削除できなくなります。"
-    override val allowEditing = "編集を許可"
     override val allowEditingHint = "再び編集を許可します。"
     override val readOnlyBadge = "読み取り専用"
     override val readOnlyHint = "読み取り専用：ここでは何も追加・変更・削除できません。"
@@ -4550,6 +4963,7 @@ private object JaStrings : Strings {
     override val signInAccount = "サインイン"
     override val signOut = "サインアウト"
     override val syncNow = "今すぐ同期"
+    override val refetchAccount = "アカウントを読み直す"
     override fun syncedAt(time: String) = "$time に同期しました"
     override fun conflictCopies(count: Int) =
         if (count == 1) "1件のメモが2台の端末で同時に編集されました。両方のバージョンが保持されました。"
@@ -4558,9 +4972,46 @@ private object JaStrings : Strings {
     override val joinAccountHint = "アカウントに追加するか、ここに残してアカウントにすでにある内容を使うか選べます。"
     override val joinAccountKeep = "アカウントに追加する"
     override val joinAccountDiscard = "アカウントのコレクションを使う"
+    override val joinAccountMerge = "まとめる"
+    override val mergeDuplicates = "重複を探す"
+    override val mergeTitle = "重複をまとめる"
+    override val mergeHint = "同じものが二度保存されているようです。違うものはチェックを外してください。"
+    override val mergeScanning = "探しています…"
+    override val mergeNothing = "重複しているものはありません。"
+    override val mergeApply = "まとめる"
+    override val mergeOneDevice = "1台の端末で実行してください。ほかの端末には同期で結果が届きます。"
+    override val mergeUndo = "まとめを取り消す"
+    override val mergeUndoHint = "この画面が戻り道です。閉じるとまとめたままになります。"
+    override val mergeUndone = "まとめを取り消しました。"
+    override fun mergeFuseBadge(rows: Int) = "×$rows"
+    override fun mergeCollectionCounts(duplicateCards: Int, cardSections: Int) = buildString {
+        if (duplicateCards > 0) append("重複カード $duplicateCards 件")
+        if (cardSections > 0) {
+            if (isNotEmpty()) append("、")
+            append("グループ $cardSections 件")
+        }
+    }
+    override fun mergeDone(sections: Int, collections: Int, cards: Int) =
+        "まとめました：セクション $sections、コレクション $collections、カード $cards。"
+    override fun mergeSkipped(lockedSections: Int, readOnlyCollections: Int) = buildString {
+        append("そのままにしたもの：")
+        if (lockedSections > 0) append("ロック中のセクション $lockedSections")
+        if (readOnlyCollections > 0) {
+            if (!endsWith("：")) append("、")
+            append("読み取り専用のコレクション $readOnlyCollections")
+        }
+        append("。")
+    }
     override val exportAccountData = "自分のデータをダウンロード"
     override val exportAccountDataHint = "サーバーがこのアカウントについて保持しているすべてのデータをJSON形式で。"
     override val exportAccountDataFailed = "エクスポートをダウンロードできませんでした。"
+    override val eraseEverything = "このブラウザのデータをすべて消す"
+    override val eraseEverythingHint =
+        "コレクション、ファイル、統計、アイコンのキャッシュ、未保存の下書き——ここにあるものすべて。アカウントとサーバー上のものはそのままです。先にバックアップを取ってください。"
+    override val eraseEverythingConfirm =
+        "このブラウザのコレクション・ファイル・メモをすべて消しますか？アカウントとサーバーには触れません。"
+    override val eraseEverythingAgain =
+        "いま見えているのがその一部です。この後はバックアップかアカウントからしか戻せません。消しますか？"
     override val deleteAccount = "アカウントを削除"
     override val deleteAccountHint = "サーバーが保持しているすべてを消去します。この端末上のものは残ります。"
     override val deleteAccountConfirm = "アカウントとサーバーが保持しているすべてを削除しますか？この操作は元に戻せません。"
@@ -4650,6 +5101,8 @@ private object KoStrings : Strings {
     override val collectionIconHint = "아이콘과 색"
     override val collectionIconTabGlyphs = "아이콘"
     override val collectionIconTabEmoji = "이모지"
+    override val collectionIconTabFavicons = "사이트"
+    override val collectionIconNoSites = "이 컬렉션에는 아직 링크가 없습니다"
     override val collectionIconSearch = "아이콘 검색"
     override val collectionIconRandom = "무작위 아이콘"
     override val collectionIconNothing = "일치하는 항목이 없습니다"
@@ -4665,6 +5118,7 @@ private object KoStrings : Strings {
     override val deleteCardSectionHint = "이 그룹 삭제——카드는 그룹 없이 컬렉션에 남습니다"
     override val addCardHint = "링크 추가——또는 메뉴에서 메모나 파일 추가"
     override val deleteCardHint = "이 카드 삭제"
+    override val clearGroupHint = "이 그룹의 카드를 모두 삭제 — 그룹 자체는 남습니다"
     override fun openAllHint(count: Int) = "카드 $count 개를 모두 새 탭에서 열기"
 
     override fun confirmDeleteSection(title: String, cards: Int) =
@@ -4673,10 +5127,18 @@ private object KoStrings : Strings {
         "“$title”에 저장된 항목이 $cards 개 있습니다. 컬렉션을 삭제할까요?"
     override fun confirmDeleteCardSection(title: String, cards: Int) =
         "“$title”에 카드가 $cards 개 있습니다. 그룹을 삭제할까요? 카드는 그룹 없이 남습니다."
+    override fun confirmClearGroup(title: String, cards: Int) =
+        "“$title”에 카드가 $cards 개 있습니다. 모두 삭제할까요? 그룹은 남습니다."
+    override fun confirmDeleteEmptiedSection(title: String) =
+        "“$title”이(가) 비었습니다. 섹션도 삭제할까요?"
     override fun deletedSection(title: String) = "섹션 “$title”을(를) 삭제했습니다"
     override fun deletedCollection(title: String) = "컬렉션 “$title”을(를) 삭제했습니다"
+    override fun deletedCollectionAndSection(collection: String, section: String) =
+        "컬렉션 “$collection”과(와) 섹션 “$section”을(를) 삭제했습니다"
     override fun deletedCardSection(title: String) = "그룹 “$title”을(를) 삭제했습니다"
     override fun deletedCard(title: String) = "“$title”을(를) 삭제했습니다"
+    override fun clearedGroup(title: String, cards: Int) =
+        "“$title”에서 카드 $cards 개를 삭제했습니다"
     override fun movedCard(title: String) = "“$title”을(를) 이동했습니다"
     override val sortedCards = "카드를 정렬했습니다"
     override val undo = "실행 취소"
@@ -4818,7 +5280,6 @@ private object KoStrings : Strings {
         "그 안의 카드는 검색과 내보내기에서도 제외됩니다. 잊어버린 PIN을 재설정할 방법은 없습니다."
 
     override val makeReadOnlyHint = "읽기 전용으로 설정: 이후로는 이곳에서 추가, 변경, 삭제가 불가능합니다."
-    override val allowEditing = "편집 허용"
     override val allowEditingHint = "편집을 다시 허용합니다."
     override val readOnlyBadge = "읽기 전용"
     override val readOnlyHint = "읽기 전용: 이곳에서는 아무것도 추가, 변경, 삭제할 수 없습니다."
@@ -5041,6 +5502,7 @@ private object KoStrings : Strings {
     override val signInAccount = "로그인"
     override val signOut = "로그아웃"
     override val syncNow = "지금 동기화"
+    override val refetchAccount = "계정 다시 읽기"
     override fun syncedAt(time: String) = "$time 에 동기화됨"
     override fun conflictCopies(count: Int) =
         if (count == 1) "메모 하나가 두 기기에서 동시에 수정되었습니다. 두 버전 모두 보존되었습니다."
@@ -5049,9 +5511,46 @@ private object KoStrings : Strings {
     override val joinAccountHint = "계정에 추가하거나, 여기 그대로 두고 계정에 이미 있는 것을 사용할 수 있습니다."
     override val joinAccountKeep = "계정에 추가하기"
     override val joinAccountDiscard = "계정의 컬렉션 사용하기"
+    override val joinAccountMerge = "합치기"
+    override val mergeDuplicates = "중복 찾기"
+    override val mergeTitle = "중복 합치기"
+    override val mergeHint = "같은 것이 두 번 저장된 것으로 보입니다. 아닌 것은 체크를 해제하세요."
+    override val mergeScanning = "찾는 중…"
+    override val mergeNothing = "중복된 것이 없습니다."
+    override val mergeApply = "합치기"
+    override val mergeOneDevice = "한 기기에서만 실행하세요 — 나머지는 동기화로 결과를 받습니다."
+    override val mergeUndo = "합치기 취소"
+    override val mergeUndoHint = "이 창이 돌아갈 길입니다. 닫으면 합친 상태로 남습니다."
+    override val mergeUndone = "합치기를 취소했습니다."
+    override fun mergeFuseBadge(rows: Int) = "×$rows"
+    override fun mergeCollectionCounts(duplicateCards: Int, cardSections: Int) = buildString {
+        if (duplicateCards > 0) append("중복 카드 ${duplicateCards}개")
+        if (cardSections > 0) {
+            if (isNotEmpty()) append(", ")
+            append("그룹 ${cardSections}개")
+        }
+    }
+    override fun mergeDone(sections: Int, collections: Int, cards: Int) =
+        "합쳤습니다: 섹션 ${sections}개, 컬렉션 ${collections}개, 카드 ${cards}개."
+    override fun mergeSkipped(lockedSections: Int, readOnlyCollections: Int) = buildString {
+        append("그대로 둔 것: ")
+        if (lockedSections > 0) append("잠긴 섹션 ${lockedSections}개")
+        if (readOnlyCollections > 0) {
+            if (!endsWith(" ")) append(", ")
+            append("읽기 전용 컬렉션 ${readOnlyCollections}개")
+        }
+        append(".")
+    }
     override val exportAccountData = "내 데이터 다운로드"
     override val exportAccountDataHint = "서버가 이 계정에 대해 보관하는 모든 데이터를 JSON 형식으로."
     override val exportAccountDataFailed = "내보내기를 다운로드하지 못했습니다."
+    override val eraseEverything = "이 브라우저의 데이터 모두 지우기"
+    override val eraseEverythingHint =
+        "컬렉션, 파일, 통계, 아이콘 캐시, 저장하지 않은 초안 — 여기 있는 모든 것. 계정과 서버에 있는 것은 그대로 둡니다. 먼저 백업을 받으세요."
+    override val eraseEverythingConfirm =
+        "이 브라우저의 컬렉션, 파일, 메모를 모두 지울까요? 계정과 서버는 건드리지 않습니다."
+    override val eraseEverythingAgain =
+        "지금 보고 있는 그 사본입니다. 이후에는 백업이나 계정으로만 되돌릴 수 있습니다. 지울까요?"
     override val deleteAccount = "계정 삭제"
     override val deleteAccountHint = "서버가 보관하는 모든 것을 지웁니다. 이 기기에 있는 것은 남습니다."
     override val deleteAccountConfirm = "계정과 서버가 보관하는 모든 것을 삭제할까요? 이 작업은 되돌릴 수 없습니다."
@@ -5141,6 +5640,8 @@ private object ItStrings : Strings {
     override val collectionIconHint = "Icona e colore"
     override val collectionIconTabGlyphs = "Icone"
     override val collectionIconTabEmoji = "Emoji"
+    override val collectionIconTabFavicons = "Siti"
+    override val collectionIconNoSites = "Ancora nessun link in questa raccolta"
     override val collectionIconSearch = "Cerca icone"
     override val collectionIconRandom = "Icona casuale"
     override val collectionIconNothing = "Nessun risultato"
@@ -5156,6 +5657,7 @@ private object ItStrings : Strings {
     override val deleteCardSectionHint = "Elimina questo gruppo — le sue schede restano nella raccolta, senza gruppo"
     override val addCardHint = "Aggiungi un link — oppure, dal menu, una nota o un file"
     override val deleteCardHint = "Elimina questa scheda"
+    override val clearGroupHint = "Elimina tutte le schede di questo gruppo — il gruppo resta"
     override fun openAllHint(count: Int) = "Apri tutte le $count schede in nuove schede del browser"
 
     override fun confirmDeleteSection(title: String, cards: Int) =
@@ -5164,10 +5666,18 @@ private object ItStrings : Strings {
         "“$title” contiene $cards elementi salvati. Eliminare la raccolta?"
     override fun confirmDeleteCardSection(title: String, cards: Int) =
         "“$title” contiene $cards schede. Eliminare il gruppo? Le schede restano, senza gruppo."
+    override fun confirmClearGroup(title: String, cards: Int) =
+        "“$title” contiene $cards schede. Eliminarle tutte? Il gruppo resta."
+    override fun confirmDeleteEmptiedSection(title: String) =
+        "«$title» è rimasta vuota. Eliminare anche la sezione?"
     override fun deletedSection(title: String) = "Sezione “$title” eliminata"
     override fun deletedCollection(title: String) = "Raccolta “$title” eliminata"
+    override fun deletedCollectionAndSection(collection: String, section: String) =
+        "Raccolta «$collection» e sezione «$section» eliminate"
     override fun deletedCardSection(title: String) = "Gruppo “$title” eliminato"
     override fun deletedCard(title: String) = "“$title” eliminata"
+    override fun clearedGroup(title: String, cards: Int) =
+        "$cards schede eliminate da “$title”"
     override fun movedCard(title: String) = "“$title” spostata"
     override val sortedCards = "Schede ordinate"
     override val undo = "Annulla"
@@ -5311,7 +5821,6 @@ private object ItStrings : Strings {
         "Non esiste modo di ripristinare un PIN dimenticato."
 
     override val makeReadOnlyHint = "Rendi di sola lettura: qui non sarà più possibile aggiungere, modificare o eliminare nulla."
-    override val allowEditing = "Consenti modifica"
     override val allowEditingHint = "Consenti di nuovo la modifica."
     override val readOnlyBadge = "sola lettura"
     override val readOnlyHint = "Sola lettura: qui non è possibile aggiungere, modificare o eliminare nulla."
@@ -5536,6 +6045,7 @@ private object ItStrings : Strings {
     override val signInAccount = "Accedi"
     override val signOut = "Esci"
     override val syncNow = "Sincronizza ora"
+    override val refetchAccount = "Rileggi l'account"
     override fun syncedAt(time: String) = "Sincronizzato alle $time"
     override fun conflictCopies(count: Int) =
         if (count == 1) "Una nota è stata modificata su due dispositivi contemporaneamente. Entrambe le versioni sono state conservate."
@@ -5544,9 +6054,46 @@ private object ItStrings : Strings {
     override val joinAccountHint = "Puoi aggiungerle all'account, oppure lasciarle qui e prendere ciò che l'account ha già."
     override val joinAccountKeep = "Aggiungile all'account"
     override val joinAccountDiscard = "Usa le raccolte dell'account"
+    override val joinAccountMerge = "Unisci"
+    override val mergeDuplicates = "Trova i doppioni"
+    override val mergeTitle = "Unisci i doppioni"
+    override val mergeHint = "Sembra la stessa cosa salvata due volte. Togli la spunta a ciò che non lo è."
+    override val mergeScanning = "Ricerca in corso…"
+    override val mergeNothing = "Qui non c'è nulla di doppio."
+    override val mergeApply = "Unisci"
+    override val mergeOneDevice = "Fallo su un solo dispositivo — gli altri riceveranno il risultato con la sincronizzazione."
+    override val mergeUndo = "Annulla l'unione"
+    override val mergeUndoHint = "Questa finestra è la via del ritorno. Chiuderla mantiene l'unione."
+    override val mergeUndone = "L'unione è stata annullata."
+    override fun mergeFuseBadge(rows: Int) = "×$rows"
+    override fun mergeCollectionCounts(duplicateCards: Int, cardSections: Int) = buildString {
+        if (duplicateCards > 0) append("$duplicateCards schede doppie")
+        if (cardSections > 0) {
+            if (isNotEmpty()) append(", ")
+            append("$cardSections gruppi")
+        }
+    }
+    override fun mergeDone(sections: Int, collections: Int, cards: Int) =
+        "Unito: $sections sezioni, $collections raccolte, $cards schede."
+    override fun mergeSkipped(lockedSections: Int, readOnlyCollections: Int) = buildString {
+        append("Lasciato com'era: ")
+        if (lockedSections > 0) append("$lockedSections sezioni bloccate")
+        if (readOnlyCollections > 0) {
+            if (!endsWith(" ")) append(", ")
+            append("$readOnlyCollections raccolte in sola lettura")
+        }
+        append(".")
+    }
     override val exportAccountData = "Scarica i miei dati"
     override val exportAccountDataHint = "Tutto ciò che il server conserva su questo account, in formato JSON."
     override val exportAccountDataFailed = "Impossibile scaricare l'esportazione."
+    override val eraseEverything = "Cancella tutto in questo browser"
+    override val eraseEverythingHint =
+        "Le raccolte, i file, le statistiche, le icone in cache e le bozze non salvate: tutto quello che è qui. L'account e ciò che sta sul server restano intatti. Fai prima un backup."
+    override val eraseEverythingConfirm =
+        "Cancellare tutte le raccolte, i file e le note di questo browser? L'account e il server non vengono toccati."
+    override val eraseEverythingAgain =
+        "Questa è la copia che hai davanti. Dopo, solo un backup o l'account la riportano indietro. Cancellare?"
     override val deleteAccount = "Elimina account"
     override val deleteAccountHint = "Cancella tutto ciò che il server conserva. Ciò che è su questo dispositivo resta."
     override val deleteAccountConfirm = "Eliminare l'account e tutto ciò che il server conserva? L'operazione non può essere annullata."
@@ -5636,6 +6183,8 @@ private object TrStrings : Strings {
     override val collectionIconHint = "Simge ve renk"
     override val collectionIconTabGlyphs = "Simgeler"
     override val collectionIconTabEmoji = "Emoji"
+    override val collectionIconTabFavicons = "Siteler"
+    override val collectionIconNoSites = "Bu koleksiyonda henüz bağlantı yok"
     override val collectionIconSearch = "Simge ara"
     override val collectionIconRandom = "Rastgele simge"
     override val collectionIconNothing = "Eşleşen bir şey yok"
@@ -5651,6 +6200,7 @@ private object TrStrings : Strings {
     override val deleteCardSectionHint = "Bu grubu sil — kartları koleksiyonda gruplandırılmadan kalır"
     override val addCardHint = "Bir bağlantı ekle — veya menüden bir not ya da dosya ekle"
     override val deleteCardHint = "Bu kartı sil"
+    override val clearGroupHint = "Bu gruptaki tüm kartları sil — grubun kendisi kalır"
     override fun openAllHint(count: Int) = "$count kartın tümünü yeni sekmelerde aç"
 
     override fun confirmDeleteSection(title: String, cards: Int) =
@@ -5659,10 +6209,18 @@ private object TrStrings : Strings {
         "“$title” içinde $cards kayıtlı öğe var. Koleksiyon silinsin mi?"
     override fun confirmDeleteCardSection(title: String, cards: Int) =
         "“$title” içinde $cards kart var. Grup silinsin mi? Kartlar gruplandırılmadan kalır."
+    override fun confirmClearGroup(title: String, cards: Int) =
+        "“$title” içinde $cards kart var. Hepsi silinsin mi? Grup kalır."
+    override fun confirmDeleteEmptiedSection(title: String) =
+        "“$title” boş kaldı. Bölüm de silinsin mi?"
     override fun deletedSection(title: String) = "“$title” bölümü silindi"
     override fun deletedCollection(title: String) = "“$title” koleksiyonu silindi"
+    override fun deletedCollectionAndSection(collection: String, section: String) =
+        "“$collection” koleksiyonu ve “$section” bölümü silindi"
     override fun deletedCardSection(title: String) = "“$title” grubu silindi"
     override fun deletedCard(title: String) = "“$title” silindi"
+    override fun clearedGroup(title: String, cards: Int) =
+        "“$title” içinden $cards kart silindi"
     override fun movedCard(title: String) = "“$title” taşındı"
     override val sortedCards = "Kartlar sıralandı"
     override val undo = "Geri al"
@@ -5805,7 +6363,6 @@ private object TrStrings : Strings {
         "kartları arama ve dışa aktarmanın dışında kalır. Unutulan bir PIN sıfırlanamaz."
 
     override val makeReadOnlyHint = "Salt okunur yap: burada artık hiçbir şey eklenemez, değiştirilemez veya silinemez."
-    override val allowEditing = "Düzenlemeye izin ver"
     override val allowEditingHint = "Düzenlemeye yeniden izin ver."
     override val readOnlyBadge = "salt okunur"
     override val readOnlyHint = "Salt okunur: burada hiçbir şey eklenemez, değiştirilemez veya silinemez."
@@ -6029,6 +6586,7 @@ private object TrStrings : Strings {
     override val signInAccount = "Oturum aç"
     override val signOut = "Oturumu kapat"
     override val syncNow = "Şimdi senkronize et"
+    override val refetchAccount = "Hesabı yeniden oku"
     override fun syncedAt(time: String) = "$time saatinde senkronize edildi"
     override fun conflictCopies(count: Int) =
         if (count == 1) "Bir not iki cihazda aynı anda düzenlendi. Her iki sürüm de korundu."
@@ -6037,9 +6595,46 @@ private object TrStrings : Strings {
     override val joinAccountHint = "Onları hesaba ekleyebilir, ya da burada bırakıp hesapta zaten var olanları alabilirsin."
     override val joinAccountKeep = "Hesaba ekle"
     override val joinAccountDiscard = "Hesabın koleksiyonlarını kullan"
+    override val joinAccountMerge = "Birleştir"
+    override val mergeDuplicates = "Yinelenenleri bul"
+    override val mergeTitle = "Yinelenenleri birleştir"
+    override val mergeHint = "Bunlar aynı şeyin iki kez kaydedilmiş hâli gibi görünüyor. Öyle olmayanların işaretini kaldırın."
+    override val mergeScanning = "Aranıyor…"
+    override val mergeNothing = "Burada yinelenen bir şey yok."
+    override val mergeApply = "Birleştir"
+    override val mergeOneDevice = "Bunu tek bir cihazda yapın — diğerleri sonucu eşitlemeyle alır."
+    override val mergeUndo = "Birleştirmeyi geri al"
+    override val mergeUndoHint = "Bu pencere geri dönüş yolu. Kapatırsanız birleştirme kalır."
+    override val mergeUndone = "Birleştirme geri alındı."
+    override fun mergeFuseBadge(rows: Int) = "×$rows"
+    override fun mergeCollectionCounts(duplicateCards: Int, cardSections: Int) = buildString {
+        if (duplicateCards > 0) append("$duplicateCards yinelenen kart")
+        if (cardSections > 0) {
+            if (isNotEmpty()) append(", ")
+            append("$cardSections grup")
+        }
+    }
+    override fun mergeDone(sections: Int, collections: Int, cards: Int) =
+        "Birleştirildi: $sections bölüm, $collections koleksiyon, $cards kart."
+    override fun mergeSkipped(lockedSections: Int, readOnlyCollections: Int) = buildString {
+        append("Dokunulmadı: ")
+        if (lockedSections > 0) append("$lockedSections kilitli bölüm")
+        if (readOnlyCollections > 0) {
+            if (!endsWith(" ")) append(", ")
+            append("$readOnlyCollections salt okunur koleksiyon")
+        }
+        append(".")
+    }
     override val exportAccountData = "Verilerimi indir"
     override val exportAccountDataHint = "Sunucunun bu hesap hakkında sakladığı her satır, JSON olarak."
     override val exportAccountDataFailed = "Dışa aktarma indirilemedi."
+    override val eraseEverything = "Bu tarayıcıdaki her şeyi sil"
+    override val eraseEverythingHint =
+        "Koleksiyonlar, dosyalar, istatistikler, önbellekteki simgeler ve kaydedilmemiş taslaklar — burada ne varsa. Hesap ve sunucudakiler el değmeden kalır. Önce bir yedek alın."
+    override val eraseEverythingConfirm =
+        "Bu tarayıcıdaki tüm koleksiyonlar, dosyalar ve notlar silinsin mi? Hesaba ve sunucuya dokunulmaz."
+    override val eraseEverythingAgain =
+        "Bu, şu anda baktığınız kopya. Sonrasında onu yalnızca bir yedek ya da hesap geri getirir. Silinsin mi?"
     override val deleteAccount = "Hesabı sil"
     override val deleteAccountHint = "Sunucunun sakladığı her şeyi siler. Bu cihazda olanlar kalır."
     override val deleteAccountConfirm = "Hesap ve sunucunun sakladığı her şey silinsin mi? Bu geri alınamaz."

@@ -158,6 +158,17 @@ external interface SettingsModalProps : Props {
 
     /** What the last import did, in the user's words — null until one has been done. */
     var importStatus: String?
+
+    /**
+     * Empty this browser: the collections, the files, the statistics, the cached icons, the unsaved
+     * drafts, and the bookkeeping that says whose account they were.
+     *
+     * It used to be reachable only as a tick beside "delete my account", which asked for two things at
+     * once and needed the server to answer before it would do either. Wanting rid of the copy *here* —
+     * before restoring a backup over it, on a machine being handed on, when the server is unreachable —
+     * is its own wish, and this is its own button. The account, if there is one, is left standing.
+     */
+    var onEraseEverything: () -> Unit
     var onClose: () -> Unit
 }
 
@@ -792,6 +803,26 @@ private fun ChildrenBuilder.dataPane(props: SettingsModalProps, s: Strings) {
         }
         props.importStatus?.let { status ->
             p { className = ClassName("settings-hint"); +status }
+        }
+    }
+
+    // ---- And the way to leave nothing behind ----
+    //
+    // Last in the pane, under the export that is the thing to do before it. Deliberately not next to the
+    // sign-out: this empties the browser and leaves the account alone, which is the opposite of what the
+    // account dialog's own erase does, and the two must not read as one button in two places.
+    div {
+        className = ClassName("settings-section")
+        h4 { +s.eraseEverything }
+        p { className = ClassName("settings-hint"); +s.eraseEverythingHint }
+        div {
+            className = ClassName("settings-actions")
+            button {
+                className = ClassName("btn danger")
+                onClick = { props.onEraseEverything() }
+                icon("trash")
+                +" ${s.eraseEverything}"
+            }
         }
     }
 }

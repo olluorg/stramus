@@ -18,16 +18,17 @@ jobs:
       - uses: actions/checkout@v4
 
       # The Web Store keys a submission by the manifest's version and rejects one it has already
-      # seen, so a tag that disagrees with the manifest produces a ZIP that cannot be uploaded
-      # under the name it carries. Fail here instead, where it is one line to fix.
-      - name: Check the tag against the manifest version
-        if: startsWith(github.ref, 'refs/tags/v')
+      # seen, so a tag that disagrees with the manifest produces a ZIP that cannot be uploaded under
+      # the name it carries. That check, and the rest of what has to be true before a version goes
+      # out — the About pane's version, the eleven locales, the listings, the screenshots — is
+      # tools/preflight.py, run here before the JDK is even installed. With --tag it is strict:
+      # a listing that still describes the previous release fails the build rather than warning.
+      - name: Consistency checks
         run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          MANIFEST=$(jq -r .version extension/src/jsMain/resources/manifest.json)
-          if [ "$TAG" != "$MANIFEST" ]; then
-            echo "Tag v$TAG does not match manifest version $MANIFEST" >&2
-            exit 1
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            python3 tools/preflight.py --tag "$GITHUB_REF_NAME"
+          else
+            python3 tools/preflight.py
           fi
 
       - name: Set up JDK
@@ -47,31 +48,14 @@ jobs:
           STRAMUS_GOOGLE_CLIENT_ID: ${{ vars.STRAMUS_GOOGLE_CLIENT_ID }}
         run: ./gradlew :extension:jsBrowserDistribution --no-daemon
 
-      # Package the loadable extension directory. Source maps are dropped to keep the
-      # artifact lean and Web-Store-friendly; the manifest + bundle are kept — and so is
-      # stramus.js.LICENSE.txt, which webpack writes beside the bundle and which used to be
-      # dropped along with the maps. It is not build litter: it carries the copyright notices
-      # of what is compiled into the bundle (React's, MIT), and MIT asks that those travel with
-      # the copies. A few hundred bytes is not worth being in breach of.
-      # Manual runs (workflow_dispatch) have no tag to read a version from, so the
-      # manifest is the source of truth there; tag pushes already validated the two agree.
+      # Packed by the same script that packs a local build, so that the ZIP a release is made of and
+      # the ZIP anyone can produce from a checkout are the same ZIP — what goes in it, what is left
+      # out of it, and what its absence means is written down once, in tools/package-extension.sh.
+      # The version comes from the manifest there; a tag push has already been checked against it.
       - name: Package extension ZIP
         run: |
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-          else
-            VERSION=$(jq -r .version extension/src/jsMain/resources/manifest.json)
-          fi
-          OUT="stramus-extension-${VERSION}.zip"
-          echo "ZIP=$OUT" >> "$GITHUB_ENV"
-          cd extension/build/dist/js/productionExecutable
-          # The manifest names its strings out of _locales; without them Chrome refuses to load the
-          # extension at all ("Localization used, but default_locale wasn't specified"). Resources
-          # are copied by the build, so their absence would mean the build changed under us.
-          for required in manifest.json _locales/en/messages.json _locales/ru/messages.json stramus.js.LICENSE.txt; do
-            [ -f "$required" ] || { echo "Missing from the bundle: $required" >&2; exit 1; }
-          done
-          zip -r "$GITHUB_WORKSPACE/$OUT" . -x '*.map'
+          ZIP=$(tools/package-extension.sh --skip-build --out "$GITHUB_WORKSPACE")
+          echo "ZIP=$(basename "$ZIP")" >> "$GITHUB_ENV"
 
       # GitHub Releases require a tag, which a manual run doesn't have — upload the
       # ZIP as a workflow artifact instead so the build stays inspectable/downloadable.

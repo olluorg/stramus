@@ -76,13 +76,14 @@ seus endereços salvos, um a um, a um serviço público de ícones.
 Um PIN numa seção a tira da tela; não é criptografia, e não a esconde do servidor. A política de
 privacidade diz isso claramente, e diz também o que mais uma conta significa.
 
-Novidades da 1.4.0.
-Salvar uma página sem abrir o stramus — é por isso que esta versão pede três permissões que antes não
-pedia: storage, para segurar o que foi salvo até o stramus estar aberto; contextMenus, para as duas
-entradas do clique direito; notifications, para o "salvo" que vem depois. Temas, cores de destaque e
-fundos. Marcas para coleções. Quadros dos vídeos salvos, desligados por padrão. Importação do OneTab e
-do Toby. Um arquivo de backup com o banco inteiro, e um caminho de volta se o navegador um dia se
-recusar a abri-lo.
+Novidades da 1.5.0.
+Encontrar duplicatas: entrar em uma conta a partir de um navegador que já tinha coleções deixava você com
+duas de cada coisa, porque um servidor só sabe unir linhas pelo id. Agora o aplicativo descobre sozinho
+quais seções, coleções e links são a mesma coisa e os une, mostrando antes o plano inteiro. A
+sincronização passa a trazer uma conta grande por completo, e não apenas suas primeiras centenas de
+linhas — e com ela as exclusões feitas na sua outra máquina. Uma coleção pode receber o ícone de um dos
+sites que ela guarda, e a barra recolhida mostra essa marca no lugar de uma letra. Apagar tudo neste
+navegador virou um botão próprio nas configurações, que não espera mais a resposta do servidor.
 
 Política de privacidade: https://stramus.space/privacy.html
 Código-fonte: https://github.com/olluorg/stramus

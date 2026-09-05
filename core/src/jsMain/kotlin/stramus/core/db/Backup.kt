@@ -34,6 +34,25 @@ const val BACKUP_VERSION: Int = 1
 data class BackupRestore(val rows: Int, val stores: Int, val unknownStores: List<String>)
 
 /**
+ * The two stores a restore does *not* put back.
+ *
+ * They are not the user's data: they are this browser's standing with the server — which account it
+ * belongs to, which device it is, how far down the account's changes it has read (`sync_state`), and the
+ * hash of every row as the server last confirmed it (`sync_meta`). None of that describes the rows in the
+ * file; it describes the machine the file was taken on, at the moment it was taken.
+ *
+ * Put back, they are a lie the next sync believes. A database restored from a file taken while signed in
+ * would claim to have already sent rows it has only just been handed, and to have read changes it has
+ * never seen — so the restored collections would sit there, never pushed, while the account's own version
+ * came down over them. The rows are copied out (a backup carries everything, and this is a diagnostic
+ * worth keeping); they are simply not written back.
+ *
+ * Left out, a restored database is signed in to nothing and has confirmed nothing — which is the truth,
+ * and which makes the next sign-in push all of it.
+ */
+private val SYNC_BOOKKEEPING = setOf("sync_state", "sync_meta")
+
+/**
  * Everything in the database, as JSON: `{"format", "version", "database", "takenAt", "stores": {...}}`,
  * where each store is the array of its rows exactly as IndexedDB holds them.
  *
@@ -64,6 +83,9 @@ suspend fun exportStramusBackup(dbName: String = stramusSchema.databaseName): St
  * the database is left alone: restoring into a database that has since been used adds the backup's rows
  * to it rather than emptying it first.
  *
+ * All of it except the sync bookkeeping, which is about the machine and not about the data — see
+ * [SYNC_BOOKKEEPING] for why putting that back would quietly cost the user the rows they just restored.
+ *
  * A store the backup holds and this database does not (a file taken from a newer build) is reported in
  * [BackupRestore.unknownStores] and skipped — there is nowhere to put it, and inventing a store outside
  * a migration would leave a database whose shape its own schema does not describe.
@@ -79,7 +101,9 @@ suspend fun restoreStramusBackup(json: String, dbName: String = stramusSchema.da
     val opened = openRaw(dbName) ?: error("IndexedDB is not available in this context")
     try {
         val present = storeNames(opened.db).toSet()
-        val wanted = objectKeys(stores).filter { rowCount(stores[it]) > 0 }
+        val wanted = objectKeys(stores)
+            .filter { rowCount(stores[it]) > 0 }
+            .filterNot { it in SYNC_BOOKKEEPING } // see [SYNC_BOOKKEEPING]
         val known = wanted.filter { it in present }
         val unknown = wanted.filterNot { it in present }
         if (known.isEmpty()) return BackupRestore(rows = 0, stores = 0, unknownStores = unknown)

@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Runs the sync server locally, against a local sqlite file, for testing the extension end to end.
+#
+#   cp tools/dev-server.sh.example tools/dev-server.sh   # then fill in the key below
+#   tools/dev-server.sh
+#
+# The copy is what runs, and it is gitignored: the OpenRouter key is a real secret, and this template
+# is the only part of it that belongs in the repository. Everything else here is public — the same
+# Google client ids as compose.yaml, and the fixed dev extension id that extension/build.gradle.kts's
+# patchDevManifest gives a STRAMUS_DEV=1 build. That id never changes between unpacked reloads, which
+# is why it can sit in a committed file at all.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+export STRAMUS_GOOGLE_CLIENT_ID="18928481720-2qrnmhlm21jvi6f6qlgnd2lqcau2joi6.apps.googleusercontent.com"
+export STRAMUS_GOOGLE_EXTENSION_CLIENT_ID="18928481720-vbolufg5c53b7gch7okeuk4lt4kkrst2.apps.googleusercontent.com"
+export STRAMUS_ALLOWED_ORIGINS="http://localhost:8080,chrome-extension://dkjnlofmmbaopfdjmkjbolcchlapfnpo"
+
+# --- fill these in with your own values, then leave them — your copy is gitignored ---
+export STRAMUS_OPENROUTER_API_KEY="fill-me-in"
+# Real OpenRouter by default; point this at anything OpenAI-compatible instead if that is what you
+# are testing against.
+# export STRAMUS_OPENROUTER_URL="https://openrouter.ai/api/v1/chat/completions"
+# export STRAMUS_OPENROUTER_MODEL="openai/gpt-5.6-luna"
+# export STRAMUS_OPENROUTER_FALLBACK_MODEL="google/gemini-3.5-flash-lite"
+# --------------------------------------------------------------------------------------
+
+if [ "$STRAMUS_OPENROUTER_API_KEY" = "fill-me-in" ]; then
+    echo "tools/dev-server.sh: STRAMUS_OPENROUTER_API_KEY is still the placeholder — cloud triage will" >&2
+    echo "answer 501 until you edit this file with a real key. Starting anyway." >&2
+fi
+
+exec ./gradlew :server:run

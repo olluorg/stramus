@@ -10,6 +10,13 @@ import kotlin.test.assertTrue
 import kotlin.uuid.ExperimentalUuidApi
 import kotlinx.coroutines.test.runTest
 import stramus.core.model.Card
+import stramus.core.merge.planMerge
+import stramus.protocol.SyncRow
+import stramus.core.sync.applyRemote
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonObject
+import kotlin.uuid.Uuid
+import kotlin.time.Clock
 
 /**
  * What the repositories promise about order, now that a place is a key rather than a number: dragging
@@ -171,6 +178,30 @@ class StoreTest {
     }
 
     @Test
+    fun `a second seeded section is an ordinary one, and can be deleted`() = storeTest { store ->
+        // What sync leaves behind: this browser seeded its own default, then joined an account holding
+        // another device's. Both rows say "default". Only one of them can be this database's, and if
+        // being seeded were enough to make a section undeletable the user would be stuck with a section
+        // they never made and no way to remove it.
+        val mine = store.sections.all().single()
+        // Arriving the way it really does: another device's default section, in that device's language,
+        // written straight in by the sync engine.
+        store.db.write(Sections) { applyRemote(remoteDefaultSection("Main")) }
+
+        val all = store.sections.all()
+        assertEquals(2, all.size)
+        assertEquals(1, all.count { !it.deletable }, "exactly one section is the default")
+        assertEquals(2, all.count { it.seeded }, "both were made as one, and both still say so")
+
+        val spare = all.single { it.deletable }
+        assertTrue(store.sections.delete(spare.id) != null, "the one that is not the default has to go")
+        assertEquals(listOf(mine.id), store.sections.all().map { it.id })
+
+        // And the one that stays is refused, as the default always is.
+        assertEquals(null, store.sections.delete(mine.id))
+    }
+
+    @Test
     fun `a PIN can be set, checked and taken off again`() = storeTest { store ->
         val section = store.sections.all().single().id
 
@@ -212,6 +243,67 @@ class StoreTest {
         store.cards.restore(deleted)
         assertEquals(listOf("a", "b", "c"), store.cards.byCollection(collection).titles())
     }
+
+    @Test
+    fun `merging two collections moves everything across, drops the duplicates, and comes back whole`() = storeTest { store ->
+        val main = store.sections.all().single().id
+        val keep = store.collections.create("Kormium", main)
+        val twin = store.collections.create("kormium", main)
+        val group = store.cardSections.create(twin.id, "Java", null)
+        store.cards.add(keep.id, "docs", "https://kotlinlang.org/docs/", null)
+        store.cards.add(twin.id, "docs again", "http://www.kotlinlang.org/docs?utm_source=x", null)
+        store.cards.add(twin.id, "korm", "https://github.com/olluorg/korm", null, cardSectionId = group.id)
+
+        val plan = planMerge(
+            store.sections.all(),
+            store.collections.all(),
+            store.cardSections.byCollection(keep.id) + store.cardSections.byCollection(twin.id),
+            store.cards.byCollection(keep.id) + store.cards.byCollection(twin.id),
+        )
+        val result = store.applyMerge(plan)
+
+        assertEquals(1, result.collections)
+        assertEquals(1, result.cards, "the page saved on both sides is one page")
+        // One collection where there were two, and it is the one that kept its id — the title is the
+        // later-written of the pair, by the same last-write-wins the sync settles a rename by.
+        val left = store.collections.all().filter { it.sectionId == main }
+        assertTrue(left.none { it.id == twin.id }, "the twin is gone")
+        assertTrue(left.any { it.id == keep.id }, "and the one that stayed is the one everything moved into")
+        val cards = store.cards.byCollection(keep.id)
+        assertEquals(setOf("docs", "korm"), cards.map { it.title }.toSet())
+        // The section came across with its card still in it, not tipped out on the way.
+        val moved = store.cardSections.byCollection(keep.id).single()
+        assertEquals("Java", moved.title)
+        assertEquals(moved.id, cards.first { it.title == "korm" }.cardSectionId)
+
+        store.undoMerge(result.undo)
+
+        assertTrue(store.collections.all().any { it.id == twin.id }, "the twin comes back")
+        assertEquals(2, store.cards.byCollection(twin.id).size, "and its cards come back to it")
+        assertEquals(1, store.cards.byCollection(keep.id).size)
+        assertEquals(listOf("Java"), store.cardSections.byCollection(twin.id).map { it.title })
+    }
+
+    @Test
+    fun `emptying a group takes its cards and leaves the group and the rest of the collection`() = storeTest { store ->
+        val collection = store.collections.all().single().id
+        store.cards.byCollection(collection).forEach { store.cards.delete(it.id) } // drop the seeded note
+        val group = store.cardSections.create(collection, "Later", null)
+        listOf("a", "b").forEach { store.cards.add(collection, it, "https://example.org/$it", null) }
+        store.cards.add(collection, "in group", "https://example.org/g", null, cardSectionId = group.id)
+
+        val deleted = store.cards.deleteGroup(collection, null)
+        assertEquals(listOf("a", "b"), deleted.map { it.card.title })
+        assertEquals(listOf("in group"), store.cards.byCollection(collection).titles())
+        assertEquals(listOf("Later"), store.cardSections.byCollection(collection).map { it.title })
+
+        // And back in their own group, in the order they were in — the section's card is ordered against
+        // its own group's keys, not against theirs, so it is no part of this comparison.
+        store.cards.restoreAll(deleted)
+        val after = store.cards.byCollection(collection)
+        assertEquals(listOf("a", "b"), after.filter { it.cardSectionId == null }.titles())
+        assertEquals(listOf("in group"), after.filter { it.cardSectionId == group.id }.titles())
+    }
 }
 
 private fun List<Card>.titles(): List<String> = map { it.title }
@@ -220,6 +312,21 @@ private fun List<Card>.titles(): List<String> = map { it.title }
  * A fresh database per test, deleted first so a previous run's data (or a previous test's, since
  * `fake-indexeddb` is process-global) never leaks in — the pattern kidx's own suite uses.
  */
+/** A section as the server hands one over: another device's default, flag and all. */
+private fun remoteDefaultSection(title: String) = SyncRow(
+    tbl = "sections",
+    id = Uuid.random().toString(),
+    updatedAt = Clock.System.now().toString(),
+    payload = JsonObject(
+        mapOf(
+            "title" to JsonPrimitive(title),
+            "orderKey" to JsonPrimitive("b"),
+            "deletable" to JsonPrimitive("0"),
+            "collapsed" to JsonPrimitive("0"),
+        ),
+    ),
+)
+
 private fun storeTest(block: suspend (StramusStore) -> Unit) = runTest {
     installIndexedDb()
     deleteDatabase(stramusSchema.databaseName)

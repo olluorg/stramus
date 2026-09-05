@@ -74,12 +74,14 @@ service one request at a time.
 A PIN on a section keeps it off your screen; it is not encryption, and it does not hide the section
 from the server. The privacy policy says so plainly, and says what else an account means.
 
-New in 1.4.0.
-Saving a page without opening stramus — which is why this version asks for three permissions it did not
-before: storage, to hold what you saved until stramus is open; contextMenus, for the two right-click
-entries; notifications, for the "saved" that follows. Themes, accent colours and backgrounds. Marks for
-collections. Still frames for saved videos, off by default. Import from OneTab and Toby. A backup file
-holding the whole database, and a way back in if the browser ever refuses to open it.
+New in 1.5.0.
+Find duplicates: signing a browser that already has collections into an account that also has them used
+to leave you with two of everything, because a server can only merge rows by their id. This works out
+which sections, collections and links are the same thing and joins them, showing you the whole plan
+first. Synchronising now brings a large account down whole rather than its first few hundred rows — and
+with it the deletions made on your other machine. A collection can be marked with the icon of a site it
+holds links to, and the collapsed sidebar shows that mark instead of a letter. Erasing everything in this
+browser is its own button in Settings, and no longer needs the server to answer first.
 
 Privacy policy: https://stramus.space/privacy.html
 Source code: https://github.com/olluorg/stramus

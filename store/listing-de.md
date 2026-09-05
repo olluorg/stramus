@@ -79,13 +79,15 @@ Eine PIN auf einem Bereich hält ihn vom Bildschirm fern; sie ist keine Verschl�
 Bereich nicht vor dem Server. Das steht so klar in der Datenschutzerklärung, ebenso wie das, was ein
 Konto sonst noch bedeutet.
 
-Neu in 1.4.0.
-Eine Seite speichern, ohne stramus zu öffnen — deshalb fragt diese Version nach drei Berechtigungen, die
-sie vorher nicht brauchte: storage, um das Gespeicherte zu halten, bis stramus offen ist; contextMenus
-für die beiden Einträge im Rechtsklickmenü; notifications für das "gespeichert" danach. Designs,
-Akzentfarben und Hintergründe. Markierungen für Sammlungen. Standbilder für gespeicherte Videos,
-standardmäßig aus. Import aus OneTab und Toby. Eine Sicherungsdatei mit der ganzen Datenbank — und ein
-Weg zurück, falls der Browser sie eines Tages nicht mehr öffnen will.
+Neu in 1.5.0.
+Duplikate finden: Wer sich mit einem Browser, in dem schon Sammlungen liegen, bei einem Konto anmeldet,
+in dem auch welche liegen, hatte danach von allem zwei — ein Server kann Zeilen nur anhand ihrer id
+zusammenführen. Jetzt findet die App selbst heraus, welche Bereiche, Sammlungen und Links dasselbe sind,
+und führt sie zusammen; den ganzen Plan sehen Sie vorher. Die Synchronisierung holt ein großes Konto
+vollständig herunter statt nur die ersten paar hundert Zeilen — und damit auch die Löschungen vom anderen
+Gerät. Eine Sammlung lässt sich mit dem Symbol einer ihrer Seiten markieren, und die eingeklappte
+Seitenleiste zeigt dieses Zeichen statt eines Buchstabens. Alles in diesem Browser zu löschen ist eine
+eigene Schaltfläche in den Einstellungen und wartet nicht mehr auf den Server.
 
 Datenschutzerklärung: https://stramus.space/privacy.html
 Quellcode: https://github.com/olluorg/stramus

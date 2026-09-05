@@ -5,6 +5,7 @@ package stramus.ui
 import kotlinx.browser.localStorage
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
+import react.ChildrenBuilder
 import react.FC
 import react.Props
 import react.dom.html.ReactHTML.button
@@ -79,6 +80,9 @@ external interface AccountDialogProps : Props {
     /** Null where there is no way to reach Google — then that door is not offered. */
     var google: GoogleSignIn?
 
+    /** Open the duplicate finder — see [MergeModal]. The dialog only asks; the app owns the window. */
+    var onMergeDuplicates: () -> Unit
+
     /**
      * The account this browser has already been signed into elsewhere — on the landing page, before the
      * database was open — when the dialog opens straight on the one question that sign-in could not answer
@@ -99,6 +103,17 @@ external interface AccountDialogProps : Props {
  * that works rather than three fields ending in a refusal.
  */
 private val accountScope = MainScope()
+
+/**
+ * Everything below the dialog's header, in something that scrolls.
+ *
+ * The panel itself is `overflow: hidden` under a `max-height` (see `.modal` in index.html), so content
+ * past the fold is not off-screen but *gone* — no scrollbar, no way to reach it. That is how the delete-
+ * account button at the bottom of this dialog stopped being findable as the buttons above it multiplied.
+ */
+private fun ChildrenBuilder.accountBody(content: ChildrenBuilder.() -> Unit) {
+    div { className = ClassName("account-body"); content() }
+}
 
 val AccountDialog = FC<AccountDialogProps> { props ->
     val t = props.strings
@@ -131,7 +146,7 @@ val AccountDialog = FC<AccountDialogProps> { props ->
      * closure that just set it is still the value this render was drawn with, and the account would end
      * up nameless in the badge.
      */
-    fun start(userId: Uuid, address: String, discardLocal: Boolean) {
+    fun start(userId: Uuid, address: String, discardLocal: Boolean, thenMerge: Boolean = false) {
         scope.launch {
             runCatching {
                 props.engine.signIn(userId, props.api.deviceId, discardLocal)
@@ -140,6 +155,9 @@ val AccountDialog = FC<AccountDialogProps> { props ->
                 props.onState(SyncUi(SyncStatus.IDLE, address, nowLocalTime(), conflictCopies = result?.conflictCopies ?: 0))
                 props.onSynced()
                 props.onClose()
+                // Only now, with both sides of the account actually in this database, is there anything
+                // to match: the duplicate finder reads what is here, and half of it has just arrived.
+                if (thenMerge) props.onMergeDuplicates()
             }.onFailure(::fail)
         }
     }
@@ -180,6 +198,14 @@ val AccountDialog = FC<AccountDialogProps> { props ->
                     onClick = { start(choosing, email, discardLocal = false) }
                     +t.joinAccountKeep
                 }
+                // Adding them, and then joining what turns out to be the same thing twice. It is the
+                // first button followed by the duplicate finder, in that order and for that reason:
+                // the account's rows have to be *here* before anything can be matched against them.
+                button {
+                    className = ClassName("btn")
+                    onClick = { start(choosing, email, discardLocal = false, thenMerge = true) }
+                    +t.joinAccountMerge
+                }
                 button {
                     className = ClassName("btn")
                     onClick = { start(choosing, email, discardLocal = true) }
@@ -191,119 +217,159 @@ val AccountDialog = FC<AccountDialogProps> { props ->
 
         val signedInAs = props.state.email
         if (signedInAs != null && props.state.status != SyncStatus.SIGNED_OUT) {
-            p { +signedInAs }
-            props.state.syncedAt?.let { p { className = ClassName("muted"); +t.syncedAt(it) } }
+            accountBody {
+                p { +signedInAs }
+                props.state.syncedAt?.let { p { className = ClassName("muted"); +t.syncedAt(it) } }
 
-            div {
-                className = ClassName("row")
-                button {
-                    className = ClassName("btn")
-                    disabled = busy || !props.serverOnline
-                    onClick = {
-                        scope.launch {
-                            props.onState(props.state.copy(status = SyncStatus.RUNNING))
-                            runCatching { props.engine.syncNow() }
-                                .onSuccess { result ->
-                                    props.onState(
-                                        props.state.copy(
-                                            status = SyncStatus.IDLE,
-                                            syncedAt = nowLocalTime(),
-                                            conflictCopies = result?.conflictCopies ?: 0,
-                                            error = null,
-                                        ),
-                                    )
-                                    props.onSynced()
-                                }
-                                .onFailure { props.onState(props.state.copy(status = SyncStatus.ERROR, error = it.message)) }
-                        }
-                    }
-                    +t.syncNow
-                }
-                button {
-                    className = ClassName("btn")
-                    onClick = {
-                        scope.launch {
-                            // The account is forgotten; the data is not. It was the user's before there
-                            // was an account and it is theirs afterwards.
-                            runCatching { props.api.signOut() }
-                            props.engine.signOut()
-                            props.onState(SyncUi(SyncStatus.SIGNED_OUT))
-                            props.onClose()
-                        }
-                    }
-                    +t.signOut
-                }
-            }
-
-            if (!props.serverOnline) {
-                p { className = ClassName("muted"); +t.serverUnavailable }
-            }
-
-            p {
-                className = ClassName("muted")
-                +t.exportAccountDataHint
-            }
-            button {
-                className = ClassName("btn")
-                disabled = exporting || !props.serverOnline
-                onClick = {
-                    exporting = true
-                    error = null
-                    scope.launch {
-                        runCatching {
-                            val export = props.api.exportAccount()
-                            downloadFile("stramus-account-export.json", "application/json", Json { prettyPrint = true }.encodeToString(export))
-                        }.onFailure { error = t.exportAccountDataFailed }
-                        exporting = false
-                    }
-                }
-                +t.exportAccountData
-            }
-
-            error?.let { p { className = ClassName("error"); +it } }
-
-            p {
-                className = ClassName("muted")
-                +t.deleteAccountHint
-            }
-            // Off by default, and stays that way: the data was the user's before there was an account and
-            // is theirs after, so deleting the account does not presume to take it. But this is the one
-            // moment someone may well mean "all of it, everywhere", and the only place they would think
-            // to look for it.
-            label {
-                className = ClassName("check-row")
-                input {
-                    type = CHECKBOX_INPUT
-                    checked = eraseLocal
-                    onChange = { eraseLocal = it.target.checked }
-                }
-                +t.deleteAccountEraseLocal
-            }
-            button {
-                className = ClassName("btn danger")
-                disabled = !props.serverOnline
-                onClick = {
-                    if (confirmDialog(if (eraseLocal) t.deleteAccountEraseLocalConfirm else t.deleteAccountConfirm)) {
-                        scope.launch {
-                            val deleted = runCatching { props.api.deleteAccount() }.onFailure(::fail).isSuccess
-                            // The copy in this browser goes only once the server has confirmed the account
-                            // did: erasing it after a delete that failed would leave the user with no copy
-                            // anywhere and an account still standing.
-                            if (deleted && eraseLocal) {
-                                // Erasing takes the sync bookkeeping with it, so this is a sign-out too.
-                                props.engine.eraseLocalData()
-                                clearAllNoteDrafts()
-                                props.api.forgetDevice()
-                                props.onSynced()
-                            } else {
-                                props.engine.signOut()
+                div {
+                    className = ClassName("row")
+                    button {
+                        className = ClassName("btn")
+                        disabled = busy || !props.serverOnline
+                        onClick = {
+                            scope.launch {
+                                props.onState(props.state.copy(status = SyncStatus.RUNNING))
+                                runCatching { props.engine.syncNow() }
+                                    .onSuccess { result ->
+                                        props.onState(
+                                            props.state.copy(
+                                                status = SyncStatus.IDLE,
+                                                syncedAt = nowLocalTime(),
+                                                conflictCopies = result?.conflictCopies ?: 0,
+                                                error = null,
+                                            ),
+                                        )
+                                        props.onSynced()
+                                    }
+                                    .onFailure { props.onState(props.state.copy(status = SyncStatus.ERROR, error = it.message)) }
                             }
-                            props.onState(SyncUi(SyncStatus.SIGNED_OUT))
-                            props.onClose()
                         }
+                        +t.syncNow
+                    }
+                    // The ordinary sync asks for what has happened since this device last looked. This asks
+                    // for the account from the beginning — the way back from a cursor that is further along
+                    // than the reading ever got, which is what a delta that stopped short leaves behind.
+                    // It downloads and pushes nothing: the base versions stay, so nothing here is re-sent.
+                    button {
+                        className = ClassName("btn")
+                        disabled = busy || !props.serverOnline
+                        onClick = {
+                            scope.launch {
+                                props.onState(props.state.copy(status = SyncStatus.RUNNING))
+                                runCatching {
+                                    props.engine.refetchEverything()
+                                    props.engine.syncNow()
+                                }
+                                    .onSuccess { result ->
+                                        props.onState(
+                                            props.state.copy(
+                                                status = SyncStatus.IDLE,
+                                                syncedAt = nowLocalTime(),
+                                                conflictCopies = result?.conflictCopies ?: 0,
+                                                error = null,
+                                            ),
+                                        )
+                                        props.onSynced()
+                                    }
+                                    .onFailure { props.onState(props.state.copy(status = SyncStatus.ERROR, error = it.message)) }
+                            }
+                        }
+                        +t.refetchAccount
+                    }
+                    // Not a sync at all: the tidy-up for what merging by row id leaves behind. It reads the
+                    // local database and nothing else, so it is offered whether or not the server answers.
+                    button {
+                        className = ClassName("btn")
+                        disabled = busy
+                        onClick = { props.onClose(); props.onMergeDuplicates() }
+                        +t.mergeDuplicates
+                    }
+                    button {
+                        className = ClassName("btn")
+                        onClick = {
+                            scope.launch {
+                                // The account is forgotten; the data is not. It was the user's before there
+                                // was an account and it is theirs afterwards.
+                                runCatching { props.api.signOut() }
+                                props.engine.signOut()
+                                props.onState(SyncUi(SyncStatus.SIGNED_OUT))
+                                props.onClose()
+                            }
+                        }
+                        +t.signOut
                     }
                 }
-                +t.deleteAccount
+
+                if (!props.serverOnline) {
+                    p { className = ClassName("muted"); +t.serverUnavailable }
+                }
+
+                p {
+                    className = ClassName("muted")
+                    +t.exportAccountDataHint
+                }
+                button {
+                    className = ClassName("btn")
+                    disabled = exporting || !props.serverOnline
+                    onClick = {
+                        exporting = true
+                        error = null
+                        scope.launch {
+                            runCatching {
+                                val export = props.api.exportAccount()
+                                downloadFile("stramus-account-export.json", "application/json", Json { prettyPrint = true }.encodeToString(export))
+                            }.onFailure { error = t.exportAccountDataFailed }
+                            exporting = false
+                        }
+                    }
+                    +t.exportAccountData
+                }
+
+                error?.let { p { className = ClassName("error"); +it } }
+
+                p {
+                    className = ClassName("muted")
+                    +t.deleteAccountHint
+                }
+                // Off by default, and stays that way: the data was the user's before there was an account and
+                // is theirs after, so deleting the account does not presume to take it. But this is the one
+                // moment someone may well mean "all of it, everywhere", and the only place they would think
+                // to look for it.
+                label {
+                    className = ClassName("check-row")
+                    input {
+                        type = CHECKBOX_INPUT
+                        checked = eraseLocal
+                        onChange = { eraseLocal = it.target.checked }
+                    }
+                    +t.deleteAccountEraseLocal
+                }
+                button {
+                    className = ClassName("btn danger")
+                    disabled = !props.serverOnline
+                    onClick = {
+                        if (confirmDialog(if (eraseLocal) t.deleteAccountEraseLocalConfirm else t.deleteAccountConfirm)) {
+                            scope.launch {
+                                val deleted = runCatching { props.api.deleteAccount() }.onFailure(::fail).isSuccess
+                                // The copy in this browser goes only once the server has confirmed the account
+                                // did: erasing it after a delete that failed would leave the user with no copy
+                                // anywhere and an account still standing.
+                                if (deleted && eraseLocal) {
+                                    // Erasing takes the sync bookkeeping with it, so this is a sign-out too.
+                                    props.engine.eraseLocalData()
+                                    clearAllNoteDrafts()
+                                    props.api.forgetDevice()
+                                    props.onSynced()
+                                } else {
+                                    props.engine.signOut()
+                                }
+                                props.onState(SyncUi(SyncStatus.SIGNED_OUT))
+                                props.onClose()
+                            }
+                        }
+                    }
+                    +t.deleteAccount
+                }
             }
             return@modalShell
         }

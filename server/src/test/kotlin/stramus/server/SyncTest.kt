@@ -123,6 +123,29 @@ class SyncTest {
     }
 
     @Test
+    fun `a delta bigger than one page is handed over whole, not cut off at the first 500`() = runTest {
+        val sync = newSync()
+        // One push, so every one of these rows is stamped with the same revision — which is what a first
+        // sync from a device with a few hundred cards actually looks like.
+        val many = (1..620).map { card("c$it", "Card $it", at = t(1)) }
+        sync.sync(user, laptop, since = 0, pushed = many)
+
+        // The phone reads the account for the first time and keeps asking while the server says there is
+        // more, which is the whole of what the protocol asks of it.
+        val seen = mutableSetOf<String>()
+        var page = sync.sync(user, phone, since = 0, pushed = emptyList())
+        var guard = 0
+        while (true) {
+            page.rows.forEach { seen += it.id }
+            if (!page.hasMore) break
+            check(guard++ < 20) { "the delta never ends" }
+            page = sync.sync(user, phone, since = 0, pushed = emptyList(), cursor = page.nextCursor)
+        }
+
+        assertEquals(620, seen.size, "every row of the account has to arrive, not just the first page")
+    }
+
+    @Test
     fun `counters merge by maximum instead of by last write`() = runTest {
         val sync = newSync()
         val start = sync.sync(user, laptop, since = 0, pushed = listOf(usage("kotlinlang.org", hits = 7, at = t(1))))

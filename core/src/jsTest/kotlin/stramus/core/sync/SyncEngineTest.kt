@@ -87,6 +87,44 @@ class SyncEngineTest {
     }
 
     @Test
+    fun `a delta that takes two pages is read whole, and moves the cursor once`() = syncTest { db ->
+        val first = Uuid.random()
+        val second = Uuid.random()
+        val collectionId = Uuid.random()
+        val now = Clock.System.now()
+        val requests = mutableListOf<SyncRequest>()
+        val api = ScriptedSyncApi { req ->
+            requests += req
+            if (req.cursor == null) {
+                SyncResponse(
+                    rev = 7,
+                    rows = listOf(cardRow(first, collectionId, "Page one", now)),
+                    hasMore = true,
+                    nextCursor = "7|cards|${first}",
+                )
+            } else {
+                SyncResponse(rev = 7, rows = listOf(cardRow(second, collectionId, "Page two", now)))
+            }
+        }
+
+        val engine = SyncEngine(db, api)
+        engine.signIn(Uuid.random(), Uuid.random())
+        engine.syncNow()
+
+        assertEquals(2, requests.size, "a delta that says it has more should be asked for again")
+        // The second page is the same question asked from the same place — the revision cannot say where
+        // page one stopped, so moving `since` there would step over everything page two was going to hold.
+        assertEquals(0L, requests[1].since)
+        assertEquals("7|cards|$first", requests[1].cursor)
+        assertEquals("Page two", db.read(Cards) { Cards.get(second) }?.title, "the second page has to land too")
+
+        // Only now, with the delta finished, does the cursor move.
+        engine.syncNow()
+        assertEquals(7L, requests[2].since)
+        assertEquals(null, requests[2].cursor)
+    }
+
+    @Test
     fun `a row already at its base version is not pushed again`() = syncTest { db ->
         val cardId = Uuid.random()
         val collectionId = Uuid.random()

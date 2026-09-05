@@ -182,26 +182,41 @@ class SyncEngine(
         var copies = 0
         var rev: Long
 
+        // Fixed for the whole run. A delta may take several pages, and every one of them is an answer to
+        // this same question — moving the cursor between two of them is exactly the mistake [cursor] and
+        // the write at the bottom of this loop exist to prevent.
+        val since = db.read(SyncState) { getState(KEY_REV) }?.toLongOrNull() ?: 0L
+
+        /** Where the last page stopped, while there are more; null on the first, which is the one that pushes. */
+        var cursor: String? = null
+
         while (true) {
+            val withUsage = syncUsage()
+            // Only the first page carries what changed here — the rest are pages of one answer. Reading
+            // (and hashing) every row of the database for each of them would be work whose result is
+            // known to be the same and would not be sent anyway.
+            //
             // Read outside the write transaction: this reads every row of every synced table, and holding
             // a write lock across a network call would be a way to freeze the app on a slow connection.
-            val withUsage = syncUsage()
-            val localRows = db.read(Sections, Collections, CardSections, Cards, Usage, ActionUsage) {
-                readRowsForSync(withUsage)
+            val changed = if (cursor != null) {
+                emptyList()
+            } else {
+                val localRows = db.read(Sections, Collections, CardSections, Cards, Usage, ActionUsage) {
+                    readRowsForSync(withUsage)
+                }
+                val local = localRows.withHashes()
+                val bases = db.read(SyncMeta) {
+                    SyncMeta.all().associate { RowKey(it.tbl, it.rowId) to it }
+                }
+                // "Changed here" is exactly "no longer what the server confirmed". A row with no base at
+                // all is new; a row whose hash matches its base has not been touched since it last went up.
+                local.filter { bases[RowKey(it.row.tbl, it.row.id)]?.hash != it.hash }
             }
-            val local = localRows.withHashes()
-            val bases = db.read(SyncMeta) {
-                SyncMeta.all().associate { RowKey(it.tbl, it.rowId) to it }
-            }
-            val since = db.read(SyncState) { getState(KEY_REV) }?.toLongOrNull() ?: 0L
+            val response = api.sync(SyncRequest(deviceId.toString(), since, changed.map { it.row }, cursor))
 
-            // "Changed here" is exactly "no longer what the server confirmed". A row with no base at all
-            // is new; a row whose hash matches its base has not been touched since it last went up.
-            val changed = local.filter { bases[RowKey(it.row.tbl, it.row.id)]?.hash != it.hash }
-
-            val response = api.sync(SyncRequest(deviceId.toString(), since, changed.map { it.row }))
-
-            val localByKey = local.associateBy { RowKey(it.row.tbl, it.row.id) }
+            // Only what went up can come back as accepted or as a conflict, so the rows this page sent
+            // are the whole of what those two need to be looked up in.
+            val localByKey = changed.associateBy { RowKey(it.row.tbl, it.row.id) }
             val conflictCopies = mutableListOf<CardRow>()
             // Computed here, outside any scope, for the same reason `local`'s hashes are: [hashOf] awaits
             // real SHA-256 and must not run inside `db.write`.
@@ -239,7 +254,11 @@ class SyncEngine(
 
                 conflictCopies.forEach { Cards.add(it) }
 
-                putState(KEY_REV, response.rev.toString())
+                // The cursor moves only when the delta is finished. `rev` is where the *account* has got
+                // to, not where the reading of it has: written down while pages are still outstanding, it
+                // carries this device past every row it has not been handed — silently, and for good,
+                // since the next run then asks for changes after a revision it never actually read.
+                if (!response.hasMore) putState(KEY_REV, response.rev.toString())
             }
 
             // The bytes, after the rows: a card arrives first and its file follows, so a grid that redraws
@@ -253,6 +272,15 @@ class SyncEngine(
             rev = response.rev
 
             if (!response.hasMore) return SyncResult(pushed, applied, copies, rev)
+
+            // A server that says there is more but cannot say where to carry on from — or names the place
+            // this page already started at — is one this client cannot page: stop, and leave the cursor
+            // where it was. The run has applied what it was given and the next one asks the same question
+            // again: slower than it should be, but nothing is skipped and nothing spins for ever, which
+            // are the two properties worth keeping.
+            val next = response.nextCursor
+            if (next == null || next == cursor) return SyncResult(pushed, applied, copies, rev)
+            cursor = next
         }
     }
 

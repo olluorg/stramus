@@ -146,6 +146,12 @@ this:
 ./gradlew :webapp:jsBrowserDevelopmentRun --continuous   # port 8080
 ```
 
+`:server:run` on its own comes up with no Google client and no cloud model, which is enough for sync
+and not enough for signing in or for cloud triage. Those want environment variables, and the ones that
+don't change from machine to machine are already written down:
+[`tools/dev-server.sh.example`](tools/dev-server.sh.example) — copy it to `tools/dev-server.sh` (the
+copy is gitignored, since that is where the API key ends up) and run that instead.
+
 The ports are kept apart on purpose — the web app's dev server takes 8080, so the sync server lives on
 8090, and CORS by default allows exactly `http://localhost:8080`.
 
@@ -267,6 +273,18 @@ bump of `version` in the manifest, a `vX.Y.Z` tag, and the ZIP the release workf
 attaches to it, uploaded to the developer console; the order of it is written out in
 [`store/README.md`](store/README.md).
 
+The mechanical half of that is one command:
+
+```bash
+tools/release.sh 1.5.0        # bumps manifest.json and About.kt, checks, tests, packs the ZIP
+tools/release.sh --tag --push # after the bump is committed: tags v1.5.0 and pushes it
+```
+
+`tools/preflight.py` is the checking half, and it runs on its own in CI too: the version in the two
+files that carry it, the eleven `_locales` against each other and against the manifest's
+`__MSG_…__` placeholders, the store's length limits, the listings against the version being released,
+the screenshots' dimensions. See [`tools/README.md`](tools/README.md).
+
 Everything the Web Store form asks for lives in [`store/`](store/README.md): a checklist, listing
 copy in two languages, permission justifications and the data-use answers. The privacy policy is
 `webapp/src/jsMain/resources/privacy.html`, shipped to Pages with the web version, at
@@ -309,6 +327,7 @@ Lucide's own and exist in English only.
 ```bash
 ./gradlew :core:jvmTest :server:test                      # 122 tests
 ./gradlew :webapp:jsBrowserDistribution :extension:jsBrowserDistribution
+python3 tools/preflight.py                                # version, locales, listings, store assets
 ```
 
 Tests run on the JVM: `core` builds for both `js` (the app) and `jvm` (tests only) — so card ordering,
@@ -326,15 +345,17 @@ hand — the condition lives in `settings.gradle.kts`.
 
 ## CI/CD
 
-- **CI** (`ci.yml`) — runs the tests and builds both bundles on every PR and push to `main`.
+- **CI** (`ci.yml`) — runs `tools/preflight.py` (a second, no JDK), then the tests, then builds both
+  bundles, on every PR and push to `main`.
 - **Server image** (`docker.yml`) — builds the sync server's container image and pushes it to GHCR
   (`ghcr.io/olluorg/stramus-server`) on pushes to `main` and version tags that touch the server; also
   runnable by hand.
 - **Pages** (`pages.yml`) — deploys the web version (landing page + app) to
   <https://stramus.space> on push to `main`.
 - **Release** (`release.yml`) — builds the extension ZIP on a version tag and attaches it to a GitHub
-  Release. That same ZIP is what gets uploaded to the Web Store. The tag has to match `version` in
-  `manifest.json` — the workflow checks this and fails if they disagree:
+  Release. That same ZIP is what gets uploaded to the Web Store, packed by `tools/package-extension.sh`
+  — the same script that packs a local one. The tag has to match `version` in `manifest.json`, which
+  `tools/preflight.py --tag` checks before anything is built:
 
   ```bash
   git tag v1.2.1 && git push origin v1.2.1

@@ -80,13 +80,14 @@ icone.
 Un PIN su una sezione la toglie dallo schermo; non è cifratura, e non la nasconde al server. La
 informativa sulla privacy lo dice chiaramente, e dice anche cos'altro comporta avere un account.
 
-Novità della 1.4.0.
-Salvare una pagina senza aprire stramus — ed è per questo che questa versione chiede tre permessi che
-prima non chiedeva: storage, per trattenere ciò che hai salvato finché stramus non è aperto;
-contextMenus, per le due voci del clic destro; notifications, per il "salvato" che segue. Temi, colori
-d'accento e sfondi. Segni per le raccolte. Fotogrammi dei video salvati, spenti per impostazione
-predefinita. Importazione da OneTab e Toby. Un file di backup con l'intero database, e una via di
-ritorno se un giorno il browser si rifiutasse di aprirlo.
+Novità della 1.5.0.
+Trova i doppioni: accedere a un account da un browser che aveva già delle raccolte lasciava due copie di
+tutto, perché un server sa unire le righe solo per il loro id. Ora è l'applicazione a capire quali
+sezioni, raccolte e link sono la stessa cosa e a unirli, mostrando prima l'intero piano. La
+sincronizzazione porta giù un account grande per intero invece delle sue prime centinaia di righe, e con
+esso le eliminazioni fatte sull'altra macchina. Una raccolta può portare l'icona di uno dei siti che
+contiene, e la barra ridotta mostra quel segno al posto di una lettera. Cancellare tutto in questo
+browser è diventato un pulsante a sé nelle impostazioni e non aspetta più la risposta del server.
 
 Informativa sulla privacy: https://stramus.space/privacy.html
 Codice sorgente: https://github.com/olluorg/stramus

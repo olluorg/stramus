@@ -70,6 +70,16 @@ data class SyncRequest(
     val since: Long,
     /** What changed here since the last sync — new rows, edited rows, tombstones. */
     val rows: List<SyncRow> = emptyList(),
+    /**
+     * Where the previous page of this same delta stopped — [SyncResponse.nextCursor], handed straight
+     * back. Null on the first call of a run, which is the only one that carries [rows]: the pages after
+     * it are the continuation of one answer, not new questions.
+     *
+     * It exists because [since] cannot say it. One push stamps every row it wrote with one revision, so
+     * a device joining an account meets hundreds of rows at the same [rev] — a place inside a revision,
+     * which a revision number has no way to name.
+     */
+    val cursor: String? = null,
 )
 
 /** A row that changed on both sides since [SyncRequest.since]: [server] is what the server held. */
@@ -91,7 +101,8 @@ data class RowKey(val tbl: String, val id: String)
 
 @Serializable
 data class SyncResponse(
-    /** The new cursor. The client stores this and sends it as `since` next time. */
+    /** The new cursor. The client stores this — once the delta is finished — and sends it as `since`
+     *  next time. See [nextCursor] for why "once it is finished" is not a detail. */
     val rev: Long,
     /** The pushed rows the server took as they were. They are not echoed back in [rows]. */
     val accepted: List<RowKey> = emptyList(),
@@ -99,8 +110,19 @@ data class SyncResponse(
     val rows: List<SyncRow> = emptyList(),
     /** Rows that changed on both sides. The client resolves the ones it cares about; see [SyncConflict]. */
     val conflicts: List<SyncConflict> = emptyList(),
-    /** The delta was cut short. Sync again straight away with the new [rev] to get the rest. */
+    /**
+     * The delta was cut short. Ask again straight away — same [SyncRequest.since], no rows, and
+     * [nextCursor] as the cursor — until this comes back false.
+     */
     val hasMore: Boolean = false,
+    /**
+     * Where this page stopped, when [hasMore]. Null otherwise.
+     *
+     * The client must not store [rev] until the last page: [rev] is where the account has got to, not
+     * where the reading of it has, and writing it down halfway through carries the device past every row
+     * it has not been handed yet — silently, and for good.
+     */
+    val nextCursor: String? = null,
 )
 
 /**

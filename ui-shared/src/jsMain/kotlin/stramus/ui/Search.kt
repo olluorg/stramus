@@ -11,6 +11,7 @@ import stramus.core.repo.UsageStat
 import kotlin.math.ln
 import kotlin.uuid.ExperimentalUuidApi
 import stramus.core.url.hostOf
+import stramus.core.url.normalizeUrl
 
 /** How many rows the dropdown offers at most, actions aside. Beyond that it is a list, not a choice. */
 private const val MAX_HITS = 8
@@ -31,43 +32,9 @@ private val QUOTAS = mapOf(
     HitSource.SITES to 2,
 )
 
-/** Query parameters that identify a campaign, not a page: two links differing only in these are one. */
-private val TRACKING_PARAMS = listOf("utm_", "fbclid", "gclid", "yclid", "msclkid", "mc_eid", "_hsenc")
-
 /** Where a plain query goes when the user just wants the web. */
 internal fun webSearchUrl(query: String): String =
     "https://www.google.com/search?q=${encodeURIComponent(query)}"
-
-/**
- * The one identity of a page: lowercase host without `www.`, no scheme, no fragment, no trailing
- * slash, no tracking parameters. It is the key of the usage table and how a card, an open tab and a
- * visited page are recognised as the same thing — so it must not depend on which of the three the
- * link happened to arrive from.
- *
- * The path keeps its case: a host is case-insensitive, a path very often is not.
- */
-internal fun normalizeUrl(raw: String): String {
-    val trimmed = raw.trim().substringBefore('#')
-    if (trimmed.isBlank()) return ""
-    val afterScheme = if ("://" in trimmed) trimmed.substringAfter("://") else trimmed
-    val path = afterScheme.substringBefore('?')
-    val query = afterScheme.substringAfter('?', "")
-
-    val slash = path.indexOf('/')
-    val host = (if (slash < 0) path else path.take(slash)).lowercase().removePrefix("www.")
-    val rest = (if (slash < 0) "" else path.substring(slash)).trimEnd('/')
-    val keptParams = query.split('&')
-        .filter { param -> param.isNotBlank() && TRACKING_PARAMS.none { param.startsWith(it) } }
-
-    return buildString {
-        append(host)
-        append(rest)
-        if (keptParams.isNotEmpty()) {
-            append('?')
-            append(keptParams.joinToString("&"))
-        }
-    }
-}
 
 /**
  * Whether what was typed is an address rather than a search: a scheme, or something shaped like a
