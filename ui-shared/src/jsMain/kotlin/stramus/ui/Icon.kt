@@ -29,6 +29,12 @@ private val ICONS: Map<String, String> = mapOf(
         """<path d="M4 20l1-4L16 5l3 3L8 19l-4 1z"/><path d="M14 6l3 3"/>""",
     ),
     "x" to svg("""<path d="M6 6l12 12M18 6L6 18"/>"""),
+    // The × closes or removes one thing; the bin empties a group of them. Two different acts, and the
+    // glyph is what says which is about to happen before the confirmation does.
+    "trash" to svg(
+        """<path d="M4.5 7h15"/><path d="M9.5 7V5.2A1.2 1.2 0 0 1 10.7 4h2.6a1.2 1.2 0 0 1 1.2 1.2V7"/>""" +
+            """<path d="M6.5 7l.9 12.1A2 2 0 0 0 9.4 21h5.2a2 2 0 0 0 2-1.9L17.5 7"/><path d="M10.5 11v6M13.5 11v6"/>""",
+    ),
     "check" to svg("""<path d="M5 12.5l4.5 4.5L19 7"/>"""),
     "settings" to svg(
         """<polygon points="12,3 19,7.5 19,16.5 12,21 5,16.5 5,7.5"/><circle cx="12" cy="12" r="3"/>""",

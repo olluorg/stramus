@@ -8,6 +8,7 @@ import stramus.core.repo.UsageRepository
 import stramus.core.repo.UsageStat
 import kotlin.time.Clock
 import kotlin.time.Instant
+import stramus.core.url.normalizeUrl
 
 /**
  * What the user actually uses: how often, and how recently, each page has been opened *from stramus*.

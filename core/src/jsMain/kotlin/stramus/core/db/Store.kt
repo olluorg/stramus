@@ -20,6 +20,7 @@ import stramus.core.crypto.hashPin
 import stramus.core.crypto.randomSalt
 import stramus.core.crypto.sha256HexBytes
 import stramus.core.sync.DataUri
+import stramus.core.merge.MergePlan
 import stramus.core.model.Card
 import stramus.core.model.CardKind
 import stramus.core.model.CardSection
@@ -151,6 +152,327 @@ suspend fun openStramusStore(db: Database, seed: StoreSeed = StoreSeed.Default):
 }
 
 /**
+ * A row exactly as it stands, detached from the one the store handed back — what an undo of a merge is
+ * built out of. Every field, tombstone and PIN included: a snapshot that quietly dropped one would put
+ * back something subtly other than what was taken.
+ */
+private fun SectionRow.snapshot() = SectionRow().also {
+    it.id = id; it.title = title; it.orderKey = orderKey; it.deletable = deletable
+    it.collapsed = collapsed; it.pinSalt = pinSalt; it.pinHash = pinHash
+    it.updatedAt = updatedAt; it.deletedAt = deletedAt
+}
+
+private fun CollectionRow.snapshot() = CollectionRow().also {
+    it.id = id; it.sectionId = sectionId; it.title = title; it.orderKey = orderKey
+    it.createdAt = createdAt; it.readOnly = readOnly; it.icon = icon; it.color = color
+    it.updatedAt = updatedAt; it.deletedAt = deletedAt
+}
+
+private fun CardSectionRow.snapshot() = CardSectionRow().also {
+    it.id = id; it.collectionId = collectionId; it.title = title; it.description = description
+    it.orderKey = orderKey; it.collapsed = collapsed; it.updatedAt = updatedAt; it.deletedAt = deletedAt
+}
+
+private fun CardRow.snapshot() = CardRow().also {
+    it.id = id; it.collectionId = collectionId; it.cardSectionId = cardSectionId; it.kind = kind
+    it.title = title; it.url = url; it.favicon = favicon; it.content = content; it.thumb = thumb
+    it.mime = mime; it.blobSha = blobSha; it.orderKey = orderKey; it.createdAt = createdAt
+    it.updatedAt = updatedAt; it.deletedAt = deletedAt; it.aiCreated = aiCreated
+}
+
+/**
+ * Everything one merge changed, exactly as it stood before it — the way back from an operation far too
+ * big for the thirty seconds an ordinary deletion gets.
+ *
+ * Every row here was either rewritten (a collection re-hung under another section) or deleted (the losing
+ * half of a pair). Nothing is created, so putting all of these back is the whole of the undo.
+ */
+data class MergeUndo(
+    internal val sections: List<SectionRow>,
+    internal val collections: List<CollectionRow>,
+    internal val cardSections: List<CardSectionRow>,
+    internal val cards: List<CardRow>,
+    internal val blobs: Map<Uuid, String>,
+) {
+    val rows: Int get() = sections.size + collections.size + cardSections.size + cards.size
+}
+
+/** How much a merge actually joined, for the sentence shown afterwards. */
+data class MergeResult(
+    val sections: Int,
+    val collections: Int,
+    val cardSections: Int,
+    val cards: Int,
+    val undo: MergeUndo,
+) {
+    val nothing: Boolean get() = sections + collections + cardSections + cards == 0
+}
+
+/**
+ * Carry out a [MergePlan] — the plan the user has read and ticked, not the one that was proposed.
+ *
+ * Top down: a section's losers hand over their collections and go, then the same for collections, then
+ * card sections, and last of all the duplicate cards. Handing over is an *append*: the loser's children
+ * keep their order among themselves and land after the winner's, rather than being interleaved. Two order
+ * keys made on two devices are two independent scales, and shuffling them together would put the arriving
+ * half in places nobody chose.
+ *
+ * Field by field, the winner keeps what the later-written row said — the same last-write-wins the sync
+ * settles everything else by, so a merge and a sync cannot disagree about which title is the current one.
+ *
+ * One transaction. A half-merged tree — a collection moved out of a section that has already gone — is not
+ * a state this is allowed to end in.
+ */
+suspend fun StramusStore.applyMerge(plan: MergePlan): MergeResult {
+    var mergedSections = 0
+    var mergedCollections = 0
+    var mergedCardSections = 0
+    var mergedCards = 0
+
+    val sectionsBefore = mutableMapOf<Uuid, SectionRow>()
+    val collectionsBefore = mutableMapOf<Uuid, CollectionRow>()
+    val cardSectionsBefore = mutableMapOf<Uuid, CardSectionRow>()
+    val cardsBefore = mutableMapOf<Uuid, CardRow>()
+
+    // The bytes of every file card the merge is about to drop, read before the write — exactly as a single
+    // deletion reads them, and for the same reason: an undo has to be able to open the file again.
+    val doomed = plan.sections.flatMap { it.collections }.flatMap { it.cards }.flatMap { it.losers }
+    val blobs = db.read(CardBlobs) {
+        doomed.mapNotNull { id -> CardBlobs.get(id)?.let { id to it.data } }
+    }.toMap()
+
+    db.write(Sections, Collections, CardSections, Cards, CardBlobs, SyncState) {
+        val syncing = syncing()
+        val now = Clock.System.now()
+
+        for (sectionPlan in plan.sections) {
+            val section = sectionPlan.section
+            if (section.fuses) {
+                val winner = Sections.get(section.winner)
+                var winnerChanged = false
+                // The collections of the losing sections move across, in their own order, after the ones
+                // the winner already has.
+                var last = Collections.find(Collections.bySection) { Collections.sectionId eq section.winner }
+                    .filter { it.deletedAt == null }
+                    .maxOfOrNull { it.orderKey }
+
+                for (loserId in section.losers) {
+                    val loser = Sections.get(loserId) ?: continue
+                    if (loserId !in sectionsBefore) sectionsBefore[loserId] = loser.snapshot()
+
+                    val moving = Collections.find(Collections.bySection) { Collections.sectionId eq loserId }
+                        .filter { it.deletedAt == null }
+                        .sortedWith(compareBy({ it.orderKey }, { it.id.toString() }))
+                    for (collection in moving) {
+                        if (collection.id !in collectionsBefore) collectionsBefore[collection.id] = collection.snapshot()
+                        collection.sectionId = section.winner
+                        collection.orderKey = OrderKey.between(last, null)
+                        collection.updatedAt = now
+                        last = collection.orderKey
+                        Collections.put(collection)
+                    }
+
+                    // The winner takes whatever the later-written of the two said about itself.
+                    if (winner != null && loser.updatedAt > winner.updatedAt) {
+                        if (winner.id !in sectionsBefore) sectionsBefore[winner.id] = winner.snapshot()
+                        winner.title = loser.title
+                        winner.collapsed = loser.collapsed
+                        winnerChanged = true
+                    }
+
+                    if (syncing) {
+                        loser.deletedAt = now
+                        loser.updatedAt = now
+                        Sections.put(loser)
+                    } else {
+                        Sections.delete(loserId)
+                    }
+                    mergedSections++
+                }
+                if (winner != null && winnerChanged) {
+                    winner.updatedAt = now
+                    Sections.put(winner)
+                }
+            }
+
+            for (collectionPlan in sectionPlan.collections) {
+                val collection = collectionPlan.collection
+                if (collection.fuses) {
+                    val winner = Collections.get(collection.winner)
+                    var winnerChanged = false
+                    var lastGroup = CardSections.find(CardSections.byCollection) {
+                        CardSections.collectionId eq collection.winner
+                    }.filter { it.deletedAt == null }.maxOfOrNull { it.orderKey }
+                    var lastCard = Cards.find(Cards.byCollection) { Cards.collectionId eq collection.winner }
+                        .filter { it.deletedAt == null }
+                        .maxOfOrNull { it.orderKey }
+
+                    for (loserId in collection.losers) {
+                        val loser = Collections.get(loserId) ?: continue
+                        if (loserId !in collectionsBefore) collectionsBefore[loserId] = loser.snapshot()
+
+                        val groups = CardSections.find(CardSections.byCollection) {
+                            CardSections.collectionId eq loserId
+                        }.filter { it.deletedAt == null }
+                            .sortedWith(compareBy({ it.orderKey }, { it.id.toString() }))
+                        for (group in groups) {
+                            if (group.id !in cardSectionsBefore) cardSectionsBefore[group.id] = group.snapshot()
+                            group.collectionId = collection.winner
+                            group.orderKey = OrderKey.between(lastGroup, null)
+                            group.updatedAt = now
+                            lastGroup = group.orderKey
+                            CardSections.put(group)
+                        }
+
+                        val moving = Cards.find(Cards.byCollection) { Cards.collectionId eq loserId }
+                            .filter { it.deletedAt == null }
+                            .sortedWith(compareBy({ it.orderKey }, { it.id.toString() }))
+                        for (card in moving) {
+                            if (card.id !in cardsBefore) cardsBefore[card.id] = card.snapshot()
+                            card.collectionId = collection.winner
+                            card.orderKey = OrderKey.between(lastCard, null)
+                            card.updatedAt = now
+                            lastCard = card.orderKey
+                            Cards.put(card)
+                        }
+
+                        if (winner != null && loser.updatedAt > winner.updatedAt) {
+                            if (winner.id !in collectionsBefore) collectionsBefore[winner.id] = winner.snapshot()
+                            winner.title = loser.title
+                            winner.icon = loser.icon
+                            winner.color = loser.color
+                            winnerChanged = true
+                        }
+                        // One collection, and it has stood since the earlier of the two was made.
+                        if (winner != null && loser.createdAt < winner.createdAt) {
+                            if (winner.id !in collectionsBefore) collectionsBefore[winner.id] = winner.snapshot()
+                            winner.createdAt = loser.createdAt
+                            winnerChanged = true
+                        }
+
+                        if (syncing) {
+                            loser.deletedAt = now
+                            loser.updatedAt = now
+                            Collections.put(loser)
+                        } else {
+                            Collections.delete(loserId)
+                        }
+                        mergedCollections++
+                    }
+                    if (winner != null && winnerChanged) {
+                        winner.updatedAt = now
+                        Collections.put(winner)
+                    }
+                }
+
+                for (group in collectionPlan.cardSections) {
+                    if (!group.fuses) continue
+                    val winner = CardSections.get(group.winner)
+                    var winnerChanged = false
+                    // `cardSectionId` has no index of its own — the same unindexed scan the rest of this
+                    // file runs for the question "which cards are in this group".
+                    var lastCard = Cards.all()
+                        .filter { it.deletedAt == null && it.cardSectionId == group.winner }
+                        .maxOfOrNull { it.orderKey }
+
+                    for (loserId in group.losers) {
+                        val loser = CardSections.get(loserId) ?: continue
+                        if (loserId !in cardSectionsBefore) cardSectionsBefore[loserId] = loser.snapshot()
+
+                        val moving = Cards.all()
+                            .filter { it.deletedAt == null && it.cardSectionId == loserId }
+                            .sortedWith(compareBy({ it.orderKey }, { it.id.toString() }))
+                        for (card in moving) {
+                            if (card.id !in cardsBefore) cardsBefore[card.id] = card.snapshot()
+                            card.cardSectionId = group.winner
+                            card.orderKey = OrderKey.between(lastCard, null)
+                            card.updatedAt = now
+                            lastCard = card.orderKey
+                            Cards.put(card)
+                        }
+
+                        if (winner != null && loser.updatedAt > winner.updatedAt) {
+                            if (winner.id !in cardSectionsBefore) cardSectionsBefore[winner.id] = winner.snapshot()
+                            winner.title = loser.title
+                            winner.description = loser.description
+                            winnerChanged = true
+                        }
+
+                        if (syncing) {
+                            loser.deletedAt = now
+                            loser.updatedAt = now
+                            CardSections.put(loser)
+                        } else {
+                            CardSections.delete(loserId)
+                        }
+                        mergedCardSections++
+                    }
+                    if (winner != null && winnerChanged) {
+                        winner.updatedAt = now
+                        CardSections.put(winner)
+                    }
+                }
+
+                // Last, and only now that every card of the pair sits in the winning collection: the
+                // duplicates among them.
+                for (fusion in collectionPlan.cards) {
+                    for (loserId in fusion.losers) {
+                        val row = Cards.get(loserId) ?: continue
+                        if (loserId !in cardsBefore) cardsBefore[loserId] = row.snapshot()
+                        if (syncing) {
+                            row.deletedAt = now
+                            row.updatedAt = now
+                            Cards.put(row)
+                        } else {
+                            CardBlobs.delete(loserId)
+                            Cards.delete(loserId)
+                        }
+                        mergedCards++
+                    }
+                }
+            }
+        }
+    }
+
+    return MergeResult(
+        sections = mergedSections,
+        collections = mergedCollections,
+        cardSections = mergedCardSections,
+        cards = mergedCards,
+        undo = MergeUndo(
+            sections = sectionsBefore.values.toList(),
+            collections = collectionsBefore.values.toList(),
+            cardSections = cardSectionsBefore.values.toList(),
+            cards = cardsBefore.values.toList(),
+            blobs = blobs,
+        ),
+    )
+}
+
+/**
+ * Put a merge back, row for row.
+ *
+ * `put` throughout, as every undo in this file does: a row may be sitting there as a tombstone (a
+ * signed-in database deletes by marking), and an unconditional overwrite is what "it comes back as it was"
+ * means. `updatedAt` moves to now so the restoration beats the merge on the way to the server — the other
+ * devices have to be told the joining was taken back.
+ */
+suspend fun StramusStore.undoMerge(undo: MergeUndo) {
+    db.write(Sections, Collections, CardSections, Cards, CardBlobs) {
+        val now = Clock.System.now()
+        undo.sections.forEach { Sections.put(it.also { row -> row.updatedAt = now }) }
+        undo.collections.forEach { Collections.put(it.also { row -> row.updatedAt = now }) }
+        undo.cardSections.forEach { CardSections.put(it.also { row -> row.updatedAt = now }) }
+        undo.cards.forEach { card ->
+            Cards.put(card.also { it.updatedAt = now })
+            undo.blobs[card.id]?.let { bytes ->
+                CardBlobs.put(CardBlobRow().apply { this.cardId = card.id; this.data = bytes })
+            }
+        }
+    }
+}
+
+/**
  * Sweep the dead.
  *
  * A tombstone exists to tell the *other* device that a row went. Once it has done that — or if there is no
@@ -181,7 +503,12 @@ private suspend fun purgeTombstones(db: Database) {
     }
 }
 
-private fun SectionRow.toModel() = Section(id, title, orderKey, deletable != 0, collapsed != 0, pinHash != null)
+/**
+ * [isDefault] is the one section this database will not delete, worked out across all of them — see
+ * [Section.seeded] for why the column alone cannot say it any more.
+ */
+private fun SectionRow.toModel(isDefault: Boolean = deletable == 0) =
+    Section(id, title, orderKey, !isDefault, collapsed != 0, pinHash != null, seeded = deletable == 0)
 private fun CollectionRow.toModel() =
     Collection(id, sectionId, title, orderKey, createdAt, readOnly != 0, icon, color)
 private fun CardSectionRow.toModel() = CardSection(id, collectionId, title, description, orderKey, collapsed != 0)
@@ -327,11 +654,19 @@ internal class KidxSectionRepository(
     private val defaultTitle: String,
 ) : SectionRepository {
 
-    override suspend fun all(): List<Section> = db.read(Sections) {
-        Sections.all()
-            .filter { it.deletedAt == null }
-            .sortedWith(compareBy({ it.orderKey }, { it.id.toString() }))
-    }.map { it.toModel() }
+    override suspend fun all(): List<Section> {
+        val rows = db.read(Sections) {
+            Sections.all()
+                .filter { it.deletedAt == null }
+                .sortedWith(compareBy({ it.orderKey }, { it.id.toString() }))
+        }
+        // Which one is the default is decided here, over all of them, rather than read off each row on
+        // its own: a database can hold several seeded sections (sync brings another device's in beside
+        // our own), and only the first of them in the order above is the one this database keeps. The
+        // rest are ordinary sections the user can delete — see [Section.seeded].
+        val default = rows.firstOrNull { it.deletable == 0 }?.id
+        return rows.map { it.toModel(isDefault = it.id == default) }
+    }
 
     override suspend fun create(title: String): Section {
         val row = db.write(Sections) {
@@ -417,7 +752,8 @@ internal class KidxSectionRepository(
             this.id = deleted.section.id
             this.title = deleted.section.title
             this.orderKey = deleted.section.orderKey
-            this.deletable = if (deleted.section.deletable) 1 else 0
+            // The column records what the row was made as, not what this database will let go of.
+            this.deletable = if (deleted.section.seeded) 0 else 1
             this.collapsed = if (deleted.section.collapsed) 1 else 0
             // The PIN comes back with the section: an undone deletion must not be a way past a lock.
             this.pinSalt = deleted.pinSalt
@@ -428,9 +764,17 @@ internal class KidxSectionRepository(
         deleted.collections.forEach { restoreCollection(db, it) }
     }
 
-    /** Returns the default section id, creating the non-deletable default section if absent. */
+    /**
+     * Returns the default section id, creating the non-deletable default section if absent.
+     *
+     * The same pick as [all] makes, in the same order and over the same rows — a live seeded section,
+     * first by order key then by id. Two devices holding the same two seeded sections therefore agree
+     * on which is the default, where "whichever the store handed back first" did not.
+     */
     override suspend fun defaultSectionId(): Uuid {
-        val existing = db.read(Sections) { Sections.all() }.firstOrNull { it.deletable == 0 }
+        val existing = db.read(Sections) { Sections.all() }
+            .filter { it.deletedAt == null && it.deletable == 0 }
+            .minWithOrNull(compareBy({ it.orderKey }, { it.id.toString() }))
         if (existing != null) return existing.id
         val row = SectionRow().apply {
             this.id = Uuid.random()
@@ -887,6 +1231,54 @@ internal class KidxCardRepository(
                 CardBlobs.put(CardBlobRow().apply { this.cardId = deleted.card.id; this.data = deleted.blob })
             } else {
                 CardBlobs.delete(deleted.card.id)
+            }
+        }
+    }
+
+    override suspend fun deleteGroup(collectionId: Uuid, cardSectionId: Uuid?): List<DeletedCard> {
+        // `cardSectionId` has no index of its own — the group is picked out of the collection's own
+        // rows, which is the query the grid already runs to draw them.
+        val rows = db.read(Cards) {
+            Cards.find(Cards.byCollection) { Cards.collectionId eq collectionId }
+                .filter { it.deletedAt == null && it.cardSectionId == cardSectionId }
+                .sortedWith(compareBy({ it.orderKey }, { it.id.toString() }))
+        }
+        if (rows.isEmpty()) return emptyList()
+
+        // The bytes are read out before they are deleted: an undone deletion has to open the files again.
+        val blobs = db.read(CardBlobs) {
+            rows.mapNotNull { row -> CardBlobs.get(row.id)?.let { row.id to it.data } }
+        }.toMap()
+
+        val taken = rows.map { it.toModel() }
+        db.write(Cards, CardBlobs, SyncState) {
+            val now = Clock.System.now()
+            if (syncing()) {
+                // Tombstones, and the bytes left where they are — the same bargain [delete] strikes for
+                // one card: the other device has to be told these went, and an undo has to open the
+                // files again. The sweep takes both once the deletions are old enough to be everywhere.
+                rows.forEach { row -> Cards.put(row.also { it.deletedAt = now; it.updatedAt = now }) }
+            } else {
+                rows.forEach { CardBlobs.delete(it.id); Cards.delete(it.id) }
+            }
+        }
+        // Built from the models read before the write: `rows` now carry a tombstone's `deletedAt`, and
+        // what the undo puts back has to be the card as it stood.
+        return taken.map { DeletedCard(it, blobs[it.id]) }
+    }
+
+    override suspend fun restoreAll(deleted: List<DeletedCard>) {
+        db.write(Cards, CardBlobs) {
+            // `put` rather than `add`, for the reason [restore] gives: the row may still be there as a
+            // tombstone, and what comes back keeps its id and its place.
+            deleted.forEach { card ->
+                Cards.put(card.card.toRow())
+                val bytes = card.blob
+                if (bytes != null) {
+                    CardBlobs.put(CardBlobRow().apply { this.cardId = card.card.id; this.data = bytes })
+                } else {
+                    CardBlobs.delete(card.card.id)
+                }
             }
         }
     }

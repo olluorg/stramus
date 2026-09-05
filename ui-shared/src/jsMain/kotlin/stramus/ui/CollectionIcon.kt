@@ -15,6 +15,9 @@ import react.useState
 import stramus.core.model.Collection
 import web.cssom.ClassName
 import web.html.HTMLInputElement
+import stramus.core.url.hostOf
+import stramus.core.repo.CardRepository
+import stramus.core.model.CardKind
 
 /**
  * How an emoji mark is told from a glyph mark in the one field both are stored in: `e:1f600` is the
@@ -23,6 +26,28 @@ import web.html.HTMLInputElement
  * pair of columns that one day both will be.
  */
 internal const val EMOJI_MARK = "e:"
+
+/**
+ * And the third kind: `f:github.com` is the icon of that site, as the favicon cache already holds it.
+ *
+ * The host is stored, never the bytes. They are already cached per host for the cards themselves, so
+ * the mark costs the row nothing and the sync a dozen characters — where a `data:` URI in the field
+ * would be kilobytes of base64 in every delta, and would go stale the day the site changed its icon.
+ * The other device may not have the bytes yet; it draws the same letter tile a card of that host
+ * draws until it does, which is a stand-in and not a failure.
+ */
+internal const val FAVICON_MARK = "f:"
+
+/** The host a favicon mark names, or null if [icon] is not one. */
+internal fun faviconMarkHost(icon: String?): String? =
+    icon?.takeIf { it.startsWith(FAVICON_MARK) }?.removePrefix(FAVICON_MARK)?.takeIf { it.isNotBlank() }
+
+/**
+ * Whether a mark takes the collection's colour. A glyph is drawn in it; an emoji and a site's icon
+ * bring their own, and painting over them would only make them wrong.
+ */
+internal fun markTakesColor(icon: String): Boolean =
+    !icon.startsWith(EMOJI_MARK) && !icon.startsWith(FAVICON_MARK)
 
 /**
  * The colours a glyph mark can be drawn in: the app's own accents (see [AccentColor]), which the
@@ -39,13 +64,26 @@ internal val COLLECTION_COLORS: List<String> =
 internal fun knownMark(icon: String?): Boolean = when {
     icon == null -> false
     icon.startsWith(EMOJI_MARK) -> icon.removePrefix(EMOJI_MARK) in EMOJI_SVG
+    // A host is a host: there is no library to be missing from. Whether its icon can be *reached* is
+    // the favicon cache's question, and it answers it with a letter tile rather than with nothing.
+    icon.startsWith(FAVICON_MARK) -> faviconMarkHost(icon) != null
     else -> hasIcon(icon)
 }
 
 /** Draws a mark — glyph or emoji — wherever one is wanted without a collection in hand. */
 internal fun ChildrenBuilder.markGlyph(icon: String, extraClassName: String? = null) {
-    if (icon.startsWith(EMOJI_MARK)) emojiGlyph(icon.removePrefix(EMOJI_MARK), extraClassName)
-    else icon(icon, extraClassName)
+    val host = faviconMarkHost(icon)
+    when {
+        host != null -> Favicon {
+            // The same component every card draws its icon with, so the mark gets the cache, the
+            // background refresh and the letter-tile fallback without any of it written twice.
+            url = "https://$host"
+            favicon = null
+            className = if (extraClassName != null) "fav mark-fav $extraClassName" else "fav mark-fav"
+        }
+        icon.startsWith(EMOJI_MARK) -> emojiGlyph(icon.removePrefix(EMOJI_MARK), extraClassName)
+        else -> icon(icon, extraClassName)
+    }
 }
 
 /**
@@ -64,16 +102,16 @@ internal fun ChildrenBuilder.collectionIcon(collection: Collection, extraClassNa
     // only.
     span {
         className = ClassName(if (extraClassName != null) "col-icon $extraClassName" else "col-icon")
-        // An emoji carries its own colours; only a glyph has one to give it.
-        if (!mark.startsWith(EMOJI_MARK)) {
+        // An emoji and a site's icon carry their own colours; only a glyph has one to give it.
+        if (markTakesColor(mark)) {
             collection.color?.takeIf { it in COLLECTION_COLORS }?.let { asDynamic()["data-color"] = it }
         }
         markGlyph(mark)
     }
 }
 
-/** Which half of the library the picker is showing. */
-private enum class MarkTab { GLYPHS, EMOJI }
+/** Which of the three the picker is showing. */
+private enum class MarkTab { GLYPHS, EMOJI, FAVICONS }
 
 external interface CollectionIconProps : Props {
     var strings: Strings
@@ -91,6 +129,14 @@ external interface CollectionIconProps : Props {
 
     /** A colour was chosen, or cleared with null. The popup stays: a colour is judged against a glyph. */
     var onColor: (color: String?) -> Unit
+
+    /**
+     * Read to find the sites this collection is made of — the third thing it can be marked with.
+     *
+     * The picker asks for them itself rather than being handed them: it opens over any row of the
+     * sidebar, and the app holds the cards of the open collection only.
+     */
+    var cards: CardRepository
     var onClose: () -> Unit
 }
 
@@ -110,9 +156,34 @@ private const val POPUP_H = 396.0
 val CollectionIconPicker = FC<CollectionIconProps> { props ->
     val s = props.strings
     val mark = props.collection.icon?.takeIf { knownMark(it) }
-    var tab by useState(if (mark?.startsWith(EMOJI_MARK) == true) MarkTab.EMOJI else MarkTab.GLYPHS)
+    var tab by useState(
+        when {
+            mark?.startsWith(EMOJI_MARK) == true -> MarkTab.EMOJI
+            mark?.startsWith(FAVICON_MARK) == true -> MarkTab.FAVICONS
+            else -> MarkTab.GLYPHS
+        },
+    )
     var query by useState("")
     val searchRef = useRef<HTMLInputElement>(null)
+
+    /**
+     * The sites this collection holds links to, the most-saved first.
+     *
+     * Ordered by how many links point at each because that is the question being answered: a collection
+     * of thirty GitHub repositories and one stray blog post is a GitHub collection, and the icon that
+     * says so should not be somewhere down the list. Read once, when the popup opens.
+     */
+    var hosts by useState(emptyList<String>())
+    useEffectOnce {
+        val links = props.cards.byCollection(props.collection.id).filter { it.kind == CardKind.LINK }
+        hosts = links.map { hostOf(it.url) }
+            .filter { it.isNotBlank() }
+            .groupingBy { it }
+            .eachCount()
+            .entries
+            .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+            .map { it.key }
+    }
 
     // Escape closes it, as it does every window in this app. The listener is registered once and reads
     // the current onClose through a ref, the way `modalShell` does and for the same reason.
@@ -143,6 +214,7 @@ val CollectionIconPicker = FC<CollectionIconProps> { props ->
     }
     val emojiWords = EMOJI_KEYWORDS[props.lang.id] ?: EMOJI_KEYWORDS["en"].orEmpty()
     val emoji = if (q.isEmpty()) EMOJI_ORDER else EMOJI_ORDER.filter { emojiWords[it]?.contains(q) == true }
+    val sites = if (q.isEmpty()) hosts else hosts.filter { it.contains(q) }
 
     fun pick(icon: String?) = props.onPick(icon)
 
@@ -181,6 +253,11 @@ val CollectionIconPicker = FC<CollectionIconProps> { props ->
                     onClick = { tab = MarkTab.EMOJI }
                     +s.collectionIconTabEmoji
                 }
+                button {
+                    className = ClassName(if (tab == MarkTab.FAVICONS) "pop-tab selected" else "pop-tab")
+                    onClick = { tab = MarkTab.FAVICONS }
+                    +s.collectionIconTabFavicons
+                }
                 span { className = ClassName("pop-spacer") }
                 button {
                     className = ClassName("pop-action")
@@ -188,7 +265,11 @@ val CollectionIconPicker = FC<CollectionIconProps> { props ->
                     // Random picks from what is on screen, not from the whole library: with a search
                     // typed, "surprise me" should still respect what was asked for.
                     onClick = {
-                        val pool = if (tab == MarkTab.EMOJI) emoji.map { EMOJI_MARK + it } else glyphs
+                        val pool = when (tab) {
+                            MarkTab.EMOJI -> emoji.map { EMOJI_MARK + it }
+                            MarkTab.FAVICONS -> sites.map { FAVICON_MARK + it }
+                            MarkTab.GLYPHS -> glyphs
+                        }
                         pool.randomOrNull()?.let { pick(it) }
                     }
                     icon("sparkles")
@@ -220,7 +301,7 @@ val CollectionIconPicker = FC<CollectionIconProps> { props ->
                             icon(name)
                         }
                     }
-                } else {
+                } else if (tab == MarkTab.EMOJI) {
                     emoji.forEach { code ->
                         button {
                             key = code.unsafeCast<Key>()
@@ -230,9 +311,33 @@ val CollectionIconPicker = FC<CollectionIconProps> { props ->
                             emojiGlyph(code)
                         }
                     }
+                } else {
+                    sites.forEach { host ->
+                        button {
+                            key = host.unsafeCast<Key>()
+                            className = ClassName(
+                                if (FAVICON_MARK + host == mark) "icon-cell selected" else "icon-cell",
+                            )
+                            // The host itself is the label: it is what the user recognises the icon by,
+                            // and the one thing about a site the app can be sure it knows.
+                            hint(host)
+                            onClick = { pick(FAVICON_MARK + host) }
+                            markGlyph(FAVICON_MARK + host)
+                        }
+                    }
                 }
-                if (glyphs.isEmpty() && tab == MarkTab.GLYPHS || emoji.isEmpty() && tab == MarkTab.EMOJI) {
-                    div { className = ClassName("pop-empty"); +s.collectionIconNothing }
+                val nothing = when (tab) {
+                    MarkTab.GLYPHS -> glyphs.isEmpty()
+                    MarkTab.EMOJI -> emoji.isEmpty()
+                    // Told apart on purpose: a collection with no links has nothing to offer here at all,
+                    // which is not the same as a search that matched none of what it has.
+                    MarkTab.FAVICONS -> sites.isEmpty()
+                }
+                if (nothing) {
+                    div {
+                        className = ClassName("pop-empty")
+                        +if (tab == MarkTab.FAVICONS && hosts.isEmpty()) s.collectionIconNoSites else s.collectionIconNothing
+                    }
                 }
             }
 

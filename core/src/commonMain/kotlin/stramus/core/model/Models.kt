@@ -25,9 +25,28 @@ data class Section(
     val id: Uuid,
     val title: String,
     val orderKey: String,
+    /**
+     * Whether this database will let the section go. False for exactly one section — the default —
+     * and true for every other, [seeded] or not.
+     */
     val deletable: Boolean,
     val collapsed: Boolean,
     val locked: Boolean,
+    /**
+     * This row was made as *a* database's default section — the one a fresh install seeds itself and
+     * names in the language it was first opened in.
+     *
+     * Not the same question as [deletable], and the difference is not academic: sync carries the flag
+     * across with the row, so a browser that had its own default and then joined an account holding
+     * another one has two rows that were both seeded. Only one of them can be the default *here* —
+     * and if being seeded were enough to make a section undeletable, the user would be left staring at
+     * a section they never made, in a language they may not read, with no way to remove it.
+     *
+     * So the column is kept as it is (it is what makes two defaults recognisable as the same section
+     * when they are merged — see `stramus.core.merge`), and which one this database will not delete is
+     * decided separately, by [SectionRepository.defaultSectionId].
+     */
+    val seeded: Boolean = false,
 )
 
 /**

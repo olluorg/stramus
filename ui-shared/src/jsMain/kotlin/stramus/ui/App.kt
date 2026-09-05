@@ -29,6 +29,7 @@ import react.useRef
 import react.useState
 import stramus.core.ai.TriageAssignment
 import stramus.core.db.StramusStore
+import stramus.core.db.deleteStramusDatabase
 import stramus.core.db.exportStramusBackup
 import stramus.core.db.looksLikeStramusBackup
 import stramus.core.db.openStramusStore
@@ -51,7 +52,9 @@ import stramus.core.platform.QuickCaptureAccess
 import stramus.core.platform.TabCapture
 import stramus.core.platform.WebSearchAccess
 import stramus.core.repo.CardRepository
+import stramus.core.repo.DeletedSection
 import stramus.core.url.hostOf
+import stramus.core.url.normalizeUrl
 import web.cssom.ClassName
 import web.data.DropEffect
 import web.data.copy
@@ -782,6 +785,9 @@ val App = FC<AppProps> { props ->
     var serverOnline by useState(true)
     var accountOpen by useState(false)
 
+    /** The duplicate finder's window — opened from the account dialog, or straight after joining one. */
+    var mergeOpen by useState(false)
+
     // The walkthrough on the very first open of this browser — see [ONBOARDING_SEEN_PREF] — and never
     // again after that, on whichever step it was dismissed on. Read once, not derived on every render:
     // closing it writes the flag straight away, and this is the one moment that flag is asked about.
@@ -977,7 +983,25 @@ val App = FC<AppProps> { props ->
     // the cards, rather than once per group per render. Each group keeps the order it is stored in,
     // which is the order the user put it in, by dragging or by sorting. The ungrouped ones are under
     // the null key.
-    val cardsByGroup = useMemo(cards) { cards.groupBy { it.cardSectionId } }
+    /**
+     * The cards of the open collection, split into the groups the page draws — with one guard: a card
+     * may name a card section this collection has not got.
+     *
+     * Sync is how. A section deleted on another device arrives here as a tombstone of its own, and the
+     * cards it held are detached *there*, not here — so until their own updates land (or if those lose
+     * the merge) this device has cards pointing at a section it will never draw. Grouped by the raw
+     * `cardSectionId` such a card was in no group at all: not in the ungrouped area, not under any
+     * header — off the screen while sitting safely in the database, which reads as "deleting a card
+     * deleted several".
+     *
+     * So a group nobody has is no group: the card falls back to ungrouped, which is exactly where a
+     * deleted section leaves its cards anyway (see `CardSectionRepository.delete`). Nothing is written
+     * — the card keeps naming its section, and rejoins it if it ever comes back.
+     */
+    val cardsByGroup = useMemo(cards, cardSections) {
+        val live = cardSections.mapTo(mutableSetOf()) { it.id }
+        cards.groupBy { card -> card.cardSectionId?.takeIf { it in live } }
+    }
     val orderedCardSections = useMemo(cardSections) { cardSections.sortedBy { it.orderKey } }
 
     // Tabs matching the sidebar's own search box (title or URL). The search only hides rows: a tab
@@ -1152,8 +1176,13 @@ val App = FC<AppProps> { props ->
             val s = store
             if (s != null) {
                 scope.launch {
-                    cards = s.cards.byCollection(sel)
-                    cardSections = s.cardSections.byCollection(sel)
+                    // Both halves read before either is set: they are one picture, and [cardsByGroup]
+                    // reads them together — new cards against the old sections would file every grouped
+                    // card as ungrouped for as long as that render stood.
+                    val nextCards = s.cards.byCollection(sel)
+                    val nextSections = s.cardSections.byCollection(sel)
+                    cards = nextCards
+                    cardSections = nextSections
                 }
             }
         }
@@ -1310,8 +1339,11 @@ val App = FC<AppProps> { props ->
         val sel = collectionId ?: selectedId ?: return
         if (sel in hiddenCollectionIds) return // a locked section's cards stay out of the page
         scope.launch {
-            cards = s.cards.byCollection(sel)
-            cardSections = s.cardSections.byCollection(sel)
+            // One picture, set in one go — see the same read in the effect that opens a collection.
+            val nextCards = s.cards.byCollection(sel)
+            val nextSections = s.cardSections.byCollection(sel)
+            cards = nextCards
+            cardSections = nextSections
         }
     }
 
@@ -1346,8 +1378,10 @@ val App = FC<AppProps> { props ->
             collections = s.collections.all()
             val sel = selectedId
             if (sel != null && sel !in hiddenCollectionIds) {
-                cards = s.cards.byCollection(sel)
-                cardSections = s.cardSections.byCollection(sel)
+                val nextCards = s.cards.byCollection(sel)
+                val nextSections = s.cardSections.byCollection(sel)
+                cards = nextCards
+                cardSections = nextSections
             }
         }
     }
@@ -2050,14 +2084,51 @@ val App = FC<AppProps> { props ->
         }
     }
 
+    /**
+     * A section the last collection has just left, and the offer to let it go too.
+     *
+     * Emptying a section is not one action but two — deleting the last collection in it, or dragging
+     * that collection somewhere else — and from the section's point of view they are the same event, so
+     * they ask the same question here rather than each in its own words.
+     *
+     * It is only ever an offer. An empty section is a real place: the sidebar's `+` adds a collection
+     * straight to it, and the name in it is one the user chose. The app used to take it silently, which
+     * is a different thing from tidying up.
+     *
+     * [remaining] is every collection *after* the move or deletion — read once by the caller, which has
+     * just read it anyway. Returns the snapshot of what went, for the caller's undo; null if the section
+     * stands, whether because it is not empty, because it is the default one, or because the user said no.
+     */
+    suspend fun deleteIfEmptied(s: StramusStore, sectionId: Uuid, remaining: List<Collection>): DeletedSection? {
+        val section = sections.find { it.id == sectionId } ?: return null
+        if (!section.deletable || remaining.any { it.sectionId == sectionId }) return null
+        if (!browserConfirm(t.confirmDeleteEmptiedSection(section.title))) return null
+        return s.sections.delete(sectionId)?.also { sections = s.sections.all() }
+    }
+
     // Move the dragged collection into [sectionId] at [index], then refresh the sidebar list.
     fun moveCollection(sectionId: Uuid, index: Int) {
         val dragged = draggingCollectionId
         val s = store ?: return
         if (dragged != null) {
+            // Where it came from, read before the move — afterwards the row says where it went.
+            val from = collections.find { it.id == dragged }?.sectionId
             scope.launch {
                 s.collections.move(dragged, sectionId, index)
-                collections = s.collections.all()
+                val remaining = s.collections.all()
+                collections = remaining
+                // Dragging the last collection out of a section leaves it as empty as deleting that
+                // collection would have, and leaves the same thing to decide about it.
+                if (from != null && from != sectionId) {
+                    val deleted = deleteIfEmptied(s, from, remaining)
+                    if (deleted != null) {
+                        undo = Undo(t.deletedSection(deleted.section.title)) {
+                            s.sections.restore(deleted)
+                            sections = s.sections.all()
+                            collections = s.collections.all()
+                        }
+                    }
+                }
             }
         }
         draggingCollectionId = null
@@ -2495,16 +2566,19 @@ val App = FC<AppProps> { props ->
             collections = remaining
             if (selectedId == collection.id) selectedId = remaining.firstOrNull()?.id
 
-            // A section left with no collections is not a place anything can be saved to any more —
-            // it goes with the last collection taken out of it, unless it is the default section.
-            val section = sections.find { it.id == collection.sectionId }
-            val emptiedSection = if (section != null && section.deletable && remaining.none { it.sectionId == section.id }) {
-                s.sections.delete(section.id)?.also { sections = s.sections.all() }
-            } else {
-                null
-            }
+            // Asked *after* the deletion rather than before it, and about what is now true: the section
+            // is empty, here it is, do you still want it. A question put beforehand would be asking about
+            // something that had not happened yet, on top of the confirmation already given.
+            val emptiedSection = deleteIfEmptied(s, collection.sectionId, remaining)
 
-            undo = Undo(t.deletedCollection(collection.title)) {
+            // One undo for both: the section went because the collection did, and taking that back has
+            // to take back the whole of it — otherwise the collection returns to a section that is gone.
+            val message = if (emptiedSection != null) {
+                t.deletedCollectionAndSection(collection.title, emptiedSection.section.title)
+            } else {
+                t.deletedCollection(collection.title)
+            }
+            undo = Undo(message) {
                 s.collections.restore(deleted)
                 emptiedSection?.let { s.sections.restore(it) }
                 sections = s.sections.all()
@@ -2524,6 +2598,39 @@ val App = FC<AppProps> { props ->
             reloadCards(collectionId)
             undo = Undo(t.deletedCardSection(cs.title)) {
                 s.cardSections.restore(deleted)
+                reloadCards(collectionId)
+            }
+        }
+    }
+
+    /**
+     * Empty a group without deleting the group: every card in it goes at once, asked about first and
+     * offered back afterwards like any other deletion.
+     *
+     * The ungrouped area is what this is for. It is no card section, so it has no × of its own — and
+     * where a section's × leaves the cards behind, ungrouped, there is nowhere further for *these* to
+     * be left. Emptying it a tile at a time was the only way, one confirmation-free click per card,
+     * with only the last of them still undoable.
+     *
+     * One deletion, not a loop of them: the whole group goes in one write (see
+     * `CardRepository.deleteGroup`) and comes back in one, so the undo toast offers the group rather
+     * than whichever card happened to go last.
+     */
+    fun clearGroup(collectionId: Uuid, cardSectionId: Uuid?, title: String, cards: List<Card>) {
+        val s = store ?: return
+        if (cards.isEmpty()) return
+        scope.launch {
+            if (!browserConfirm(t.confirmClearGroup(title, cards.size))) return@launch
+
+            // The unsaved text of a note goes with the note, exactly as it does for a single deletion
+            // — see [onCardDelete], which says why a draft must not outlive what it is a draft of.
+            cards.filter { it.kind == CardKind.NOTE }.forEach { clearNoteDraft(cardDraftKey(it.id)) }
+
+            val deleted = s.cards.deleteGroup(collectionId, cardSectionId)
+            if (deleted.isEmpty()) return@launch
+            reloadCards(collectionId)
+            undo = Undo(t.clearedGroup(title, deleted.size)) {
+                s.cards.restoreAll(deleted)
                 reloadCards(collectionId)
             }
         }
@@ -2674,7 +2781,19 @@ val App = FC<AppProps> { props ->
                                             draggingHistory = null
                                             dropCollectionId = null
                                         }
-                                        +collLabel.take(1).uppercase()
+                                        // A collection that has been given a mark is recognised by it,
+                                        // here most of all: an initial tells two collections apart only
+                                        // while their names start differently, and this rail is nothing
+                                        // *but* that one character. The mark is why the user chose it.
+                                        //
+                                        // The colour comes with it (see [collectionIcon]), so a rail of
+                                        // marks reads the way the expanded tree does. No mark, or one
+                                        // this build cannot draw, and it is the initial as before.
+                                        if (c.icon?.let(::knownMark) == true) {
+                                            collectionIcon(c, "rail-icon")
+                                        } else {
+                                            +collLabel.take(1).uppercase()
+                                        }
                                     }
                                 }
                             }
@@ -3310,7 +3429,7 @@ val App = FC<AppProps> { props ->
                                     if (mark != null) {
                                         span {
                                             className = ClassName("col-icon")
-                                            if (!mark.startsWith(EMOJI_MARK)) {
+                                            if (markTakesColor(mark)) {
                                                 current.color
                                                     ?.takeIf { it in COLLECTION_COLORS }
                                                     ?.let { asDynamic()["data-color"] = it }
@@ -3355,11 +3474,16 @@ val App = FC<AppProps> { props ->
                             }
                             // The read-only switch closes the row: everything before it edits, and
                             // this is what takes those controls away. Locked, it is the only one left.
+                            //
+                            // A bare glyph at both ends of it. One switch that grew a label on the way
+                            // back read as two different buttons — and the label was the less useful
+                            // half anyway: what a guarded collection is, the badge beside the title
+                            // already says, and what the button will do its tooltip says either way.
                             button {
                                 className = ClassName("btn")
                                 hint(if (editable) t.makeReadOnlyHint else t.allowEditingHint)
                                 onClick = { toggleReadOnly(current) }
-                                if (editable) icon("lock") else { icon("edit"); +" ${t.allowEditing}" }
+                                icon(if (editable) "lock" else "edit")
                             }
                         }
                     }
@@ -3456,6 +3580,19 @@ val App = FC<AppProps> { props ->
                                     if (editable) {
                                         groupAddMenu(null)
                                         groupSortMenu(null)
+                                        // The bin, where a section has its × — and it means the other
+                                        // thing: the cards go, and the area they were in stays, since
+                                        // there is no such thing as deleting the ungrouped area. It is
+                                        // drawn only when there is something to empty.
+                                        if (ungrouped.isNotEmpty()) button {
+                                            className = ClassName("icon del")
+                                            hint(t.clearGroupHint)
+                                            onClick = { e ->
+                                                e.stopPropagation()
+                                                clearGroup(current.id, null, t.ungrouped, ungrouped)
+                                            }
+                                            icon("trash")
+                                        }
                                     }
                                 }
                             }
@@ -3978,11 +4115,25 @@ val App = FC<AppProps> { props ->
                 this.store = liveStore
                 google = props.google
                 this.joinPrompt = joinPrompt
+                onMergeDuplicates = { mergeOpen = true }
                 onSynced = { reloadAfterSync() }
                 onState = { syncUi = it }
                 onClose = {
                     accountOpen = false
                     joinPrompt = null
+                }
+            }
+        }
+
+        // Joining what merging by row id left doubled. It reads the whole database and writes a great
+        // many rows at once, so it lives in a window of its own with the plan on show — see [MergeModal].
+        store?.let { liveStore ->
+            if (mergeOpen) {
+                MergeModal {
+                    strings = t
+                    this.store = liveStore
+                    onMerged = { reloadAfterSync() }
+                    onClose = { mergeOpen = false }
                 }
             }
         }
@@ -4145,6 +4296,32 @@ val App = FC<AppProps> { props ->
                     }
                 }
                 this.importStatus = importStatus
+                // Emptying this browser, and nothing else: the account (if there is one) is left standing,
+                // and so is everything on the server. Asked twice — once for what it takes, once for the
+                // fact that the copy in front of the user is the copy being taken — and the page starts
+                // again afterwards, which is both the only way the open store lets go and the plainest
+                // way to say it happened.
+                onEraseEverything = {
+                    if (browserConfirm(t.eraseEverythingConfirm) && browserConfirm(t.eraseEverythingAgain)) {
+                        scope.launch {
+                            val e = engine
+                            if (e != null) {
+                                e.eraseLocalData()
+                            } else {
+                                // No engine means no store to empty through — the database is the thing
+                                // to take, and taking it is what [DbRecovery] does with a broken one.
+                                runCatching { deleteStramusDatabase() }
+                            }
+                            clearAllNoteDrafts()
+                            // The session goes with the data. Left behind, the next start would find a
+                            // signed-in browser with an empty database and helpfully fetch the account
+                            // back down over it — undoing, quietly, exactly what was just asked for.
+                            runCatching { api.signOut() }
+                            api.forgetDevice()
+                            reloadPage()
+                        }
+                    }
+                }
                 onClose = {
                     settingsOpen = false
                     importStatus = null
@@ -4194,11 +4371,14 @@ val App = FC<AppProps> { props ->
         // another device, since the picker was opened, and it may have been deleted outright — which
         // takes the popup with it.
         iconPicker?.let { picker ->
+            // The picker reads the collection's own links, for the sites it can be marked with.
+            val liveStore = store ?: return@let
             collections.firstOrNull { it.id == picker.collectionId }?.let { c ->
                 CollectionIconPicker {
                     strings = t
                     this.lang = lang
                     collection = c
+                    this.cards = liveStore.cards
                     anchorX = picker.x
                     anchorY = picker.y
                     onClose = { iconPicker = null }

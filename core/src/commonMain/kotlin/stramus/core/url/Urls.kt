@@ -60,3 +60,37 @@ fun youtubeVideoId(url: String): String? {
     }
     return candidate?.takeIf { VIDEO_ID.matches(it) }
 }
+
+/** Query parameters that identify a campaign, not a page: two links differing only in these are one. */
+private val TRACKING_PARAMS = listOf("utm_", "fbclid", "gclid", "yclid", "msclkid", "mc_eid", "_hsenc")
+
+/**
+ * The one identity of a page: lowercase host without `www.`, no scheme, no fragment, no trailing
+ * slash, no tracking parameters. It is the key of the usage table, how a card, an open tab and a
+ * visited page are recognised as the same thing, and — through `DuplicateMerge` — how two saved cards
+ * are recognised as one. So it must not depend on which of those the link happened to arrive from.
+ *
+ * The path keeps its case: a host is case-insensitive, a path very often is not.
+ */
+fun normalizeUrl(raw: String): String {
+    val trimmed = raw.trim().substringBefore('#')
+    if (trimmed.isBlank()) return ""
+    val afterScheme = if ("://" in trimmed) trimmed.substringAfter("://") else trimmed
+    val path = afterScheme.substringBefore('?')
+    val query = afterScheme.substringAfter('?', "")
+
+    val slash = path.indexOf('/')
+    val host = (if (slash < 0) path else path.take(slash)).lowercase().removePrefix("www.")
+    val rest = (if (slash < 0) "" else path.substring(slash)).trimEnd('/')
+    val keptParams = query.split('&')
+        .filter { param -> param.isNotBlank() && TRACKING_PARAMS.none { param.startsWith(it) } }
+
+    return buildString {
+        append(host)
+        append(rest)
+        if (keptParams.isNotEmpty()) {
+            append('?')
+            append(keptParams.joinToString("&"))
+        }
+    }
+}

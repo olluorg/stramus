@@ -318,6 +318,10 @@
            the halo drawn on hover would hang off to one side of the glyph instead of around it. */
         .col-icon-btn { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border-radius: var(--r-pill); margin-right: 7px; }
         .col-icon-btn > .col-icon { margin-right: 0; }
+        /* A site's icon standing in for a glyph: square with the corners a favicon wears everywhere
+           else in the app, and sized to the text around it rather than to a card's row. */
+        .col-icon > .mark-fav { width: 1em; height: 1em; flex: 0 0 1em; border-radius: 3px; }
+        .icon-cell > .mark-fav { width: 20px; height: 20px; flex: 0 0 20px; border-radius: 4px; }
         .col-icon-btn:hover { background: var(--panel); box-shadow: 0 0 0 2px var(--panel); }
         .col-icon[data-color="blue"] { color: var(--ci-blue); }
         .col-icon[data-color="purple"] { color: var(--ci-purple); }
@@ -334,12 +338,19 @@
         /* The same mark over the open collection, at the size of the heading it sits in — and, where the
            collection can be edited, the button that opens the picker under it. A collection with no mark
            still gets the slot, faint until hovered: it is the only way in for the ones that have none. */
-        .head-icon { font-size: .95em; margin-right: 9px; vertical-align: -.06em; }
+        /* Both ends of it have to be the same shape, because a collection changes ends the moment it is
+           made read-only: the same 3px box around the mark and the same 6px to the title, whether that
+           box is the button that opens the picker or a plain span. The size is stated against the class
+           it shares with the sidebar's own mark rather than left to source order — `.col-icon` fixes a
+           15px that has nothing to do with a 20px heading, and inside the button the inner span used to
+           win it, so the mark grew by four pixels and slid sideways on every toggle. */
+        .col-icon.head-icon { font-size: .95em; margin: 0 6px 0 0; padding: 3px; vertical-align: -.06em; }
         .head-icon-btn {
             display: inline-flex; align-items: center; border: none; background: transparent; color: inherit;
             font-size: .95em; padding: 3px; margin-right: 6px; border-radius: var(--r-pill);
             cursor: pointer; vertical-align: -.06em;
         }
+        .head-icon-btn > .col-icon { font-size: inherit; margin-right: 0; }
         .head-icon-btn:hover { background: var(--bg); }
         .col-icon.empty { color: var(--muted); opacity: .45; }
         .head-icon-btn:hover .col-icon.empty { opacity: 1; color: var(--accent); }
@@ -705,6 +716,14 @@
             cursor: pointer;
         }
         .rail-chip:hover { color: var(--accent); border-color: var(--accent); }
+        /* A collection's mark standing in for its initial. The gap the mark carries in the expanded row
+           is there to hold the title off it; in a 28px square there is no title, and it would only push
+           the mark off centre. */
+        .rail-chip > .col-icon.rail-icon { margin: 0; font-size: 16px; }
+        /* A mark given no colour of its own follows the chip, so hovering and selecting still light it
+           up the way they light up an initial. One that *was* given a colour keeps it, selected or not,
+           exactly as in the expanded tree — which is why this excludes it rather than overriding it. */
+        .rail-chip > .col-icon.rail-icon:not([data-color]) { color: inherit; }
         .rail-chip.section-chip { background: var(--bg); color: var(--text); }
         .rail-chip.selected { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
         .rail-chip.drop-target { background: var(--accent); color: #fff; border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -911,6 +930,7 @@
         .pop-tab {
             border: none; background: transparent; color: var(--muted); cursor: pointer;
             border-radius: var(--r-pill); padding: 5px 9px; font-size: 12px; font-weight: 600;
+            white-space: nowrap; flex: 0 0 auto;
         }
         .pop-tab:hover { color: var(--text); background: var(--bg); }
         .pop-tab.selected { color: var(--accent); background: var(--accent-soft); }
@@ -1356,18 +1376,23 @@
 
         /* ---- Account and sync ---------------------------------------------------------------- */
         .account-modal { width: min(420px, 92vw); }
+        /* The panel is `overflow: hidden` with a `max-height` (see `.modal`), so anything past the fold
+           is not merely off-screen but unreachable — which is what happened to the delete-account button
+           as this dialog grew. Everything below the header scrolls instead. */
+        .account-modal .account-body { flex: 1; min-height: 0; overflow-y: auto; }
         .account-modal p { margin: 12px 18px; font-size: 13px; }
         .account-modal p.muted { color: var(--muted, #8b949e); }
         .account-modal p.error { color: var(--danger, #f85149); }
         .account-modal .check-row { display: flex; align-items: flex-start; gap: 8px; margin: 0 18px 12px;
             font-size: 13px; color: var(--muted, #8b949e); cursor: pointer; }
         .account-modal .check-row input { margin: 2px 0 0; accent-color: var(--danger, #f85149); cursor: pointer; }
-        .account-modal .btn.danger { margin: 0 18px 16px; color: var(--danger, #f85149); }
+        .btn.danger { color: var(--danger, #f85149); }
+        .account-modal .btn.danger { margin: 0 18px 16px; }
         .account-modal .btn.google { display: block; width: calc(100% - 36px); margin: 14px 18px 18px;
             padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--panel);
             color: var(--fg); cursor: pointer; font-size: 14px; }
         .account-modal .btn.google:hover { background: var(--bg); }
-        .account-modal .row { display: flex; gap: 8px; padding: 12px 18px; }
+        .account-modal .row { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 18px; }
 
         /* ---- Onboarding (the first-run walkthrough) ------------------------------------------- */
         .onboarding-modal { width: min(480px, 92vw); overflow: visible; }

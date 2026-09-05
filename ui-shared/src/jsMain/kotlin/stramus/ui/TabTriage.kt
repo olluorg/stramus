@@ -42,6 +42,7 @@ import stramus.core.repo.CardRepository
 import stramus.core.repo.CardSectionRepository
 import stramus.core.sync.StramusApi
 import stramus.core.url.hostOf
+import stramus.core.url.normalizeUrl
 import web.cssom.ClassName
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.js.console

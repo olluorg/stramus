@@ -256,6 +256,21 @@ interface CardRepository {
     suspend fun restore(deleted: DeletedCard)
 
     /**
+     * Empty one group — [cardSectionId] of [collectionId], null = ungrouped — of every card in it,
+     * file bytes included. Returns what was taken, in the order the group held it, for [restoreAll];
+     * empty if the group had nothing in it. The group itself is untouched: a card section emptied this
+     * way is still there, and the ungrouped area — which is no section and cannot be deleted at all —
+     * is the reason this exists as an operation of its own.
+     *
+     * One deletion rather than a loop of [delete]: one transaction, one thing on the undo toast, and
+     * one row-set to put back.
+     */
+    suspend fun deleteGroup(collectionId: Uuid, cardSectionId: Uuid?): List<DeletedCard>
+
+    /** The undo of [deleteGroup]: every card back, with the id, the place and the bytes it had. */
+    suspend fun restoreAll(deleted: List<DeletedCard>)
+
+    /**
      * Move [id] into [toCollectionId], into the group [cardSectionId] (null = ungrouped), at
      * [newIndex] among that group's cards — [Int.MAX_VALUE] appends. Collection, group and order all
      * move together: a card dropped on a section always ends up *in* that section. Positions in the

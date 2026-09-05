@@ -201,7 +201,7 @@ private fun decodeContent(d: dynamic): CollectionContent = CollectionContent(
 
 private fun Section.encode() = json(
     "id" to id.toString(), "title" to title, "orderKey" to orderKey,
-    "deletable" to deletable, "collapsed" to collapsed, "locked" to locked,
+    "deletable" to deletable, "collapsed" to collapsed, "locked" to locked, "seeded" to seeded,
 )
 
 private fun decodeSection(d: dynamic): Section = Section(
@@ -211,6 +211,8 @@ private fun decodeSection(d: dynamic): Section = Section(
     deletable = d.deletable as Boolean,
     collapsed = d.collapsed as Boolean,
     locked = d.locked as Boolean,
+    // Absent from a cache written by an older build, and false is what such a section was treated as.
+    seeded = (d.seeded as? Boolean) ?: false,
 )
 
 private fun Collection.encode() = json(
