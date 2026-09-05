@@ -83,13 +83,15 @@ Un code PIN sur une section la retire de l'écran ; ce n'est pas du chiffrement,
 au serveur. La politique de confidentialité le dit clairement, ainsi que ce qu'implique par ailleurs un
 compte.
 
-Nouveautés de la 1.4.0.
-Enregistrer une page sans ouvrir stramus — d'où les trois autorisations que cette version demande en
-plus : storage, pour garder ce que vous avez enregistré jusqu'à l'ouverture de stramus ; contextMenus,
-pour les deux entrées du clic droit ; notifications, pour le « enregistré » qui suit. Thèmes, couleurs
-d'accent et fonds. Marques pour les collections. Images des vidéos enregistrées, désactivées par défaut.
-Import depuis OneTab et Toby. Un fichier de sauvegarde contenant toute la base, et un chemin de retour
-si le navigateur refuse un jour de l'ouvrir.
+Nouveautés de la 1.5.0.
+Trouver les doublons : se connecter à un compte depuis un navigateur qui contient déjà des collections
+vous laissait deux exemplaires de tout, un serveur ne sachant fusionner les lignes que par leur id.
+L'application détermine maintenant elle-même quelles sections, collections et liens sont la même chose et
+les réunit, en vous montrant d'abord tout le plan. La synchronisation rapatrie un grand compte en entier
+plutôt que ses premières centaines de lignes — et avec lui les suppressions faites sur votre autre
+machine. Une collection peut porter l'icône d'un des sites qu'elle contient, et la barre repliée affiche
+cette marque au lieu d'une lettre. Effacer tout dans ce navigateur est devenu un bouton à part dans les
+réglages, qui n'attend plus la réponse du serveur.
 
 Politique de confidentialité : https://stramus.space/privacy.html
 Code source : https://github.com/olluorg/stramus

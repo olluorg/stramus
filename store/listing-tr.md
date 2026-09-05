@@ -76,13 +76,15 @@ olarak, hiçbir hesapla ilişkilendirilmeden ve hiçbir şey kaydedilmeden.
 Bir bölümdeki PIN, onu ekrandan kaldırır; bu bir şifreleme değildir ve bölümü sunucudan gizlemez. Gizlilik
 politikası bunu açıkça belirtir, ve bir hesabın başka ne anlama geldiğini de anlatır.
 
-1.4.0'daki yenilikler.
-stramus'u açmadan sayfa kaydetme — bu sürümün daha önce istemediği üç izni istemesinin sebebi budur:
-storage, kaydettiğinizi stramus açılana kadar tutmak için; contextMenus, sağ tık menüsündeki iki girdi
-için; notifications, ardından gelen "kaydedildi" için. Temalar, vurgu renkleri ve arka planlar.
-Koleksiyon işaretleri. Kaydedilen videoların donuk kareleri, varsayılan olarak kapalı. OneTab ve Toby'den
-içe aktarma. Tüm veritabanını içeren bir yedek dosyası ve tarayıcı bir gün onu açmayı reddederse geri
-dönüş yolu.
+1.5.0'daki yenilikler.
+Yinelenenleri bul: içinde zaten koleksiyon olan bir tarayıcıdan, içinde koleksiyon olan bir hesaba
+girmek her şeyden iki tane bırakıyordu; bir sunucu satırları yalnızca id'lerine göre birleştirebilir.
+Artık hangi bölümlerin, koleksiyonların ve bağlantıların aynı şey olduğunu uygulamanın kendisi buluyor ve
+onları birleştiriyor — önce planın tamamını göstererek. Eşitleme büyük bir hesabı ilk birkaç yüz satırı
+yerine bütün olarak indiriyor, onunla birlikte diğer makinede yapılan silmeleri de. Bir koleksiyon,
+içindeki sitelerden birinin simgesiyle işaretlenebiliyor ve daraltılmış kenar çubuğu harf yerine bu
+işareti gösteriyor. Bu tarayıcıdaki her şeyi silmek ayarlarda kendi düğmesi oldu ve artık sunucunun
+yanıtını beklemiyor.
 
 Gizlilik politikası: https://stramus.space/privacy.html
 Kaynak kodu: https://github.com/olluorg/stramus

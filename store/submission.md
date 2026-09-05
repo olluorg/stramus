@@ -8,14 +8,13 @@ domain, and browser automation is an extension — so this is a manual pass.
 
 ## Package
 
-Upload `stramus-extension-1.4.0.zip`, off the release the `v1.4.0` tag builds
-(https://github.com/olluorg/stramus/releases/tag/v1.4.0).
+Upload `stramus-extension-1.5.0.zip`, off the release the `v1.5.0` tag builds
+(https://github.com/olluorg/stramus/releases/tag/v1.5.0).
 
-**This update adds permissions, which is not an ordinary update.** `notifications` carries a warning of
-its own, so Chrome disables the extension for everybody who already has it until they agree to the new
-list — expect that, and do not read the install count stalling as a failed rollout. The three new ones
-are `storage`, `contextMenus` and `notifications`, all in aid of one feature: saving the page you are on
-without switching to a stramus tab first. Their justifications are below, with the rest.
+**The permission list is unchanged from 1.4.0**, so this is an ordinary update: nobody is asked to
+accept anything and nobody's extension is disabled waiting for them to. The justifications below stand
+as they are; 1.4.0 is where the three that carry a warning (`storage`, `contextMenus`, `notifications`)
+were added and explained.
 
 1.2.0 was tagged and released but never uploaded: it declared no output language to Chrome's built-in
 model, which put a console error in the extension's error list on `chrome://extensions` — the first
