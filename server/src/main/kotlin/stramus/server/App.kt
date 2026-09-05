@@ -82,7 +82,7 @@ fun Application.stramusModule(
     val accessTokens = AccessTokens(config)
     val sessions = Sessions(db, config, accessTokens)
     val accounts = Accounts(db, config, sessions, mailer, googleVerifier ?: config.googleVerifier())
-    val sync = SyncService(db)
+    val sync = SyncService(db, config.deltaLimit)
     val blobs = BlobStore(db, config)
     val favicons = FaviconService(db, config)
     val aiCatalog = AiCatalogService(db)
@@ -291,7 +291,7 @@ fun Application.stramusModule(
                 // The device is taken from the token, not from the body: a signed-in caller does not get
                 // to write rows as one of the user's *other* devices, which is what the tie-break in a
                 // conflict is decided by.
-                call.respond(sync.sync(call.userId(), call.deviceId(), body.since, body.rows))
+                call.respond(sync.sync(call.userId(), call.deviceId(), body.since, body.rows, body.cursor))
             }
 
             /**

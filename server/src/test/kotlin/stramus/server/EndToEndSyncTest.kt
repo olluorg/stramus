@@ -210,6 +210,22 @@ class EndToEndSyncTest {
         }
 
     @Test
+    fun `an account too big for one page arrives whole on the device that joins it`() = twoDevices(deltaLimit = 4) { laptop, phone ->
+        // One push, one revision: a device joining an account meets its whole history at the same
+        // revision, so a cursor that is only a revision cannot say where a page stopped. It has to page
+        // by something finer, and this walks it.
+        val collection = Uuid.random()
+        val now = Clock.System.now()
+        val many = (1..14).map { cardRow(Uuid.random(), collection, "Card $it", now) }
+        laptop.syncAll(*many.toTypedArray())
+
+        val arrived = phone.syncAll()
+
+        assertEquals(14, arrived.map { it.id }.toSet().size, "the account is not the first page of it")
+        assertTrue(phone.syncAll().isEmpty(), "and the device that has read it is caught up")
+    }
+
+    @Test
     fun `a device that is already caught up gets an empty delta`() = twoDevices { laptop, _ ->
         laptop.sync(cardRow(Uuid.random(), Uuid.random(), "Kotlin", Clock.System.now()))
 
@@ -243,6 +259,30 @@ private class FakeDevice(
         }.body()
         since = response.rev
         return response
+    }
+
+    /**
+     * The whole delta, however many pages it takes — what a real client does, and the only way the cursor
+     * is allowed to move: `rev` is written down once, after the last page.
+     */
+    suspend fun syncAll(vararg push: SyncRow): List<SyncRow> {
+        val rows = mutableListOf<SyncRow>()
+        var cursor: String? = null
+        var guard = 0
+        while (true) {
+            val response: SyncResponse = http.post("/v1/sync") {
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+                contentType(ContentType.Application.Json)
+                setBody(SyncRequest(deviceId.toString(), since, if (cursor == null) push.toList() else emptyList(), cursor))
+            }.body()
+            rows += response.rows
+            if (!response.hasMore) {
+                since = response.rev
+                return rows
+            }
+            check(guard++ < 50) { "the delta never ends" }
+            cursor = response.nextCursor
+        }
     }
 
     suspend fun blobsMissing(shas: List<String>): List<String> =
@@ -321,8 +361,12 @@ private fun usageRow(url: String, hits: Int, lastUsedAt: Instant, deletedAt: Ins
 )
 
 /** One account, two devices, one server — both devices are protocol-level [FakeDevice]s, see the class doc. */
-private fun twoDevices(block: suspend (FakeDevice, FakeDevice) -> Unit) = testApplication {
-    val config = ServerConfig(databasePath = tempPath("server"), emailAuthEnabled = true)
+private fun twoDevices(
+    /** Rows per page of a delta. Four turns paging from a thousand-row test into a twelve-row one. */
+    deltaLimit: Int = 500,
+    block: suspend (FakeDevice, FakeDevice) -> Unit,
+) = testApplication {
+    val config = ServerConfig(databasePath = tempPath("server"), emailAuthEnabled = true, deltaLimit = deltaLimit)
     application { stramusModule(config, openServerDatabase(config)) }
 
     val http = createClient { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }

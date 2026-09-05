@@ -7,6 +7,7 @@ import io.github.kormium.and
 import io.github.kormium.database.SuspendDatabase
 import io.github.kormium.eq
 import io.github.kormium.gt
+import io.github.kormium.or
 import io.github.kormium.suspendTransaction
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
@@ -22,9 +23,6 @@ import stramus.protocol.RowKey
 import stramus.protocol.SyncConflict
 import stramus.protocol.SyncResponse
 import stramus.protocol.SyncRow
-
-/** At most this many rows in one delta; the rest come on the next call, with `hasMore` set. */
-private const val DELTA_LIMIT = 500
 
 /**
  * A device whose clock is this far ahead of the server's is not believed: its `updatedAt` is clamped to
@@ -60,10 +58,21 @@ private val json = Json { ignoreUnknownKeys = true }
  * client anyway ([SyncConflict]), which keeps it as a copy when losing it would mean losing a paragraph
  * of someone's note.
  */
-class SyncService(private val db: SuspendDatabase<ServerDb>) {
+class SyncService(
+    private val db: SuspendDatabase<ServerDb>,
+    /** How many rows one page of a delta holds — [ServerConfig.deltaLimit]. */
+    private val deltaLimit: Int = 500,
+) {
 
-    suspend fun sync(userId: Uuid, deviceId: Uuid, since: Long, pushed: List<SyncRow>): SyncResponse {
+    suspend fun sync(
+        userId: Uuid,
+        deviceId: Uuid,
+        since: Long,
+        pushed: List<SyncRow>,
+        cursor: String? = null,
+    ): SyncResponse {
         val now = Clock.System.now()
+        val page = cursor?.let(DeltaCursor::parse)
 
         return db.suspendTransaction {
             val currentRev = UserSeq.findOne { where { UserSeq.userId eq userId } }?.rev ?: 0L
@@ -120,21 +129,43 @@ class SyncService(private val db: SuspendDatabase<ServerDb>) {
                 UserSeq.insert(UserSeqRow().apply { this.userId = userId; rev = newRev })
             }
 
-            // Everything the device has not seen — minus what it just sent us, which it already has.
+            // Everything the device has not seen — minus what it just wrote itself, which it has.
+            //
+            // Ordered by (rev, tbl, id) rather than by rev alone: a revision holds as many rows as the
+            // push that made it, so a page can end in the middle of one, and the place it ended has to be
+            // nameable. That triple is [DeltaCursor], and it is what a device comes back with.
             val delta = SyncRows.find {
-                where { (SyncRows.userId eq userId) and (SyncRows.rev gt since) }
+                where {
+                    val mine = (SyncRows.userId eq userId) and (SyncRows.rev gt since)
+                    if (page == null) mine else mine and after(page)
+                }
                 orderBy ASC SyncRows.rev
-                limit = DELTA_LIMIT + 1
-            }.filterNot { it.rev == newRev && RowKey(it.tbl, it.id) in accepted }
+                orderBy ASC SyncRows.tbl
+                orderBy ASC SyncRows.id
+                limit = deltaLimit + 1
+            }.filterNot {
+                // What this device just sent us it already has. On the first page that is exactly the
+                // accepted list; on the pages after it — which carry no push of their own — it is what
+                // this device wrote under this revision, the push that page one took. (If another device
+                // has pushed in between, `newRev` has moved on and nothing is dropped: the rows come
+                // down again and are written over themselves, which costs a little and breaks nothing.)
+                if (page == null) {
+                    it.rev == newRev && RowKey(it.tbl, it.id) in accepted
+                } else {
+                    it.rev == newRev && it.deviceId == deviceId
+                }
+            }
 
-            val hasMore = delta.size > DELTA_LIMIT
+            val hasMore = delta.size > deltaLimit
+            val rows = delta.take(deltaLimit)
 
             SyncResponse(
                 rev = newRev,
                 accepted = accepted,
-                rows = delta.take(DELTA_LIMIT).map { it.toProtocol() },
+                rows = rows.map { it.toProtocol() },
                 conflicts = conflicts,
                 hasMore = hasMore,
+                nextCursor = if (hasMore) rows.last().let { DeltaCursor(it.rev, it.tbl, it.id).encode() } else null,
             )
         }
     }
@@ -176,6 +207,37 @@ class SyncService(private val db: SuspendDatabase<ServerDb>) {
         }
     }
 }
+
+/**
+ * Where a page of the delta stopped: the row's (rev, tbl, id), which is the order the delta is read in.
+ *
+ * A revision is not fine enough to page by. One push takes one revision and stamps every row it wrote
+ * with it — so a device joining an account meets its whole history at revision 1, and "carry on after
+ * revision 1" would mean "skip all of it". The triple names a row, and reading resumes strictly after it.
+ *
+ * Encoded as text because it is opaque to the client: it holds it and hands it back, and nothing else.
+ */
+internal data class DeltaCursor(val rev: Long, val tbl: String, val id: String) {
+    fun encode(): String = "$rev|$tbl|$id"
+
+    companion object {
+        /** Split on the first two bars only — a `usage` row's id is a URL, and may hold one itself. */
+        fun parse(raw: String): DeltaCursor? {
+            val firstBar = raw.indexOf('|').takeIf { it > 0 } ?: return null
+            val secondBar = raw.indexOf('|', firstBar + 1).takeIf { it > 0 } ?: return null
+            val rev = raw.substring(0, firstBar).toLongOrNull() ?: return null
+            return DeltaCursor(rev, raw.substring(firstBar + 1, secondBar), raw.substring(secondBar + 1))
+        }
+    }
+}
+
+/** The rows that sort after [cursor], in the (rev, tbl, id) order the delta is read in. */
+private fun after(cursor: DeltaCursor) =
+    (SyncRows.rev gt cursor.rev) or
+        (
+            (SyncRows.rev eq cursor.rev) and
+                ((SyncRows.tbl gt cursor.tbl) or ((SyncRows.tbl eq cursor.tbl) and (SyncRows.id gt cursor.id)))
+            )
 
 /** Later write wins; an exact tie goes to the larger device id, so both machines decide it the same way. */
 private fun SyncRow.wins(server: SyncRowEntity, deviceId: Uuid): Boolean {

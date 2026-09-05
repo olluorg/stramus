@@ -31,6 +31,14 @@ data class ServerConfig(
     /** Long, because the user should not be asked to sign in again on a device they use. Rotated. */
     val refreshTokenTtl: Duration = 90.days,
 
+    /**
+     * At most this many rows in one page of a delta; the rest follow, page by page, on the cursor the
+     * response carries. A tuning number — big enough that an ordinary account arrives in one round trip,
+     * small enough that a first sync of a large one does not have to be held in memory whole at either
+     * end. A test turns it down to a handful, which is the only way to walk several pages cheaply.
+     */
+    val deltaLimit: Int = 500,
+
     /** How long a mailed one-time code is good for. */
     val loginCodeTtl: Duration = 10.minutes,
 
