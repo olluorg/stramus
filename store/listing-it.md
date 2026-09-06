@@ -80,14 +80,15 @@ icone.
 Un PIN su una sezione la toglie dallo schermo; non è cifratura, e non la nasconde al server. La
 informativa sulla privacy lo dice chiaramente, e dice anche cos'altro comporta avere un account.
 
-Novità della 1.5.0.
-Trova i doppioni: accedere a un account da un browser che aveva già delle raccolte lasciava due copie di
-tutto, perché un server sa unire le righe solo per il loro id. Ora è l'applicazione a capire quali
-sezioni, raccolte e link sono la stessa cosa e a unirli, mostrando prima l'intero piano. La
-sincronizzazione porta giù un account grande per intero invece delle sue prime centinaia di righe, e con
-esso le eliminazioni fatte sull'altra macchina. Una raccolta può portare l'icona di uno dei siti che
-contiene, e la barra ridotta mostra quel segno al posto di una lettera. Cancellare tutto in questo
-browser è diventato un pulsante a sé nelle impostazioni e non aspetta più la risposta del server.
+Novità della 1.5.1.
+La ricerca perdona un refuso e perdona una disposizione di tastiera dimenticata: una richiesta scritta con
+quella sbagliata viene rifatta con l'altra, così «ыекфьгы» trova Stramus. Vale per i tuoi link, per le
+schede aperte e per la cronologia; la cronologia però la cerca il browser stesso, lettera per lettera,
+quindi un buco viene ripreso dalle pagine viste di recente. Le impostazioni hanno una ricerca propria:
+smorza ciò che non corrisponde e scorre fino a ciò che corrisponde, invece di nascondere il resto. La
+sezione dei salvataggi rapidi non viene più creata una seconda volta in un browser che l'aveva già. La
+sincronizzazione manda su un account grande a pagine come lo porta giù, e un gruppo eliminato sull'altra
+macchina non lascia più i suoi link appesi a sé.
 
 Informativa sulla privacy: https://stramus.space/privacy.html
 Codice sorgente: https://github.com/olluorg/stramus

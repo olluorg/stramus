@@ -77,14 +77,15 @@ entregar tus direcciones guardadas, una a una, a un servicio público de iconos.
 Un PIN en una sección la quita de la pantalla; no es cifrado, y no la oculta del servidor. La política de
 privacidad lo dice con claridad, y también qué más significa tener una cuenta.
 
-Novedades de la 1.5.0.
-Buscar duplicados: entrar en una cuenta desde un navegador que ya tenía colecciones te dejaba con dos de
-cada cosa, porque un servidor solo sabe unir filas por su id. Ahora la aplicación averigua por sí misma
-qué secciones, colecciones y enlaces son lo mismo y los une, enseñándote antes el plan entero. La
-sincronización trae una cuenta grande completa en lugar de sus primeros cientos de filas, y con ella las
-eliminaciones hechas en tu otra máquina. Una colección puede llevar el icono de uno de sus sitios, y la
-barra plegada muestra esa marca en vez de una letra. Borrar todo en este navegador es ya un botón propio
-en los ajustes, y no espera a que responda el servidor.
+Novedades de la 1.5.1.
+La búsqueda perdona una errata y perdona una distribución de teclado olvidada: una consulta escrita en la
+que no era se vuelve a preguntar con la otra, así que «ыекфьгы» encuentra Stramus. Ambas cosas valen para
+tus enlaces, tus pestañas abiertas y el historial; el historial lo busca el propio navegador, letra por
+letra, así que un fallo allí recurre a las páginas que has visto hace poco. Los ajustes tienen su propia
+búsqueda: atenúa lo que no coincide y se desplaza hasta lo que sí, en vez de esconder el resto. La sección
+de guardado rápido ya no se crea por segunda vez en un navegador que ya la tenía. La sincronización sube
+una cuenta grande por páginas igual que la baja, y un grupo borrado en otra máquina ya no deja sus enlaces
+colgando de él.
 
 Política de privacidad: https://stramus.space/privacy.html
 Código fuente: https://github.com/olluorg/stramus

@@ -83,15 +83,15 @@ Un code PIN sur une section la retire de l'écran ; ce n'est pas du chiffrement,
 au serveur. La politique de confidentialité le dit clairement, ainsi que ce qu'implique par ailleurs un
 compte.
 
-Nouveautés de la 1.5.0.
-Trouver les doublons : se connecter à un compte depuis un navigateur qui contient déjà des collections
-vous laissait deux exemplaires de tout, un serveur ne sachant fusionner les lignes que par leur id.
-L'application détermine maintenant elle-même quelles sections, collections et liens sont la même chose et
-les réunit, en vous montrant d'abord tout le plan. La synchronisation rapatrie un grand compte en entier
-plutôt que ses premières centaines de lignes — et avec lui les suppressions faites sur votre autre
-machine. Une collection peut porter l'icône d'un des sites qu'elle contient, et la barre repliée affiche
-cette marque au lieu d'une lettre. Effacer tout dans ce navigateur est devenu un bouton à part dans les
-réglages, qui n'attend plus la réponse du serveur.
+Nouveautés de la 1.5.1.
+La recherche pardonne désormais une faute de frappe, et pardonne une disposition de clavier oubliée : une
+requête tapée dans la mauvaise est reposée dans l'autre, si bien que « ыекфьгы » trouve Stramus. Les deux
+valent pour vos liens, vos onglets ouverts et l'historique ; l'historique, c'est le navigateur lui-même
+qui le cherche, lettre à lettre, donc un échec s'y rabat sur les pages vues récemment. Les réglages ont
+leur propre recherche : elle atténue ce qui ne correspond pas et défile jusqu'à ce qui correspond, au lieu
+de masquer le reste. La section des enregistrements rapides n'est plus créée une deuxième fois dans un
+navigateur qui en avait déjà une. La synchronisation envoie un grand compte par pages comme elle le
+rapatrie, et un groupe supprimé sur une autre machine ne laisse plus ses liens accrochés à lui.
 
 Politique de confidentialité : https://stramus.space/privacy.html
 Code source : https://github.com/olluorg/stramus

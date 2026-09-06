@@ -79,15 +79,15 @@ Eine PIN auf einem Bereich hält ihn vom Bildschirm fern; sie ist keine Verschl�
 Bereich nicht vor dem Server. Das steht so klar in der Datenschutzerklärung, ebenso wie das, was ein
 Konto sonst noch bedeutet.
 
-Neu in 1.5.0.
-Duplikate finden: Wer sich mit einem Browser, in dem schon Sammlungen liegen, bei einem Konto anmeldet,
-in dem auch welche liegen, hatte danach von allem zwei — ein Server kann Zeilen nur anhand ihrer id
-zusammenführen. Jetzt findet die App selbst heraus, welche Bereiche, Sammlungen und Links dasselbe sind,
-und führt sie zusammen; den ganzen Plan sehen Sie vorher. Die Synchronisierung holt ein großes Konto
-vollständig herunter statt nur die ersten paar hundert Zeilen — und damit auch die Löschungen vom anderen
-Gerät. Eine Sammlung lässt sich mit dem Symbol einer ihrer Seiten markieren, und die eingeklappte
-Seitenleiste zeigt dieses Zeichen statt eines Buchstabens. Alles in diesem Browser zu löschen ist eine
-eigene Schaltfläche in den Einstellungen und wartet nicht mehr auf den Server.
+Neu in 1.5.1.
+Die Suche verzeiht jetzt einen Tippfehler — und eine vergessene Tastaturbelegung: Eine in der falschen
+getippte Anfrage wird noch einmal in der anderen gestellt, sodass „ыекфьгы“ Stramus findet. Beides gilt
+für Ihre Links, Ihre offenen Tabs und den Verlauf; den Verlauf durchsucht der Browser selbst, Buchstabe
+für Buchstabe, deshalb greift ein Fehlschlag dort auf die zuletzt gesehenen Seiten zurück. Die
+Einstellungen haben eine eigene Suche: Sie dämpft, was nicht passt, und scrollt zum Treffer, statt alles
+Übrige zu verbergen. Der Bereich für Schnellspeicherungen entsteht in einem Browser, der ihn schon hat,
+kein zweites Mal. Die Synchronisierung schickt ein großes Konto ebenso seitenweise hinauf, wie sie es
+herunterholt, und eine auf einem anderen Gerät gelöschte Gruppe lässt ihre Links nicht mehr an sich hängen.
 
 Datenschutzerklärung: https://stramus.space/privacy.html
 Quellcode: https://github.com/olluorg/stramus

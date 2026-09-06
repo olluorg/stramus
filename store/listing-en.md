@@ -74,14 +74,14 @@ service one request at a time.
 A PIN on a section keeps it off your screen; it is not encryption, and it does not hide the section
 from the server. The privacy policy says so plainly, and says what else an account means.
 
-New in 1.5.0.
-Find duplicates: signing a browser that already has collections into an account that also has them used
-to leave you with two of everything, because a server can only merge rows by their id. This works out
-which sections, collections and links are the same thing and joins them, showing you the whole plan
-first. Synchronising now brings a large account down whole rather than its first few hundred rows — and
-with it the deletions made on your other machine. A collection can be marked with the icon of a site it
-holds links to, and the collapsed sidebar shows that mark instead of a letter. Erasing everything in this
-browser is its own button in Settings, and no longer needs the server to answer first.
+New in 1.5.1.
+Search forgives a typo now, and forgives a forgotten keyboard layout: a query typed in the wrong one is
+asked again as the other, so "ыекфьгы" finds Stramus. Both work over your links, your open tabs and your
+history — and because history is matched by the browser letter for letter, a miss there now falls back to
+the pages you have seen recently. Settings have a search of their own: it dims what does not match and
+scrolls to what does, rather than hiding the rest. The quick-saves section is no longer made a second time
+in a browser that already had one. Synchronising sends a large account up in pages as well as bringing it
+down, and a group deleted on another machine no longer leaves its links hanging off it.
 
 Privacy policy: https://stramus.space/privacy.html
 Source code: https://github.com/olluorg/stramus
