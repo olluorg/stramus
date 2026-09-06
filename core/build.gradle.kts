@@ -54,12 +54,12 @@ kotlin {
             dependencies {
                 // The browser store: a typed layer directly over IndexedDB (composite build → local
                 // kidx when ../kidx is checked out). No SQLite, no WASM.
-                api("io.github.kormium:kidx:0.1.0")
+                api("io.github.kormium:kidx:0.1.1")
 
                 // Full-text card search — kidx deliberately has none; this is its companion in-memory
                 // BM25 index, kept fresh from `Cards.observe(db)` via kromus-sync's `syncTo`.
-                api("io.github.kormium:kromus-core:0.14.0")
-                implementation("io.github.kormium:kromus-sync:0.14.0")
+                api("io.github.kormium:kromus-core:0.15.0")
+                implementation("io.github.kormium:kromus-sync:0.15.0")
 
                 // The server, over HTTP. Only the browser talks to it — the engine itself takes a
                 // `SyncApi`, which is why it can be tested against the real server without one.
