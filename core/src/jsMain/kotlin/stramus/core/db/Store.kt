@@ -8,6 +8,7 @@ import io.github.kidx.observe
 import io.github.kromus.TextIndex
 import io.github.kromus.sync.syncTo
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -61,7 +62,19 @@ class StramusStore internal constructor(
      * install joining an account is not a decision anybody has to be interrupted for.
      */
     val seeded: Boolean = false,
-)
+) {
+    /**
+     * Let go of the database: the background work first, then the connection itself.
+     *
+     * In that order, and not the other way round — a watcher still running against a closed connection
+     * is exactly the error this exists to prevent. See [KidxCardRepository.close], which is the only
+     * thing in here that keeps a job of its own.
+     */
+    fun close() {
+        (cards as? KidxCardRepository)?.close()
+        db.close()
+    }
+}
 
 /** How long a tombstone is kept once the row is gone, so that a device offline for a while still hears. */
 private val TOMBSTONE_RETENTION = 30.days
@@ -1035,6 +1048,20 @@ internal class KidxCardRepository(
      */
     private val searchIndex = TextIndex<Uuid>()
     private val searchScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /**
+     * Stop watching the cards.
+     *
+     * The job below outlives every read the app makes — that is its whole point — but it must not
+     * outlive the *database*. Left running past a `close()` it goes on asking a closed connection for
+     * rows, which throws from a coroutine nobody is waiting on: in a page being torn down that is
+     * merely noise, and anywhere the app closes a database and opens another (recovering a broken one,
+     * restoring a backup, a test opening one store after another) it is an error attributed to whatever
+     * happened to be running at the time.
+     */
+    fun close() {
+        searchScope.cancel()
+    }
 
     init {
         searchScope.launch {

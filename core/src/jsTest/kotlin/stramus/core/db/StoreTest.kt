@@ -335,6 +335,8 @@ private fun storeTest(block: suspend (StramusStore) -> Unit) = runTest {
     try {
         block(store)
     } finally {
-        db.close()
+        // The store, not the database: closing the connection alone leaves the search index still
+        // watching it, and the next test to open one inherits the error. See `StramusStore.close`.
+        store.close()
     }
 }

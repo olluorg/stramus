@@ -4,6 +4,7 @@ package stramus.core.sync
 
 import io.github.kidx.ReadScope
 import io.github.kidx.WriteScope
+import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -241,9 +242,10 @@ suspend fun WriteScope.applyRemote(row: SyncRow) {
 
         "card_sections" -> {
             val p = row.payload
+            val id = Uuid.parse(row.id)
             CardSections.put(
                 CardSectionRow().apply {
-                    id = Uuid.parse(row.id)
+                    this.id = id
                     updatedAt = Instant.parse(row.updatedAt)
                     deletedAt = row.deletedAt?.let { Instant.parse(it) }
                     collectionId = p?.uuid("collectionId") ?: Uuid.NIL
@@ -253,6 +255,25 @@ suspend fun WriteScope.applyRemote(row: SyncRow) {
                     collapsed = p?.int("collapsed") ?: 0
                 },
             )
+
+            // A group that has gone takes no cards with it — that is what deleting one means here (see
+            // `CardSectionRepository.delete`, which detaches them first). Deleted on *another* device
+            // the detaching happened there, and those card rows are on their way; until they arrive, or
+            // if they lose the merge, this device would hold cards pointing at a group it will never
+            // draw again. The grid has a guard for that, but a guard is not a reason to keep the rows
+            // wrong: the same rule that holds locally holds for a deletion that arrived.
+            //
+            // The cost is one extra push per card, once — the write makes them "changed here" and they
+            // go up saying what the other device already said. Cheap, and it converges; leaving a
+            // dangling reference in the database does neither.
+            if (row.deletedAt != null) {
+                val now = Clock.System.now()
+                Cards.all().filter { it.cardSectionId == id && it.deletedAt == null }.forEach { card ->
+                    card.cardSectionId = null
+                    card.updatedAt = now
+                    Cards.put(card)
+                }
+            }
         }
 
         "cards" -> {
