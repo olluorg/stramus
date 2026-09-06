@@ -17,7 +17,12 @@ kotlin {
         // Node runs the store/sync test suite against `fake-indexeddb` — kidx has no JVM target, so
         // this is the only place that logic can be tested without a real browser.
         nodejs {
-            testTask { useMocha { timeout = "30s" } }
+            // Generous, and deliberately so: the slowest test here builds a thousand cards a row at a
+            // time under fake-indexeddb, which takes twenty seconds on a developer's machine and rather
+            // longer on a CI runner. A limit tuned to the fast machine turns the slow one red for a
+            // reason that has nothing to do with the code — and, because a timed-out test's coroutines
+            // go on running, takes the next test down with it.
+            testTask { useMocha { timeout = "180s" } }
         }
     }
 

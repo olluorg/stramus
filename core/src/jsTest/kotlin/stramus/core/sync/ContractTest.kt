@@ -401,7 +401,14 @@ private fun contractTest(
 
     // Two databases, because two devices. kidx names one database per schema, so the second is opened
     // under a name of its own — which is what "another browser" is here.
-    val devices = listOf("stramus-contract-a", "stramus-contract-b").mapIndexed { index, name ->
+    //
+    // And a fresh pair of names per test, rather than the same two every time. A test that gives up
+    // early — a timeout, an assertion — leaves its coroutines running against its store; sharing the
+    // names means the next test deletes and reopens the database underneath them, and what it gets for
+    // its trouble is somebody else's `DatabaseClosedException`. Two failures, one cause, and the second
+    // one points nowhere. With names of its own each test fails alone.
+    val round = contractRound++
+    val devices = listOf("stramus-contract-$round-a", "stramus-contract-$round-b").mapIndexed { index, name ->
         val schema = Schema(name, stramusSchema.migrations)
         deleteDatabase(name)
         val db = openDatabase(schema)
@@ -418,3 +425,6 @@ private fun contractTest(
 }
 
 private val USER = Uuid.random()
+
+/** Names one pair of databases per test — see [contractTest]. */
+private var contractRound = 0
