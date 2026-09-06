@@ -13,6 +13,7 @@ import react.dom.html.ReactHTML.option
 import react.dom.html.ReactHTML.p
 import react.dom.html.ReactHTML.select
 import react.dom.html.ReactHTML.span
+import react.useEffect
 import react.useRef
 import react.useState
 import stramus.core.platform.AiAvailability
@@ -900,6 +901,91 @@ private const val SPY_SLACK = 24.0
 /** How long a click's own scroll is left alone before the spy starts reading the position again. */
 private const val JUMP_QUIET_MS = 700.0
 
+/** A little air above a section scrolled to by the search, so it does not sit flush against the edge. */
+private const val SCROLL_MARGIN = 10.0
+
+/**
+ * What a run of the settings filter came to: how many sections answered, and the first that did.
+ *
+ * [matched] is null while nothing is typed — "no query" and "no matches" are different states and the
+ * page says different things about them.
+ */
+private class SettingsFilter(val matched: Int?, val first: dynamic, val firstGroup: Int)
+
+/**
+ * Dim every section of the settings page that does not answer to [query], and point at the first that
+ * does.
+ *
+ * Dimmed rather than hidden. A settings page is a place people know their way around — "the theme is
+ * near the top, the export is near the bottom" — and taking the rest of it off the screen destroys that
+ * map every time somebody types a letter. Fading it keeps the shape of the page whole and still makes
+ * the answer the only bright thing on it; and the search is a way of getting *to* a setting, not a way
+ * of proving the others do not exist.
+ *
+ * Read off the page rather than out of a list written beside it. A second list of "what settings exist"
+ * is a list that goes stale the first time somebody adds a row and does not think of it — and the thing
+ * being searched is already right there, rendered, with its heading, its labels and its explanations in
+ * it. `textContent` is what the user is looking at, which is exactly what they are searching.
+ *
+ * The class is set on the DOM directly, as the scroll spy and the nav's own jump already read it: React
+ * never sets `settings-dim` on these elements, so there is nothing here for it to fight over.
+ *
+ * The match is the search box's own ladder ([matchOf]), which is worth more than it looks: a setting is
+ * found by a word out of the middle of its explanation, through a typo, and through a query typed with
+ * the wrong keyboard layout — none of which had to be written again here.
+ */
+private fun filterSettings(body: HTMLDivElement?, nav: HTMLDivElement?, query: String): SettingsFilter {
+    val root: dynamic = body ?: return SettingsFilter(null, null, -1)
+    val groups = root.children
+    val q = query.trim()
+    val navItems: dynamic = nav?.asDynamic()?.children
+
+    var matched = 0
+    var first: dynamic = null
+    var firstGroup = -1
+    // Counted apart from the walk: the nav is a list of the groups alone, and lining the two up by
+    // child index would put the highlight on the wrong pane the moment anything else joined the body.
+    var groupIndex = 0
+    var child = 0
+    while (child < (groups.length as Int)) {
+        val group = groups[child]
+        child++
+        if ((group.className as? String)?.contains("settings-group") != true) continue
+
+        val sections = group.querySelectorAll(".settings-section")
+        var shown = 0
+        var at = 0
+        while (at < (sections.length as Int)) {
+            val section = sections[at]
+            val hit = q.isEmpty() || matchOf(q, (section.textContent as? String).orEmpty(), "").score > 0.0
+            setDim(section, !hit)
+            if (hit) {
+                shown++
+                if (q.isNotEmpty() && first == null) {
+                    first = section
+                    firstGroup = groupIndex
+                }
+            }
+            at++
+        }
+        // Plain null checks, not `?.let`: `navItems` is `dynamic`, and an extension function on a
+        // dynamic receiver is not dispatched by Kotlin at all — it compiles to a `.let(...)` call on
+        // the JS object, which throws on the first keystroke and takes the whole filter with it.
+        if (navItems != null) {
+            val item = navItems[groupIndex]
+            if (item != null) setDim(item, q.isNotEmpty() && shown == 0)
+        }
+        matched += shown
+        groupIndex++
+    }
+    return SettingsFilter(if (q.isEmpty()) null else matched, first, firstGroup)
+}
+
+/** Faded, or back to itself. A class rather than an inline style, so the stylesheet keeps the value. */
+private fun setDim(element: dynamic, dim: Boolean) {
+    if (dim) element.classList.add("settings-dim") else element.classList.remove("settings-dim")
+}
+
 /**
  * The settings "page": a modal opened from the left sidebar footer. Groups app-wide preferences and
  * data export (theme, language, CSV export, bookmarks export) that used to live in the content
@@ -918,9 +1004,49 @@ val SettingsModal = FC<SettingsModalProps> { props ->
     val tabs = SettingsTab.entries.filter { it != SettingsTab.TABS || props.hasTabs }
     var active by useState(tabs.first())
     val bodyRef = useRef<HTMLDivElement>(null)
+
     // When the last nav click was. Its own smooth scroll travels past every group in between, and the
     // highlight flickering through them on the way is noise: the spy holds still until it lands.
     val jumpedAt = useRef(0.0)
+
+    /** What is being looked for, and how many sections answered to it — null while nothing is typed. */
+    var query by useState("")
+    var found by useState<Int?>(null)
+    val navRef = useRef<HTMLDivElement>(null)
+
+    /** The section last scrolled to, so refining a query does not jump the page on every keystroke. */
+    val scrolledTo = useRef<dynamic>(null)
+
+    // After the render, not during it: the filter reads the text the panes actually put on the page,
+    // which does not exist until they have. `tabs` is in the dependencies because the Tabs pane comes
+    // and goes with the host, and a group appearing under a standing query would arrive unfiltered.
+    useEffect(query, tabs) {
+        val result = filterSettings(bodyRef.current, navRef.current, query)
+        found = result.matched
+
+        // And go to the answer. Only when it is a *different* answer than last time: typing "lan",
+        // "lang", "langu" narrows towards the same section, and a page that re-scrolled on each of
+        // those would be a page bouncing under the fingers. Cleared query, no match, or the same
+        // section as before — nothing moves.
+        val target = result.first
+        if (target != null && target !== scrolledTo.current) {
+            scrolledTo.current = target
+            val body: dynamic = bodyRef.current
+            if (body != null) {
+                tabs.getOrNull(result.firstGroup)?.let { active = it }
+                // The spy is quieted exactly as a nav click quiets it: a smooth scroll travels past
+                // every group in between, and the highlight flickering through them is noise.
+                jumpedAt.current = nowMs()
+                val base = (body.getBoundingClientRect().top as Double) - (body.scrollTop as Double)
+                val opts = js("({})")
+                opts.top = (target.getBoundingClientRect().top as Double) - base - SCROLL_MARGIN
+                opts.behavior = "smooth"
+                body.scrollTo(opts)
+                whenScrollSettles(body) { flashHeading(target) }
+            }
+        }
+        if (target == null) scrolledTo.current = null
+    }
 
     modalShell(props.onClose, "modal settings-modal") {
         div {
@@ -929,11 +1055,34 @@ val SettingsModal = FC<SettingsModalProps> { props ->
             button { className = ClassName("icon del"); onClick = { props.onClose() }; icon("x") }
         }
 
+        input {
+            className = ClassName("settings-search")
+            placeholder = s.settingsSearch
+            value = query
+            onChange = { e -> query = e.target.value }
+        }
+        // Under the field rather than in the page: with nothing hidden there is no gap in the page to
+        // put it in, and the answer to "did that find anything" belongs next to the question.
+        //
+        // Always rendered and hidden when it has nothing to say, rather than added and removed. These
+        // are React's children by position and none of them are keyed, so a line appearing here made it
+        // take over the slot the settings layout was in and pushed a fresh one in below — rebuilding the
+        // whole page and throwing away where it was scrolled to, which is precisely what a search that
+        // found nothing should not do.
+        div {
+            // `hidden` here is a value class the wrappers do not build from a Boolean; the attribute
+            // is set straight on the element instead, which is the same thing to the browser.
+            className = ClassName("settings-search-empty")
+            asDynamic()["hidden"] = found != 0
+            +s.settingsSearchNothing
+        }
+
         div {
             className = ClassName("settings-layout")
 
             div {
                 className = ClassName("settings-nav")
+                ref = navRef
                 tabs.forEachIndexed { index, tab ->
                     button {
                         className = ClassName(if (tab == active) "settings-nav-item active" else "settings-nav-item")
@@ -995,6 +1144,7 @@ val SettingsModal = FC<SettingsModalProps> { props ->
                         }
                     }
                 }
+
             }
         }
 

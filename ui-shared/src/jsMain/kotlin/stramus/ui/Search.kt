@@ -10,6 +10,8 @@ import stramus.core.platform.HistoryEntry
 import stramus.core.repo.UsageStat
 import kotlin.math.ln
 import kotlin.uuid.ExperimentalUuidApi
+import stramus.core.search.fuzzyMatch
+import stramus.core.search.swapLayout
 import stramus.core.url.hostOf
 import stramus.core.url.normalizeUrl
 
@@ -98,10 +100,18 @@ sealed interface Hit {
     /** The page behind the row, if there is one: what the favicon is drawn from, and what usage counts. */
     val url: String?
         get() = null
+
+    /**
+     * Which characters of [title] the query matched, for the dropdown to draw in bold. Empty where
+     * there is nothing to mark — an action row, or a match that was about the address rather than the
+     * name. Indices into [title] as it is shown.
+     */
+    val highlight: List<IntRange>
+        get() = emptyList()
 }
 
 /** A tab already open in the browser: activating the row jumps to it rather than opening it again. */
-data class TabHit(val tab: CapturedTab, override val score: Double) : Hit {
+data class TabHit(val tab: CapturedTab, override val score: Double, override val highlight: List<IntRange> = emptyList()) : Hit {
     override val key = "tab:${tab.id}"
     override val title = tab.title.ifBlank { hostOf(tab.url) }
     override val subtitle = hostOf(tab.url)
@@ -114,6 +124,7 @@ data class CardHit(
     val card: Card,
     val collectionTitle: String,
     override val score: Double,
+    override val highlight: List<IntRange> = emptyList(),
 ) : Hit {
     override val key = "card:${card.id}"
     override val title = card.title
@@ -123,7 +134,7 @@ data class CardHit(
 }
 
 /** A page from the browser's history (extension only). */
-data class HistoryHit(val entry: HistoryEntry, override val score: Double) : Hit {
+data class HistoryHit(val entry: HistoryEntry, override val score: Double, override val highlight: List<IntRange> = emptyList()) : Hit {
     override val key = "history:${entry.url}"
     override val title = entry.title.ifBlank { hostOf(entry.url) }
     override val subtitle = hostOf(entry.url)
@@ -132,7 +143,7 @@ data class HistoryHit(val entry: HistoryEntry, override val score: Double) : Hit
 }
 
 /** A page from the user's own usage: often opened, but no longer a tab and perhaps never a card. */
-data class SiteHit(val stat: UsageStat, override val score: Double) : Hit {
+data class SiteHit(val stat: UsageStat, override val score: Double, override val highlight: List<IntRange> = emptyList()) : Hit {
     override val key = "site:${stat.url}"
     override val title = stat.title
     override val subtitle = stat.host
@@ -141,7 +152,7 @@ data class SiteHit(val stat: UsageStat, override val score: Double) : Hit {
 }
 
 /** A collection: the row selects it in the sidebar instead of opening anything. */
-data class CollectionHit(val collection: Collection, override val score: Double) : Hit {
+data class CollectionHit(val collection: Collection, override val score: Double, override val highlight: List<IntRange> = emptyList()) : Hit {
     override val key = "collection:${collection.id}"
     override val title = collection.title
     override val subtitle = ""
@@ -184,34 +195,100 @@ data class AiHit(val query: String, val provider: AiProvider, override val score
 data class HitGroup(val source: HitSource, val label: String, val hits: List<Hit>)
 
 /**
+ * How well something matched, and where in its title — the ranges the dropdown draws in bold.
+ *
+ * The two travel together because they come from the same test: the tier that decided the score is the
+ * one that knows which characters it looked at, and working it out a second time in the view would be
+ * a second answer to a question already settled here.
+ */
+data class Match(val score: Double, val ranges: List<IntRange>) {
+    companion object {
+        val NONE = Match(0.0, emptyList())
+    }
+}
+
+/**
  * How well [query] matches a thing called [title] at [url], with [body] standing in for a note's text.
+ *
+ * Not only the search box's: the tabs pane filters its list by whether this found anything at all, so
+ * that a mistyped word behaves the same in both places rather than working in one and not the other.
  *
  * The order is what a person means by "matches": the host they typed outright, then the host they
  * started typing, then the title they started typing, then a word of it, then merely a mention of it
  * somewhere. Zero means no match at all, and the candidate is dropped — a search box that answers
  * everything answers nothing.
  */
-private fun matchScore(query: String, title: String, url: String, body: String? = null): Double {
-    val q = query.lowercase()
+internal fun matchOf(query: String, title: String, url: String, body: String? = null): Match {
+    val exact = exactMatchOf(query.lowercase(), title, url, body)
+    if (exact.score > 0.0) return exact
+
+    // Nothing matched what they typed. Before guessing at what they meant, read the same keystrokes on
+    // the other keyboard layout: "лщедшт" is not a word anybody was looking for, it is "kotlin" with the
+    // wrong layout still on, and the user hit every key correctly. That is not a guess but a second
+    // reading of the same evidence, so it gets the whole ladder rather than a tier of its own — and
+    // stands a shade below the same tier read directly, so that a title which really does contain what
+    // was typed still wins.
+    swapLayout(query)?.let { swapped ->
+        val other = exactMatchOf(swapped.lowercase(), title, url, body)
+        if (other.score > 0.0) return other.copy(score = other.score - LAYOUT_PENALTY)
+    }
+
+    // Only now is it worth guessing. Everything above says what *is* there — see
+    // `stramus.core.search.fuzzyMatch` for why a guess must never displace one.
+    return fuzzyMatch(query.lowercase(), title)?.let { Match(it.score, it.ranges) } ?: Match.NONE
+}
+
+/**
+ * What a query read as typed matches, and how well — the ladder itself, with no guessing in it.
+ *
+ * Its own function because it is asked twice: once for what was typed, once for what those keys would
+ * have printed under the other layout (see [swapLayout]). Both readings deserve every tier, and a
+ * layout mix-up that could only ever match a title's opening would be a poor half of the feature.
+ */
+private fun exactMatchOf(q: String, title: String, url: String, body: String?): Match {
     val name = title.lowercase()
     val host = hostOf(url).lowercase()
     val address = url.lowercase()
     val tokens = q.split(' ').filter { it.isNotBlank() }
 
+    /** The tier matched, and the run of the title it matched on — [at] < 0 where it was not the title. */
+    fun tier(score: Double, at: Int = -1) =
+        Match(score, if (at < 0) emptyList() else listOf(at until at + q.length))
+
+    // Where in the title the query sits, for the tiers that are about the title. -1 for "not there".
+    val inName = name.indexOf(q)
+    val wordStart = name.indices.firstOrNull { at ->
+        (at == 0 || name[at - 1] in TITLE_BREAKS) && name.startsWith(q, at)
+    } ?: -1
+
     return when {
-        host == q -> 100.0
-        host.startsWith(q) -> 90.0
-        name.startsWith(q) -> 80.0
-        name.split(' ', '-', '_', '/', '.', ':', ',', '(', '[').any { it.startsWith(q) } -> 65.0
-        q in name -> 50.0
+        host == q -> tier(100.0)
+        host.startsWith(q) -> tier(90.0)
+        name.startsWith(q) -> tier(80.0, 0)
+        wordStart >= 0 -> tier(65.0, wordStart)
+        inName >= 0 -> tier(50.0, inName)
         // Several words, all of them there but not side by side: "kotlin flow" finding "Flow — Kotlin
         // docs". Worth less than a phrase match, worth much more than nothing.
-        tokens.size > 1 && tokens.all { it in name || it in address } -> 45.0
-        q in address -> 40.0
-        body != null && q in body.lowercase() -> 25.0
-        else -> 0.0
+        tokens.size > 1 && tokens.all { it in name || it in address } ->
+            Match(45.0, tokens.mapNotNull { token -> name.indexOf(token).takeIf { it >= 0 }?.let { it until it + token.length } })
+        q in address -> tier(40.0)
+        body != null && q in body.lowercase() -> tier(25.0)
+        else -> Match.NONE
     }
 }
+
+/**
+ * What reading the keystrokes on the other layout costs.
+ *
+ * Small on purpose: it is a tie-breaker, not a demotion. The converted query is exactly what those keys
+ * print, so its answer is as true as a direct one — this only settles which to prefer when a title
+ * happens to contain the typed letters literally, where the coincidence should lose to the reading that
+ * makes sense of them.
+ */
+private const val LAYOUT_PENALTY = 5.0
+
+/** The punctuation a title's words are separated by, for the word-prefix tier above. */
+private val TITLE_BREAKS = charArrayOf(' ', '-', '_', '/', '.', ':', ',', '(', '[')
 
 /**
  * The final rank of a candidate: how well it matches, how much the user uses that *page*, and how much
@@ -281,6 +358,20 @@ internal fun buildHits(
     tabs: List<CapturedTab>,
     cards: List<Card>,
     history: List<HistoryEntry>,
+    /**
+     * Recent history to fall back on when [history] yields nothing worth showing.
+     *
+     * [history] is whatever the *browser* matched, and the browser matches by substring — so a mistyped
+     * query brings back either nothing at all or a handful of rows that happen to share a word with it
+     * and match nothing here. Either way the ranking ends with no history at all, which is the moment
+     * this pool gets its turn: the same pages, matched by the ladder rather than by the browser, so a
+     * typo reaches them the way it reaches a tab.
+     *
+     * Deciding it here rather than where the pool is fetched is the point. Only this knows whether
+     * anything survived the ranking, and "the browser found rows" is not the same question as "the box
+     * has something to show" — which is exactly the difference the first attempt at this got wrong.
+     */
+    historyPool: List<HistoryEntry> = emptyList(),
     collections: List<Collection>,
     collectionTitles: Map<String, String>,
     aiProvider: AiProvider,
@@ -294,48 +385,50 @@ internal fun buildHits(
     }
 
     val tabHits = tabs.mapNotNull { tab ->
-        val match = matchScore(q, tab.title, tab.url)
-        if (match <= 0.0) {
+        val match = matchOf(q, tab.title, tab.url)
+        if (match.score <= 0.0) {
             null
         } else {
-            TabHit(tab, scoreOf(match, frecencyOf(tab.url), HitSource.TABS, HitAction.SWITCH_TAB))
+            TabHit(tab, scoreOf(match.score, frecencyOf(tab.url), HitSource.TABS, HitAction.SWITCH_TAB), match.ranges)
         }
     }
     val cardHits = cards.mapNotNull { card ->
-        val match = matchScore(q, card.title, card.url, card.content)
-        if (match <= 0.0) {
+        val match = matchOf(q, card.title, card.url, card.content)
+        if (match.score <= 0.0) {
             null
         } else {
             CardHit(
                 card = card,
                 collectionTitle = collectionTitles[card.collectionId.toString()].orEmpty(),
-                score = scoreOf(match, frecencyOf(card.url), HitSource.CARDS, HitAction.OPEN_CARD),
+                score = scoreOf(match.score, frecencyOf(card.url), HitSource.CARDS, HitAction.OPEN_CARD),
+                highlight = match.ranges,
             )
         }
     }
-    val historyHits = history.mapNotNull { entry ->
-        val match = matchScore(q, entry.title, entry.url)
-        if (match <= 0.0) {
+    fun rankHistory(entries: List<HistoryEntry>) = entries.mapNotNull { entry ->
+        val match = matchOf(q, entry.title, entry.url)
+        if (match.score <= 0.0) {
             null
         } else {
             val frecency = frecencyOf(entry.url) + browserFrecency(entry)
-            HistoryHit(entry, scoreOf(match, frecency, HitSource.HISTORY, HitAction.OPEN_HISTORY))
+            HistoryHit(entry, scoreOf(match.score, frecency, HitSource.HISTORY, HitAction.OPEN_HISTORY), match.ranges)
         }
     }
+    val historyHits = rankHistory(history).ifEmpty { rankHistory(historyPool) }
     val siteHits = topSites(Int.MAX_VALUE).mapNotNull { stat ->
-        val match = matchScore(q, stat.title, stat.url)
-        if (match <= 0.0) {
+        val match = matchOf(q, stat.title, stat.url)
+        if (match.score <= 0.0) {
             null
         } else {
-            SiteHit(stat, scoreOf(match, frecencyOf(stat.url), HitSource.SITES, HitAction.OPEN_SITE))
+            SiteHit(stat, scoreOf(match.score, frecencyOf(stat.url), HitSource.SITES, HitAction.OPEN_SITE), match.ranges)
         }
     }
     val collectionHits = collections.mapNotNull { collection ->
-        val match = matchScore(q, collection.title, "")
-        if (match <= 0.0) {
+        val match = matchOf(q, collection.title, "")
+        if (match.score <= 0.0) {
             null
         } else {
-            CollectionHit(collection, scoreOf(match, 0.0, HitSource.COLLECTIONS, HitAction.OPEN_COLLECTION))
+            CollectionHit(collection, scoreOf(match.score, 0.0, HitSource.COLLECTIONS, HitAction.OPEN_COLLECTION), match.ranges)
         }
     }
 

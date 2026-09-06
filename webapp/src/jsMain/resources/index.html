@@ -809,6 +809,11 @@
         .hit-icon, .hit-glyph { flex: 0 0 18px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
         .hit-text { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
         .hit-title { flex: 0 1 auto; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* What the query actually matched. Weight and colour, no background: a row is already a band of
+           colour when it is selected, and a second one inside it would fight with that rather than read
+           as emphasis. `mark` is the element that means this, so it is the element used — but its default
+           yellow highlighter belongs to a printed page, not to a list of eight. */
+        .hit-title mark { background: transparent; color: var(--accent); font-weight: 700; }
         .hit-sub { flex: 0 1 auto; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .hit-action { flex: 0 0 auto; color: var(--muted); font-size: 11px; border: 1px solid var(--border); border-radius: var(--r-pill); padding: 1px 6px; }
         .hit-forget { opacity: 0; }
@@ -1267,6 +1272,19 @@
 
         /* Settings modal — every pane on one scrolling page; the left rail is its table of contents. */
         .settings-modal { max-width: 880px; }
+        /* The settings page's own search, between the title and the page it filters. Full width because
+           it acts on both columns at once — it takes rows out of the body and names out of the rail. */
+        .settings-search {
+            flex: none; margin: 12px 18px 0; padding: 8px 12px; font: inherit; font-size: 13px;
+            border: 1px solid var(--border); border-radius: var(--r-ctl);
+            background: var(--bg); color: var(--text);
+        }
+        .settings-search:focus { outline: none; border-color: var(--accent); }
+        /* Not a match — faded, not taken away. A settings page is a place people know their way around,
+           and hiding the rest of it on every keystroke destroys that map; this leaves the shape of the
+           page whole and still makes the answer the only bright thing on it. */
+        .settings-dim { opacity: .32; transition: opacity .12s ease; }
+        .settings-search-empty { color: var(--muted); font-size: 12px; margin: 6px 18px 0; }
         .settings-layout { display: flex; flex: 1; min-height: 0; }
         .settings-nav { flex: 0 0 208px; border-right: 1px solid var(--border); padding: 12px 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
         .settings-nav-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: none; background: transparent; color: var(--text); padding: 9px 12px; border-radius: var(--r-ctl); cursor: pointer; font-size: 13px; font-weight: 500; }

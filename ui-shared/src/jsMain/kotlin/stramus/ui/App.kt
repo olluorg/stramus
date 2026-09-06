@@ -37,6 +37,8 @@ import stramus.core.db.restoreStramusBackup
 import stramus.core.platform.GoogleSignIn
 import stramus.core.sync.StramusApi
 import stramus.core.sync.SyncEngine
+import stramus.core.imports.importFile
+import stramus.core.merge.mergeKeyOf
 import stramus.core.model.Card
 import stramus.core.model.CardKind
 import stramus.core.model.CardSection
@@ -53,6 +55,8 @@ import stramus.core.platform.TabCapture
 import stramus.core.platform.WebSearchAccess
 import stramus.core.repo.CardRepository
 import stramus.core.repo.DeletedSection
+import stramus.core.search.FUZZY_MIN_QUERY
+import stramus.core.search.swapLayout
 import stramus.core.url.hostOf
 import stramus.core.url.normalizeUrl
 import web.cssom.ClassName
@@ -175,11 +179,37 @@ private fun parseWindowIds(stored: String?): Set<Int> =
  * back the next time they press the shortcut.
  */
 private suspend fun quickSaveCollectionId(s: StramusStore, title: String): Uuid {
+    val collections = s.collections.all()
+
+    // The fast way, and the one that survives a rename: the id this browser wrote down last time.
     val rememberedId = prefGet(QUICK_SAVE_COLLECTION_PREF)
-    val existing = rememberedId?.let { id -> s.collections.all().firstOrNull { it.id.toString() == id } }
-    if (existing != null) return existing.id
-    val section = s.sections.create(title)
-    val created = s.collections.all().first { it.sectionId == section.id }
+    collections.firstOrNull { it.id.toString() == rememberedId }?.let { return it.id }
+
+    // Nothing written down that still means anything — which is not the rare case it looks like. The
+    // note lives in localStorage and the collection lives in the database, and the two part company
+    // every time one of them is replaced without the other: a second browser has the collection (sync
+    // brought it) and no note, a restored backup has the note and not the collection, and so do an
+    // erased database and a fresh profile. Every one of those used to end here, making a *whole new
+    // section* — `sections.create` brings a collection of its own name with it — and that is how a
+    // person ends up with "Quick saves" three times over.
+    //
+    // So before making anything, look for the one that is already there. By name, across every language
+    // this app speaks: the title comes from the translations, so a browser opened in Russian looking for
+    // the section an English one made would otherwise miss it and make a second. The comparison is
+    // `mergeKeyOf`, which is what the import and the duplicate finder mean by "the same name" too.
+    val names = Lang.entries.mapTo(mutableSetOf()) { mergeKeyOf(it.strings.quickSaveTitle) }
+    val section = s.sections.all().firstOrNull { mergeKeyOf(it.title) in names }
+    if (section != null) {
+        // The section is there. Its collection usually is too; if it was deleted, this belongs in that
+        // section rather than in a second one wearing the same name.
+        val existing = collections.firstOrNull { it.sectionId == section.id }
+            ?: s.collections.create(title, section.id)
+        prefSet(QUICK_SAVE_COLLECTION_PREF, existing.id.toString())
+        return existing.id
+    }
+
+    val made = s.sections.create(title)
+    val created = s.collections.all().first { it.sectionId == made.id }
     prefSet(QUICK_SAVE_COLLECTION_PREF, created.id.toString())
     return created.id
 }
@@ -847,6 +877,20 @@ val App = FC<AppProps> { props ->
     // The history pane's own list and search box; a dragged history entry is saved, never moved, so
     // unlike a tab it is only ever a drag source.
     var historyEntries by useState<List<HistoryEntry>>(emptyList())
+
+    /**
+     * Recent history, held for the search box to look through itself.
+     *
+     * History is the one source whose candidates are chosen by somebody else: the browser matches it,
+     * by substring, so a mistyped query comes back empty and the ladder never sees a row it could have
+     * forgiven. This is the pool it falls back to — the same [HISTORY_LIMIT] pages the history pane
+     * reads, kept whether or not that pane is on screen.
+     *
+     * Filled on the first miss rather than at startup: a user who never mistypes never pays for it. Once
+     * filled it stays, and the pane refreshes it for free every time it loads unfiltered — so looking at
+     * history is also what keeps this current.
+     */
+    var recentHistory by useState<List<HistoryEntry>>(emptyList())
     var historyQuery by useState("")
     var draggingHistory by useState<HistoryEntry?>(null)
     // The tabs-sidebar drop target a dragged tab is over: a window (append) or a tab (take its slot).
@@ -1012,7 +1056,11 @@ val App = FC<AppProps> { props ->
         if (filter.isBlank()) {
             openTabs
         } else {
-            openTabs.filter { filter in it.title.lowercase() || filter in it.url.lowercase() }
+            // The same ladder the search box ranks by, asked only whether it matched at all: this pane
+            // keeps the browser's own order, so the score is not wanted here — but the tiers are. A
+            // substring test was all this had, which meant a typo in a list of a hundred and forty tabs
+            // found nothing, and the whole point of the box is to spare the user the scrolling.
+            openTabs.filter { matchOf(filter, it.title, it.url).score > 0.0 }
         }
     }
 
@@ -1243,8 +1291,26 @@ val App = FC<AppProps> { props ->
             return@useEffect
         }
         kotlinx.coroutines.delay(SEARCH_DEBOUNCE_MS)
+
+        // Both of these are searched by somebody else — the cards by their own index, history by the
+        // browser — and both match what they are handed, letter for letter. So a query typed with the
+        // wrong keyboard layout finds nothing in either, and `matchOf`'s own reading of it (see
+        // [swapLayout]) never gets a candidate to read. Asking again with the keys as the other layout
+        // prints them is not a guess, and costs nothing until the first search has come back empty.
+        val swapped = swapLayout(q)
         searchResults = s.cards.search(q)
+            .ifEmpty { swapped?.let { s.cards.search(it) }.orEmpty() }
         searchHistory = historyAccess?.search(q, HISTORY_HITS).orEmpty()
+            .ifEmpty { swapped?.let { historyAccess?.search(it, HISTORY_HITS) }.orEmpty() }
+
+        // And the pool the ranking falls back to when that comes to nothing — see [buildHits]'s
+        // `historyPool`, which is where the decision to use it is made. Read once and kept: a query
+        // being typed towards a typo misses on every keystroke, and deciding here would mean a round
+        // trip for each of them. Only once the user has typed enough to be guessed at, so a person who
+        // never mistypes never asks for it at all.
+        if (recentHistory.isEmpty() && q.length >= FUZZY_MIN_QUERY) {
+            recentHistory = historyAccess?.search("", HISTORY_LIMIT).orEmpty()
+        }
     }
 
     // Whether the browser has a model to ask at all. Asked once: the answer is about the machine, not
@@ -1323,7 +1389,11 @@ val App = FC<AppProps> { props ->
         if (ha == null || pane != RightPane.HISTORY) return@useEffect
         val q = historyQuery.trim()
         suspend fun load() {
-            historyEntries = ha.search(q, HISTORY_LIMIT)
+            val entries = ha.search(q, HISTORY_LIMIT)
+            historyEntries = entries
+            // Unfiltered, this *is* recent history — the same list the search box's fuzzy fallback wants.
+            // Adopting it here is what keeps that pool current without a second read of anything.
+            if (q.isBlank()) recentHistory = entries
         }
         load()
         val unsubscribe = ha.onHistoryChanged { launch { load() } }
@@ -1713,7 +1783,7 @@ val App = FC<AppProps> { props ->
             // the two sides disagreed about identity anyway.
             ?: collections.firstOrNull {
                 it.id !in hiddenCollectionIds && !it.readOnly &&
-                    it.title.trim().equals(wantedTitle, ignoreCase = true)
+                    mergeKeyOf(it.title) == mergeKeyOf(wantedTitle)
             }?.id
             // Created in the section the plan says, which is the one the user saw it drawn under and
             // could change. [fallbackSectionId] is only the fallback now — it used to be the rule, and
@@ -1721,7 +1791,10 @@ val App = FC<AppProps> { props ->
             // happened to be open.
             ?: s.collections.create(
                 assignment.collectionTitle,
-                sections.firstOrNull { it.title == assignment.groupTitle }?.id ?: fallbackSectionId,
+                assignment.groupTitle
+                    ?.let { wanted -> sections.firstOrNull { mergeKeyOf(it.title) == mergeKeyOf(wanted) } }
+                    ?.id
+                    ?: fallbackSectionId,
             ).id.also { madeCollections[assignment.collectionTitle] = it }
         val cardSectionId = assignment.sectionId
             ?: assignment.sectionTitle?.let { title ->
@@ -1732,7 +1805,7 @@ val App = FC<AppProps> { props ->
                     // than twenty times.
                     ?: existingSections.getOrPut(collectionId) {
                         runCatching { s.cardSections.byCollection(collectionId) }.getOrDefault(emptyList())
-                    }.firstOrNull { it.title.trim().equals(title.trim(), ignoreCase = true) }?.id
+                    }.firstOrNull { mergeKeyOf(it.title) == mergeKeyOf(title) }?.id
                     ?: s.cardSections.create(collectionId, title, null).id
                         .also { madeSections[collectionId to title] = it }
             }
@@ -2325,6 +2398,7 @@ val App = FC<AppProps> { props ->
         openTabs,
         searchResults,
         searchHistory,
+        recentHistory,
         collections,
         hiddenCollectionIds,
         aiProvider,
@@ -2337,6 +2411,7 @@ val App = FC<AppProps> { props ->
             tabs = openTabs,
             cards = searchResults.filter { it.collectionId !in hiddenCollectionIds },
             history = searchHistory,
+            historyPool = recentHistory,
             collections = collections.filter { it.id !in hiddenCollectionIds },
             collectionTitles = collectionTitles,
             aiProvider = aiProvider,
@@ -4283,7 +4358,7 @@ val App = FC<AppProps> { props ->
                     } else if (s != null) {
                         importStatus = null
                         scope.launch {
-                            val result = importFile(s, name, text, t.importedTitle)
+                            val result = importFile(s, name, text, t.importedTitle, ::faviconFor)
                             sections = s.sections.all()
                             collections = s.collections.all()
                             reloadCards(selectedId)
