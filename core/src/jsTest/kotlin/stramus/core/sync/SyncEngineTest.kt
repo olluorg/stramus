@@ -23,6 +23,9 @@ import stramus.protocol.SyncConflict
 import stramus.protocol.SyncRequest
 import stramus.protocol.SyncResponse
 import stramus.protocol.SyncRow
+import stramus.core.db.openStramusStore
+import stramus.core.db.StoreSeed
+import stramus.core.db.StramusStore
 
 /**
  * `SyncEngine` had no automated coverage at all after the kidx migration (the old coverage came from
@@ -212,10 +215,146 @@ class SyncEngineTest {
         engine.syncNow()
         assertTrue(lastRequest!!.rows.none { it.tbl == "usage" }, "browsing stats must stay on the machine by default")
     }
+
+    @Test
+    fun `a row that came from the server is not sent straight back`() = syncTest { db ->
+        // The ping-pong that eats a sync alive. A row arrives, is written down, and is read back on the
+        // next run — if what `applyRemote` stores does not hash to what the server sent, this device
+        // decides the row "changed here" and pushes it, the other device decides the same, and the two
+        // of them trade one card for ever. Nothing about that is visible in the UI until the battery
+        // is flat.
+        val cardId = Uuid.random()
+        val row = cardRow(cardId, Uuid.random(), "Kotlin", Clock.System.now())
+        val pushes = mutableListOf<List<SyncRow>>()
+        val api = ScriptedSyncApi { request ->
+            pushes += request.rows
+            if (request.since == 0L) SyncResponse(rev = 1, rows = listOf(row)) else SyncResponse(rev = 1)
+        }
+
+        val engine = SyncEngine(db, api)
+        engine.signIn(Uuid.random(), Uuid.random())
+        engine.syncNow()
+        engine.syncNow()
+
+        assertTrue(pushes.all { it.isEmpty() }, "a row we were given is not a row we changed")
+    }
+
+    @Test
+    fun `signing in pushes everything already in the browser`() = syncTest { db ->
+        // Joining an account with collections already here: nothing has a base version, so all of it is
+        // new as far as the server is concerned. This is the "keep my collections" half of the sign-in
+        // question, and the reason merging by id alone leaves pairs behind for the duplicate finder.
+        val cardId = Uuid.random()
+        db.write(Cards) { Cards.add(card(cardId, "Mine")) }
+
+        var pushed: List<SyncRow>? = null
+        val api = ScriptedSyncApi { request ->
+            pushed = request.rows
+            SyncResponse(rev = 1, accepted = request.rows.map { RowKey(it.tbl, it.id) })
+        }
+        val engine = SyncEngine(db, api)
+        engine.signIn(Uuid.random(), Uuid.random())
+        engine.syncNow()
+
+        assertTrue(pushed!!.any { it.id == cardId.toString() }, "the card that was here has to go up")
+    }
+
+    @Test
+    fun `signing in and discarding takes the local collections with it`() = syncTest { db ->
+        // The other half of the same question, for the second device: a fresh install seeds itself a
+        // welcome note, and joining an account that already holds years of collections must not hand
+        // the user a second copy of our own greeting for ever.
+        db.write(Cards) { Cards.add(card(Uuid.random(), "Mine")) }
+
+        var pushed: List<SyncRow>? = null
+        val engine = SyncEngine(db, ScriptedSyncApi { request -> pushed = request.rows; SyncResponse(rev = 0) })
+        engine.signIn(Uuid.random(), Uuid.random(), discardLocal = true)
+        engine.syncNow()
+
+        assertEquals(emptyList(), db.read(Cards) { Cards.all() }, "the local rows are gone")
+        assertTrue(pushed!!.isEmpty(), "and nothing of them was sent up on the way out")
+    }
+
+    @Test
+    fun `asking for the account again re-reads it without pushing anything`() = syncTest { db ->
+        val cardId = Uuid.random()
+        val row = cardRow(cardId, Uuid.random(), "Kotlin", Clock.System.now())
+        val sinces = mutableListOf<Long>()
+        val api = ScriptedSyncApi { request ->
+            sinces += request.since
+            SyncResponse(rev = 7, rows = if (request.since == 0L) listOf(row) else emptyList())
+        }
+        val engine = SyncEngine(db, api)
+        engine.signIn(Uuid.random(), Uuid.random())
+        engine.syncNow()
+        engine.syncNow()
+
+        engine.refetchEverything()
+        engine.syncNow()
+
+        assertEquals(listOf(0L, 7L, 0L), sinces, "the cursor goes back to the start, and only then")
+    }
+
+    @Test
+    fun `a card deleted here becomes a tombstone that travels`() = syncStoreTest { store ->
+        // Signed in, a deletion is a marked row rather than an absent one — it has to be *told* to the
+        // other device, and an absent row tells nobody anything. Deleted through the repository rather
+        // than by writing the row by hand, because which of the two a deletion is is precisely what the
+        // repository decides (see `syncing()` in Store.kt).
+        val pushes = mutableListOf<List<SyncRow>>()
+        val api = ScriptedSyncApi { request ->
+            pushes += request.rows
+            SyncResponse(rev = 1, accepted = request.rows.map { RowKey(it.tbl, it.id) })
+        }
+        val engine = SyncEngine(store.db, api)
+        engine.signIn(Uuid.random(), Uuid.random())
+        engine.syncNow()
+
+        val collection = store.collections.all().first()
+        val doomed = store.cards.add(collection.id, "Doomed", "https://example.org/doomed", null)
+        engine.syncNow()
+        store.cards.delete(doomed.id)
+        engine.syncNow()
+
+        val tombstone = pushes.last().firstOrNull { it.id == doomed.id.toString() }
+        assertTrue(tombstone != null && tombstone.deletedAt != null, "the deletion has to go up as one")
+        assertEquals(null, tombstone.payload, "and a tombstone carries nothing of what it deleted")
+    }
+
+    @Test
+    fun `erasing the browser leaves neither the rows nor the account behind`() = syncTest { db ->
+        db.write(Cards) { Cards.add(card(Uuid.random(), "Mine")) }
+        val engine = SyncEngine(db, ScriptedSyncApi { SyncResponse(rev = 0) })
+        engine.signIn(Uuid.random(), Uuid.random())
+
+        engine.eraseLocalData()
+
+        assertEquals(emptyList(), db.read(Cards) { Cards.all() })
+        assertTrue(!engine.signedIn(), "the bookkeeping that said whose account they were goes too")
+    }
 }
 
 private class ScriptedSyncApi(private val responder: (SyncRequest) -> SyncResponse) : SyncApi {
     override suspend fun sync(request: SyncRequest): SyncResponse = responder(request)
+}
+
+/** A card row as the store itself would write one — the local half of what a push is chosen from. */
+private fun card(id: Uuid, title: String) = CardRow().apply {
+    this.id = id
+    collectionId = Uuid.random()
+    cardSectionId = null
+    kind = "link"
+    this.title = title
+    url = "https://example.org/${'$'}title"
+    favicon = null
+    content = null
+    thumb = null
+    mime = null
+    blobSha = null
+    orderKey = "a0"
+    createdAt = Clock.System.now()
+    updatedAt = Clock.System.now()
+    deletedAt = null
 }
 
 private fun payload(vararg pairs: Pair<String, String?>): JsonObject =
@@ -249,6 +388,19 @@ private fun noteRow(id: Uuid, collectionId: Uuid, content: String, updatedAt: ko
         "thumb" to null, "mime" to null, "blobSha" to null, "orderKey" to "a0", "createdAt" to updatedAt.toString(),
     ),
 )
+
+/** The same, for the tests that need the repositories over the database rather than the database. */
+private fun syncStoreTest(block: suspend (StramusStore) -> Unit) = runTest {
+    installIndexedDb()
+    deleteDatabase(stramusSchema.databaseName)
+    val db = openDatabase(stramusSchema)
+    val store = openStramusStore(db, StoreSeed("Main", "Getting started", "How to use", "Drag a link here."))
+    try {
+        block(store)
+    } finally {
+        store.close()
+    }
+}
 
 private fun syncTest(block: suspend (Database) -> Unit) = runTest {
     installIndexedDb()

@@ -8,6 +8,7 @@ import io.github.kidx.WriteScope
 import kotlin.time.Clock
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
@@ -50,6 +51,21 @@ interface BlobApi {
     /** The bytes, or null if the server has not got them (a device that has not uploaded them yet). */
     suspend fun download(sha: String): ByteArray?
 }
+
+/**
+ * At most this many rows in one push.
+ *
+ * The delta has always been paged; a push was not, and the two are the same problem seen from opposite
+ * ends. A browser joining an account with a few thousand saved links had every one of them declared new
+ * and sent in a single request — megabytes of JSON, and whether that arrives depends on a body limit
+ * somewhere between here and the database that nobody in this repository controls. Rejected, nothing
+ * syncs at all, and the failure is the least informative kind: it is the first sync that fails, on the
+ * account with the most in it.
+ *
+ * Sent in bites instead, and the loop below simply goes round again: rows the server took have a base
+ * version afterwards, so the next pass picks up where this one stopped without having to remember it.
+ */
+private const val PUSH_LIMIT = 200
 
 /** The keys of [SyncState]. */
 private const val KEY_USER = "userId"
@@ -175,6 +191,26 @@ class SyncEngine(
      * until the server has nothing left, so one call means "in step".
      */
     suspend fun syncNow(): SyncResult? {
+        // One at a time. The timer fires every minute, the window-focus handler fires whenever the user
+        // comes back, the account dialog has a button, and signing in runs one of its own — so two runs
+        // overlapping is ordinary rather than exotic, and paging the push has made a run long enough for
+        // it to happen routinely.
+        //
+        // Dropped rather than queued: a second run started while one is in flight would ask the same
+        // question of the same rows and get the same answer a moment later. There is nothing it could
+        // learn that the run already going is not about to. The caller sees null, which is what it
+        // already means by "nothing to do" (see the account with no session).
+        if (!running.tryLock()) return null
+        try {
+            return syncRun()
+        } finally {
+            running.unlock()
+        }
+    }
+
+    private val running = Mutex()
+
+    private suspend fun syncRun(): SyncResult? {
         val deviceId = db.read(SyncState) { getState(KEY_DEVICE) }?.let { Uuid.parse(it) } ?: return null
 
         var pushed = 0
@@ -182,10 +218,12 @@ class SyncEngine(
         var copies = 0
         var rev: Long
 
-        // Fixed for the whole run. A delta may take several pages, and every one of them is an answer to
-        // this same question — moving the cursor between two of them is exactly the mistake [cursor] and
-        // the write at the bottom of this loop exist to prevent.
-        val since = db.read(SyncState) { getState(KEY_REV) }?.toLongOrNull() ?: 0L
+        // Fixed while a delta is being paged: every page is an answer to the same question, and moving
+        // it between two of them is exactly the mistake [cursor] and the write at the bottom of this loop
+        // exist to prevent. It moves in one place only — when a delta has been read to the end and the
+        // run goes back for another bite of the push, which is the one moment in a run when this device
+        // really has seen everything up to that revision.
+        var since = db.read(SyncState) { getState(KEY_REV) }?.toLongOrNull() ?: 0L
 
         /** Where the last page stopped, while there are more; null on the first, which is the one that pushes. */
         var cursor: String? = null
@@ -212,11 +250,15 @@ class SyncEngine(
                 // all is new; a row whose hash matches its base has not been touched since it last went up.
                 local.filter { bases[RowKey(it.row.tbl, it.row.id)]?.hash != it.hash }
             }
-            val response = api.sync(SyncRequest(deviceId.toString(), since, changed.map { it.row }, cursor))
+            // A bite of them, not all: see [PUSH_LIMIT]. What is left over is not remembered anywhere —
+            // the rows the server takes get a base version, so the next pass finds exactly the rest.
+            val sending = changed.take(PUSH_LIMIT)
+            val moreToPush = changed.size > sending.size
+            val response = api.sync(SyncRequest(deviceId.toString(), since, sending.map { it.row }, cursor))
 
             // Only what went up can come back as accepted or as a conflict, so the rows this page sent
             // are the whole of what those two need to be looked up in.
-            val localByKey = changed.associateBy { RowKey(it.row.tbl, it.row.id) }
+            val localByKey = sending.associateBy { RowKey(it.row.tbl, it.row.id) }
             val conflictCopies = mutableListOf<CardRow>()
             // Computed here, outside any scope, for the same reason `local`'s hashes are: [hashOf] awaits
             // real SHA-256 and must not run inside `db.write`.
@@ -258,7 +300,11 @@ class SyncEngine(
                 // to, not where the reading of it has: written down while pages are still outstanding, it
                 // carries this device past every row it has not been handed — silently, and for good,
                 // since the next run then asks for changes after a revision it never actually read.
-                if (!response.hasMore) putState(KEY_REV, response.rev.toString())
+                // Only when this run has nothing left to do at all — neither a page of the delta to
+                // read nor a bite of the push to send. `rev` says how far the *account* has got, and
+                // writing it down while either is outstanding claims to have seen rows that are still
+                // in hand.
+                if (!response.hasMore && !moreToPush) putState(KEY_REV, response.rev.toString())
             }
 
             // The bytes, after the rows: a card arrives first and its file follows, so a grid that redraws
@@ -271,7 +317,24 @@ class SyncEngine(
             copies += conflictCopies.size
             rev = response.rev
 
-            if (!response.hasMore) return SyncResult(pushed, applied, copies, rev)
+            if (!response.hasMore) {
+                // The delta is finished. If this device is still holding rows back, go round again with
+                // the cursor cleared: what follows is a fresh question, not another page of this answer.
+                //
+                // The delta comes down again with it, which is waste and not error — every row of it is
+                // written over itself. Waste worth having: the alternative is moving the cursor while a
+                // push is outstanding, and a cursor that has run ahead of what was actually read is the
+                // one mistake in this file that costs rows rather than bytes.
+                if (!moreToPush) return SyncResult(pushed, applied, copies, rev)
+
+                // More to push, and the delta read to the end. Ask for the rest of the push from where
+                // that left off, so the rows already applied are not sent down again with every bite —
+                // which is what the first version of this did, and on a first sync of a few thousand
+                // rows that is the delta re-delivered fifteen times over.
+                since = response.rev
+                cursor = null
+                continue
+            }
 
             // A server that says there is more but cannot say where to carry on from — or names the place
             // this page already started at — is one this client cannot page: stop, and leave the cursor

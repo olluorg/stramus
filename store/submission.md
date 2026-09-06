@@ -8,8 +8,8 @@ domain, and browser automation is an extension — so this is a manual pass.
 
 ## Package
 
-Upload `stramus-extension-1.5.0.zip`, off the release the `v1.5.0` tag builds
-(https://github.com/olluorg/stramus/releases/tag/v1.5.0).
+Upload `stramus-extension-1.5.1.zip`, off the release the `v1.5.1` tag builds
+(https://github.com/olluorg/stramus/releases/tag/v1.5.1).
 
 **The permission list is unchanged from 1.4.0**, so this is an ordinary update: nobody is asked to
 accept anything and nobody's extension is disabled waiting for them to. The justifications below stand

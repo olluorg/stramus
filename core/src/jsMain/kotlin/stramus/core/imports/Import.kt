@@ -1,19 +1,20 @@
 @file:OptIn(ExperimentalUuidApi::class)
 
-package stramus.ui
+package stramus.core.imports
 
 import stramus.core.db.StramusStore
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 import stramus.core.url.hostOf
 import stramus.core.url.normalizeUrl
+import stramus.core.merge.mergeKeyOf
 
 /**
  * One link out of an imported file, with the place the file said it belongs in: [section] →
  * [collection] → [cardSection], any of which may be missing — a bookmarks file with loose links at
  * the top has no folder to name, and a CSV need not carry the column.
  */
-internal data class ImportedLink(
+data class ImportedLink(
     val section: String?,
     val collection: String?,
     val cardSection: String?,
@@ -22,7 +23,7 @@ internal data class ImportedLink(
 )
 
 /** What an import did, so the user is told rather than left guessing at a silently changed sidebar. */
-internal data class ImportResult(val added: Int, val skipped: Int)
+data class ImportResult(val added: Int, val skipped: Int)
 
 /**
  * The tags an import cares about, in the order the file writes them: a folder name, a link, and the
@@ -69,7 +70,7 @@ private fun importable(url: String): Boolean {
  * nowhere further to go, so their names are joined into the card section's, and nothing is lost.
  * Loose links, in no folder at all, carry no names and land in the imported collection.
  */
-internal fun parseBookmarks(html: String): List<ImportedLink> {
+fun parseBookmarks(html: String): List<ImportedLink> {
     val links = mutableListOf<ImportedLink>()
     // The folders currently open, outermost first. A `<DL>` with no `<H3>` before it — the file's own
     // root — is pushed as a blank, so it holds the nesting straight without counting as a folder.
@@ -119,7 +120,7 @@ private val ONETAB_LINE = Regex("""^\s*[a-z][a-z0-9+.\-]*://\S+(\s*\|.*)?$""", R
  * enough that re-importing the same file lands on the same collections and skips what is already
  * there instead of doubling it.
  */
-internal fun parseOneTab(text: String): List<ImportedLink> {
+fun parseOneTab(text: String): List<ImportedLink> {
     val links = mutableListOf<ImportedLink>()
     var group = 0
     // Only a group with a link in it takes a number, so a file that starts with a blank line, or
@@ -198,7 +199,7 @@ private fun labelOf(list: dynamic): String? {
  * The keys are read forgivingly: Toby has written its export as `lists` of `cards` for several
  * versions now, but a file that calls them something else is still worth reading.
  */
-internal fun parseToby(text: String): List<ImportedLink> {
+fun parseToby(text: String): List<ImportedLink> {
     val root = runCatching { JSON.parse<dynamic>(text) }.getOrNull() ?: return emptyList()
     val lists = arrayIn(root, "lists", "groups", "collections") ?: return emptyList()
 
@@ -278,7 +279,7 @@ private fun csvRows(text: String): List<String> {
  * without the ones this does not need, still reads; a file with no header at all is taken in the
  * order the export writes them.
  */
-internal fun parseCsv(text: String): List<ImportedLink> {
+fun parseCsv(text: String): List<ImportedLink> {
     val rows = csvRows(text).filter { it.isNotBlank() }
     if (rows.isEmpty()) return emptyList()
 
@@ -353,11 +354,17 @@ private fun parse(fileName: String, text: String): List<ImportedLink> = when {
  *
  * [importedTitle] names the section and collection for links whose file gave them no folder.
  */
-internal suspend fun importFile(
+suspend fun importFile(
     store: StramusStore,
     fileName: String,
     text: String,
     importedTitle: String,
+    /**
+     * Where a saved link's icon is first looked for. Handed in rather than decided here: which service
+     * stands in for a site's icon is the app's choice (see `Favicon.kt`), and an import has no business
+     * knowing it. A test hands in nothing, and the cards come out exactly as usable.
+     */
+    faviconFor: (String) -> String?,
 ): ImportResult {
     val links = parse(fileName, text)
     if (links.isEmpty()) return ImportResult(added = 0, skipped = 0)
@@ -371,12 +378,16 @@ internal suspend fun importFile(
     // collection nobody asked for is swept up at the end.
     val autoCollections = mutableSetOf<Uuid>()
     val usedCollections = mutableSetOf<Uuid>()
+    // Keyed by [mergeKeyOf], as every lookup below is. An import that matched by one rule while the
+    // duplicate finder matched by another would quietly make the pairs it is there to prevent: a
+    // bookmarks file whose folder is " Работа" would land beside the "Работа" already here, and only
+    // the merge would ever notice they were one thing.
     val cardSectionIds = mutableMapOf<Pair<Uuid, String>, Uuid>()
     val urlsIn = mutableMapOf<Uuid, MutableSet<String>>()
 
     suspend fun sectionFor(title: String?): Uuid {
         if (title == null) return defaultSectionId
-        sections.firstOrNull { it.title.equals(title, ignoreCase = true) }?.let { return it.id }
+        sections.firstOrNull { mergeKeyOf(it.title) == mergeKeyOf(title) }?.let { return it.id }
         val created = store.sections.create(title)
         sections = store.sections.all()
         collections = store.collections.all()
@@ -386,7 +397,7 @@ internal suspend fun importFile(
 
     suspend fun collectionFor(sectionId: Uuid, title: String?): Uuid {
         val name = title ?: importedTitle
-        collections.firstOrNull { it.sectionId == sectionId && it.title.equals(name, ignoreCase = true) }
+        collections.firstOrNull { it.sectionId == sectionId && mergeKeyOf(it.title) == mergeKeyOf(name) }
             ?.let { return it.id }
         val created = store.collections.create(name, sectionId)
         collections = collections + created
@@ -395,11 +406,11 @@ internal suspend fun importFile(
 
     suspend fun cardSectionFor(collectionId: Uuid, title: String?): Uuid? {
         if (title == null) return null
-        cardSectionIds[collectionId to title.lowercase()]?.let { return it }
+        cardSectionIds[collectionId to mergeKeyOf(title)]?.let { return it }
         val existing = store.cardSections.byCollection(collectionId)
-            .firstOrNull { it.title.equals(title, ignoreCase = true) }
+            .firstOrNull { mergeKeyOf(it.title) == mergeKeyOf(title) }
         val id = existing?.id ?: store.cardSections.create(collectionId, title, null).id
-        cardSectionIds[collectionId to title.lowercase()] = id
+        cardSectionIds[collectionId to mergeKeyOf(title)] = id
         return id
     }
 

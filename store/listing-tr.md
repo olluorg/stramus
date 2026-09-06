@@ -76,15 +76,14 @@ olarak, hiçbir hesapla ilişkilendirilmeden ve hiçbir şey kaydedilmeden.
 Bir bölümdeki PIN, onu ekrandan kaldırır; bu bir şifreleme değildir ve bölümü sunucudan gizlemez. Gizlilik
 politikası bunu açıkça belirtir, ve bir hesabın başka ne anlama geldiğini de anlatır.
 
-1.5.0'daki yenilikler.
-Yinelenenleri bul: içinde zaten koleksiyon olan bir tarayıcıdan, içinde koleksiyon olan bir hesaba
-girmek her şeyden iki tane bırakıyordu; bir sunucu satırları yalnızca id'lerine göre birleştirebilir.
-Artık hangi bölümlerin, koleksiyonların ve bağlantıların aynı şey olduğunu uygulamanın kendisi buluyor ve
-onları birleştiriyor — önce planın tamamını göstererek. Eşitleme büyük bir hesabı ilk birkaç yüz satırı
-yerine bütün olarak indiriyor, onunla birlikte diğer makinede yapılan silmeleri de. Bir koleksiyon,
-içindeki sitelerden birinin simgesiyle işaretlenebiliyor ve daraltılmış kenar çubuğu harf yerine bu
-işareti gösteriyor. Bu tarayıcıdaki her şeyi silmek ayarlarda kendi düğmesi oldu ve artık sunucunun
-yanıtını beklemiyor.
+1.5.1'deki yenilikler.
+Arama artık bir yazım yanlışını affediyor — bir de unutulmuş klavye düzenini: yanlış düzende yazılmış bir
+sorgu bir de öbür düzende soruluyor, böylece «ыекфьгы» Stramus'u buluyor. İkisi de bağlantılarınızda, açık
+sekmelerinizde ve geçmişte geçerli; geçmişi tarayıcının kendisi harfi harfine aradığı için oradaki bir
+boşluk yakın zamanda gördüğünüz sayfalara düşüyor. Ayarların kendi araması oldu: uymayanı soldurup uyana
+kaydırıyor, gerisini gizlemek yerine. Hızlı kayıtlar bölümü, zaten böyle bir bölümü olan bir tarayıcıda
+ikinci kez oluşturulmuyor. Eşitleme büyük bir hesabı indirdiği gibi sayfa sayfa yolluyor da; başka bir
+makinede silinen bir grup ise bağlantılarını artık kendine asılı bırakmıyor.
 
 Gizlilik politikası: https://stramus.space/privacy.html
 Kaynak kodu: https://github.com/olluorg/stramus

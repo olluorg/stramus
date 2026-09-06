@@ -76,14 +76,15 @@ seus endereços salvos, um a um, a um serviço público de ícones.
 Um PIN numa seção a tira da tela; não é criptografia, e não a esconde do servidor. A política de
 privacidade diz isso claramente, e diz também o que mais uma conta significa.
 
-Novidades da 1.5.0.
-Encontrar duplicatas: entrar em uma conta a partir de um navegador que já tinha coleções deixava você com
-duas de cada coisa, porque um servidor só sabe unir linhas pelo id. Agora o aplicativo descobre sozinho
-quais seções, coleções e links são a mesma coisa e os une, mostrando antes o plano inteiro. A
-sincronização passa a trazer uma conta grande por completo, e não apenas suas primeiras centenas de
-linhas — e com ela as exclusões feitas na sua outra máquina. Uma coleção pode receber o ícone de um dos
-sites que ela guarda, e a barra recolhida mostra essa marca no lugar de uma letra. Apagar tudo neste
-navegador virou um botão próprio nas configurações, que não espera mais a resposta do servidor.
+Novidades da 1.5.1.
+A busca agora perdoa um erro de digitação e perdoa um layout de teclado esquecido: uma consulta digitada
+no layout errado é refeita no outro, de modo que «ыекфьгы» encontra o Stramus. Isso vale para seus links,
+suas abas abertas e o histórico; o histórico quem procura é o próprio navegador, letra por letra, então
+uma busca sem resultado ali recorre às páginas que você viu há pouco. As configurações ganharam uma busca
+própria: ela esmaece o que não combina e rola até o que combina, em vez de esconder o resto. A seção de
+salvamentos rápidos não é mais criada uma segunda vez num navegador que já a tinha. A sincronização envia
+uma conta grande em páginas do mesmo jeito que a traz, e um grupo excluído na outra máquina não deixa mais
+seus links pendurados nele.
 
 Política de privacidade: https://stramus.space/privacy.html
 Código-fonte: https://github.com/olluorg/stramus

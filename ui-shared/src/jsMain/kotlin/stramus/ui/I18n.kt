@@ -58,6 +58,13 @@ interface Strings {
     val experimental: String
 
     val settings: String
+
+    /**
+     * The settings page's own search. It filters the sections of the page rather than listing matches
+     * elsewhere, so what is left on screen is the answer — see `filterSettings`.
+     */
+    val settingsSearch: String
+    val settingsSearchNothing: String
     val close: String
     val cancel: String
     val save: String
@@ -761,6 +768,8 @@ private object EnStrings : Strings {
     override val off = "Off"
     override val experimental = "experimental"
     override val settings = "Settings"
+    override val settingsSearch = "Search settings"
+    override val settingsSearchNothing = "Nothing here matches that."
     override val close = "Close"
     override val cancel = "Cancel"
     override val save = "Save"
@@ -1301,6 +1310,8 @@ private object RuStrings : Strings {
     override val off = "Выкл"
     override val experimental = "эксперимент"
     override val settings = "Настройки"
+    override val settingsSearch = "Поиск по настройкам"
+    override val settingsSearchNothing = "Ничего подходящего здесь нет."
     override val close = "Закрыть"
     override val cancel = "Отмена"
     override val save = "Сохранить"
@@ -1843,6 +1854,8 @@ private object FrStrings : Strings {
     override val off = "Désactivé"
     override val experimental = "expérimental"
     override val settings = "Paramètres"
+    override val settingsSearch = "Rechercher dans les réglages"
+    override val settingsSearchNothing = "Rien ici ne correspond."
     override val close = "Fermer"
     override val cancel = "Annuler"
     override val save = "Enregistrer"
@@ -2386,6 +2399,8 @@ private object EsStrings : Strings {
     override val off = "Desactivado"
     override val experimental = "experimental"
     override val settings = "Ajustes"
+    override val settingsSearch = "Buscar en los ajustes"
+    override val settingsSearchNothing = "Aquí no hay nada que coincida."
     override val close = "Cerrar"
     override val cancel = "Cancelar"
     override val save = "Guardar"
@@ -2929,6 +2944,8 @@ private object DeStrings : Strings {
     override val off = "Aus"
     override val experimental = "experimentell"
     override val settings = "Einstellungen"
+    override val settingsSearch = "Einstellungen durchsuchen"
+    override val settingsSearchNothing = "Hier passt nichts dazu."
     override val close = "Schließen"
     override val cancel = "Abbrechen"
     override val save = "Speichern"
@@ -3472,6 +3489,8 @@ private object PtBrStrings : Strings {
     override val off = "Desativado"
     override val experimental = "experimental"
     override val settings = "Configurações"
+    override val settingsSearch = "Buscar nas configurações"
+    override val settingsSearchNothing = "Nada aqui corresponde a isso."
     override val close = "Fechar"
     override val cancel = "Cancelar"
     override val save = "Salvar"
@@ -4014,6 +4033,8 @@ private object ZhCnStrings : Strings {
     override val off = "关"
     override val experimental = "实验性"
     override val settings = "设置"
+    override val settingsSearch = "搜索设置"
+    override val settingsSearchNothing = "这里没有匹配的内容。"
     override val close = "关闭"
     override val cancel = "取消"
     override val save = "保存"
@@ -4541,6 +4562,8 @@ private object JaStrings : Strings {
     override val off = "オフ"
     override val experimental = "実験的機能"
     override val settings = "設定"
+    override val settingsSearch = "設定を検索"
+    override val settingsSearchNothing = "ここに一致するものはありません。"
     override val close = "閉じる"
     override val cancel = "キャンセル"
     override val save = "保存"
@@ -5079,6 +5102,8 @@ private object KoStrings : Strings {
     override val off = "꺼짐"
     override val experimental = "실험적 기능"
     override val settings = "설정"
+    override val settingsSearch = "설정 검색"
+    override val settingsSearchNothing = "여기에 해당하는 것이 없습니다."
     override val close = "닫기"
     override val cancel = "취소"
     override val save = "저장"
@@ -5618,6 +5643,8 @@ private object ItStrings : Strings {
     override val off = "Disattivo"
     override val experimental = "sperimentale"
     override val settings = "Impostazioni"
+    override val settingsSearch = "Cerca nelle impostazioni"
+    override val settingsSearchNothing = "Qui non corrisponde nulla."
     override val close = "Chiudi"
     override val cancel = "Annulla"
     override val save = "Salva"
@@ -6161,6 +6188,8 @@ private object TrStrings : Strings {
     override val off = "Kapalı"
     override val experimental = "deneysel"
     override val settings = "Ayarlar"
+    override val settingsSearch = "Ayarlarda ara"
+    override val settingsSearchNothing = "Burada eşleşen bir şey yok."
     override val close = "Kapat"
     override val cancel = "İptal"
     override val save = "Kaydet"

@@ -17,6 +17,8 @@ import react.useState
 import stramus.core.model.CardKind
 import web.cssom.ClassName
 import web.html.HTMLInputElement
+import react.dom.html.ReactHTML.mark
+import react.ChildrenBuilder
 
 /** The icon a row is drawn with when it stands for no page of its own (so there is no favicon). */
 private fun iconNameOf(hit: Hit): String = when (hit) {
@@ -207,11 +209,15 @@ val SearchBox = FC<SearchBoxProps> { props ->
                                         className = ClassName("hit-text")
                                         span {
                                             className = ClassName("hit-title")
-                                            +when (hit) {
-                                                is WebSearchHit -> s.hitWebSearch(hit.query)
-                                                is AiHit -> s.hitAskAiRow(hit.provider.askName(s), hit.query)
-                                                is OpenUrlHit -> s.hitOpenUrl(hit.query)
-                                                else -> hit.title
+                                            when (hit) {
+                                                is WebSearchHit -> +s.hitWebSearch(hit.query)
+                                                is AiHit -> +s.hitAskAiRow(hit.provider.askName(s), hit.query)
+                                                is OpenUrlHit -> +s.hitOpenUrl(hit.query)
+                                                // The rows that matched something say *what* they
+                                                // matched: the query is rarely the whole title, and in
+                                                // a list of eight the difference between "why is this
+                                                // here" and "of course" is those few characters.
+                                                else -> highlighted(hit.title, hit.highlight)
                                             }
                                         }
                                         if (hit.subtitle.isNotBlank()) {
@@ -249,4 +255,28 @@ val SearchBox = FC<SearchBoxProps> { props ->
             }
         }
     }
+}
+
+/**
+ * [text] with [ranges] marked — the characters the query actually matched.
+ *
+ * Ranges arrive in order and never overlap (see `Search.kt`'s `Match`), so this is one walk: the plain
+ * run before each, the marked run, and whatever is left at the end. A range that runs off the end of
+ * the text is clipped rather than trusted — the title shown can differ from the one matched (a card
+ * renamed between the two), and a stale index must not cost the row its name.
+ */
+private fun ChildrenBuilder.highlighted(text: String, ranges: List<IntRange>) {
+    if (ranges.isEmpty()) {
+        +text
+        return
+    }
+    var at = 0
+    for (range in ranges) {
+        val from = range.first.coerceIn(0, text.length)
+        val to = (range.last + 1).coerceIn(from, text.length)
+        if (from > at) +text.substring(at, from)
+        if (to > from) mark { +text.substring(from, to) }
+        at = to
+    }
+    if (at < text.length) +text.substring(at)
 }
