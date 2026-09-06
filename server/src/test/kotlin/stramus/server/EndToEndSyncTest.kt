@@ -45,16 +45,20 @@ import stramus.protocol.TokenPair
  * merges a counter — exercised over real HTTP, through the real protocol, against a real database.
  *
  * This used to also drive the real client store (`core`'s `SyncEngine`, on the JVM via a SQLite engine)
- * as both "devices", so the same code that ran as Kotlin/JS in the browser proved itself against the
- * server in one process. That client is now kidx-typed — browser-only, no JVM target — so this file
- * talks the protocol directly instead: [FakeDevice] is a hand-rolled stand-in that pushes and pulls
- * [SyncRow]s without any store behind it. What is proven here is narrower — the server's merge and
- * conflict rules, not the real client's translation of a card into one — but it is proven without
- * duplicating `core`'s repository logic a second time just to give this file something to drive.
+ * as both "devices". That client is now kidx-typed — browser-only, no JVM target — so this file talks
+ * the protocol directly instead: [FakeDevice] is a hand-rolled stand-in that pushes and pulls [SyncRow]s
+ * without any store behind it.
  *
- * The client-side half of these behaviours (a losing note becoming a copy, `withUsage` deciding whether
- * counters are pushed at all, not re-pushing a row whose hash has not changed) lives in `core`'s
- * `SyncEngine`/`Codec` and is exercised by `core`'s own `jsTest` suite instead.
+ * **What this file is for, now that it is not the whole story.** A stand-in on either side can only ever
+ * agree with the code that wrote it, and for a while that was the whole of the coverage: the client was
+ * tested against a scripted server, the server against this, both suites were green, and the pair was
+ * broken — the server said "there is more" and handed back a cursor meaning "you have read everything".
+ *
+ * So the decisions moved out from under both stand-ins. They live in `protocol` (`mergeRow`,
+ * `deltaPageOf`, `DeltaCursor`), this server calls them, and `core`'s `ContractTest` drives the *real*
+ * `SyncEngine` against a server built from those same functions. What is left to this file is the half
+ * that cannot: real HTTP, real JSON, a real token, a real SQLite database, and the queries that find and
+ * order the rows the shared decisions are then applied to.
  */
 class EndToEndSyncTest {
 
@@ -367,7 +371,13 @@ private fun twoDevices(
     block: suspend (FakeDevice, FakeDevice) -> Unit,
 ) = testApplication {
     val config = ServerConfig(databasePath = tempPath("server"), emailAuthEnabled = true, deltaLimit = deltaLimit)
-    application { stramusModule(config, openServerDatabase(config)) }
+    // Opened out here, once, rather than inside `application { }`. Ktor is free to run that block more
+    // than once for one test, and each run would open its own connection pool on the same SQLite file —
+    // `poolSize = 1` means one writer, so two pools are two writers, and a row written through one is
+    // not reliably there when the other looks. It surfaced as an intermittent 401: the JWT check reads
+    // the user on every authenticated call, found nothing, and answered "not signed in".
+    val db = openServerDatabase(config)
+    application { stramusModule(config, db) }
 
     val http = createClient { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
 

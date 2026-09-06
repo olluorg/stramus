@@ -67,4 +67,13 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+
+    // A fresh JVM per test class. `EndToEndSyncTest` passed twenty runs in a row on its own and failed
+    // about one run in ten as part of the suite, always the same way: a request that had just
+    // authenticated came back 401, which is what the JWT check answers when its read of the user finds
+    // nothing. Nothing in the sync path explains that; something these classes share inside one JVM
+    // does — several of them stand up a Ktor application over a SQLite file with a single connection,
+    // and they do not all take their toys away afterwards. Which of them is a question for a day when
+    // it matters; not sharing the JVM answers it for all of them, and costs a few seconds.
+    forkEvery = 1
 }

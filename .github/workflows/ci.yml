@@ -37,7 +37,18 @@ jobs:
         # The server and the shared core carry the whole of the sync logic, and it is the kind of logic that
         # fails quietly — a merge that drops a version, a code that can be guessed. It is checked here before
         # anything is assembled.
-        run: ./gradlew :core:jvmTest :server:test --no-daemon
+        #
+        # `:core:jsNodeTest` is in the list because the store, the sync engine and the import only exist on
+        # the JS side: kidx is a layer over IndexedDB, so the code that decides whether a row already exists
+        # — which is the code that either prevents duplicates or makes them — cannot be run on the JVM at
+        # all. It runs here under fake-indexeddb, the way kidx tests itself. Left out, the half of the app
+        # most likely to go quietly wrong was the half nothing checked.
+        #
+        # `-PliveSync` starts the real server and points `LiveServerTest` at it, so the real client —
+        # the same engine and the same HTTP client the browser runs — talks to the real Ktor server over
+        # a real socket. Everything else tests one half against a stand-in for the other, and a stand-in
+        # can only ever agree with whoever wrote it.
+        run: ./gradlew :core:jvmTest :core:jsNodeTest :server:test -PliveSync --no-daemon
 
       - name: Assemble
         run: ./gradlew :webapp:jsBrowserDistribution :extension:jsBrowserDistribution --no-daemon

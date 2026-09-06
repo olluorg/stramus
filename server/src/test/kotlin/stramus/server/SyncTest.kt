@@ -146,6 +146,41 @@ class SyncTest {
     }
 
     @Test
+    fun `a deletion for a row the server never had is still a deletion`() = runTest {
+        // The order two devices reach the server in is not the order things happened in. A card made
+        // and deleted while offline arrives as a tombstone for a row nobody here has ever seen, and
+        // dropping it because "there is nothing to delete" is how the card comes back from the dead the
+        // moment the device that made it gets its own turn.
+        val sync = newSync()
+
+        sync.sync(user, phone, since = 0, pushed = listOf(tombstone("a", at = t(2))))
+        val onTheLaptop = sync.sync(user, laptop, since = 0, pushed = emptyList())
+
+        val row = onTheLaptop.rows.single { it.id == "a" }
+        assertTrue(row.deletedAt != null, "the tombstone is kept as one")
+        assertNull(row.payload)
+    }
+
+    @Test
+    fun `an edit made after a deletion brings the row back, and one made before does not`() = runTest {
+        val sync = newSync()
+        sync.sync(user, laptop, since = 0, pushed = listOf(card("a", "Kotlin", at = t(1))))
+
+        // Deleted at t2, and edited at t1 — the edit is older than the deletion and loses to it.
+        val deleted = sync.sync(user, laptop, since = 1, pushed = listOf(tombstone("a", at = t(2))))
+        val stale = sync.sync(user, phone, since = 0, pushed = listOf(card("a", "Stale", at = t(1))))
+        assertTrue(stale.accepted.none { it.id == "a" }, "an edit older than the deletion does not undo it")
+
+        // And at t3 somebody puts it back on purpose, which is a decision and has to stand.
+        val revived = sync.sync(user, phone, since = deleted.rev, pushed = listOf(card("a", "Back", at = t(3))))
+        assertTrue(revived.accepted.any { it.id == "a" })
+
+        val seen = sync.sync(user, laptop, since = deleted.rev, pushed = emptyList()).rows.single { it.id == "a" }
+        assertNull(seen.deletedAt, "the row is alive again")
+        assertEquals("Back", seen.payload!!.text("title"))
+    }
+
+    @Test
     fun `counters merge by maximum instead of by last write`() = runTest {
         val sync = newSync()
         val start = sync.sync(user, laptop, since = 0, pushed = listOf(usage("kotlinlang.org", hits = 7, at = t(1))))
@@ -179,6 +214,38 @@ class SyncTest {
     }
 
     @Test
+    fun `paging does not skip a row whose id sorts differently in one order than another`() = runTest {
+        // A `usage` row is keyed by the page's address, so unlike every other table its ids are not
+        // uuids: they are URLs, and a URL can hold anything. Two of the ones below sort one way by UTF-8
+        // bytes (which is what SQLite's default collation compares) and the other way by UTF-16 code
+        // units (which is what Kotlin's String.compareTo compares) — an emoji is above U+FF01 in one and
+        // below it in the other. Paging reads in one order and resumes after a cursor compared in
+        // another, and if those two ever disagree the row between them is skipped in silence.
+        // One row a page, so the cursor is asked the question once per row rather than never.
+        val sync = newSync(deltaLimit = 1)
+        val ids = listOf(
+            "example.org/\uFF01",
+            "example.org/\uD83D\uDE00",
+            "example.org/plain",
+            "пример.рф/страница",
+            "example.org/a|b",
+        )
+        sync.sync(user, laptop, since = 0, pushed = ids.map { usage(it, hits = 1, at = t(1)) })
+
+        val seen = mutableSetOf<String>()
+        var page = sync.sync(user, phone, since = 0, pushed = emptyList())
+        var guard = 0
+        while (true) {
+            page.rows.forEach { seen += it.id }
+            if (!page.hasMore) break
+            check(guard++ < 20) { "the delta never ends" }
+            page = sync.sync(user, phone, since = 0, pushed = emptyList(), cursor = page.nextCursor)
+        }
+
+        assertEquals(ids.toSet(), seen, "every row, whatever its id sorts like — and whatever it contains")
+    }
+
+    @Test
     fun `one account cannot see another's rows`() = runTest {
         val sync = newSync()
         val other = Uuid.random()
@@ -191,9 +258,12 @@ class SyncTest {
 
 // ---- helpers ---------------------------------------------------------------------------------------
 
-private fun newSync(): SyncService {
-    val config = ServerConfig(databasePath = createTempDirectory("stramus-sync-test").resolve("s.db").toString())
-    return SyncService(openServerDatabase(config))
+private fun newSync(deltaLimit: Int = 500): SyncService {
+    val config = ServerConfig(
+        databasePath = createTempDirectory("stramus-sync-test").resolve("s.db").toString(),
+        deltaLimit = deltaLimit,
+    )
+    return SyncService(openServerDatabase(config), config.deltaLimit)
 }
 
 private fun t(minute: Int): Instant = Instant.parse("2026-07-14T12:0$minute:00Z")
