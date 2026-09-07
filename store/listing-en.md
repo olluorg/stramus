@@ -74,7 +74,7 @@ service one request at a time.
 A PIN on a section keeps it off your screen; it is not encryption, and it does not hide the section
 from the server. The privacy policy says so plainly, and says what else an account means.
 
-New in 1.5.1.
+New in 1.5.2.
 Search forgives a typo now, and forgives a forgotten keyboard layout: a query typed in the wrong one is
 asked again as the other, so "ыекфьгы" finds Stramus. Both work over your links, your open tabs and your
 history — and because history is matched by the browser letter for letter, a miss there now falls back to
@@ -82,6 +82,8 @@ the pages you have seen recently. Settings have a search of their own: it dims w
 scrolls to what does, rather than hiding the rest. The quick-saves section is no longer made a second time
 in a browser that already had one. Synchronising sends a large account up in pages as well as bringing it
 down, and a group deleted on another machine no longer leaves its links hanging off it.
+The store's own index layer is a version newer, too: a query over a compound index could hand back one
+row too many, which is how a duplicate survived an import or a merge.
 
 Privacy policy: https://stramus.space/privacy.html
 Source code: https://github.com/olluorg/stramus

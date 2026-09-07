@@ -77,7 +77,7 @@ entregar tus direcciones guardadas, una a una, a un servicio público de iconos.
 Un PIN en una sección la quita de la pantalla; no es cifrado, y no la oculta del servidor. La política de
 privacidad lo dice con claridad, y también qué más significa tener una cuenta.
 
-Novedades de la 1.5.1.
+Novedades de la 1.5.2.
 La búsqueda perdona una errata y perdona una distribución de teclado olvidada: una consulta escrita en la
 que no era se vuelve a preguntar con la otra, así que «ыекфьгы» encuentra Stramus. Ambas cosas valen para
 tus enlaces, tus pestañas abiertas y el historial; el historial lo busca el propio navegador, letra por
@@ -86,6 +86,8 @@ búsqueda: atenúa lo que no coincide y se desplaza hasta lo que sí, en vez de 
 de guardado rápido ya no se crea por segunda vez en un navegador que ya la tenía. La sincronización sube
 una cuenta grande por páginas igual que la baja, y un grupo borrado en otra máquina ya no deja sus enlaces
 colgando de él.
+También sube de versión la capa de índices bajo la base de datos: una consulta sobre un índice compuesto
+podía devolver una fila de más, y así un duplicado sobrevivía a una importación o a una fusión.
 
 Política de privacidad: https://stramus.space/privacy.html
 Código fuente: https://github.com/olluorg/stramus

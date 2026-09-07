@@ -79,7 +79,7 @@ Eine PIN auf einem Bereich hält ihn vom Bildschirm fern; sie ist keine Verschl�
 Bereich nicht vor dem Server. Das steht so klar in der Datenschutzerklärung, ebenso wie das, was ein
 Konto sonst noch bedeutet.
 
-Neu in 1.5.1.
+Neu in 1.5.2.
 Die Suche verzeiht jetzt einen Tippfehler — und eine vergessene Tastaturbelegung: Eine in der falschen
 getippte Anfrage wird noch einmal in der anderen gestellt, sodass „ыекфьгы“ Stramus findet. Beides gilt
 für Ihre Links, Ihre offenen Tabs und den Verlauf; den Verlauf durchsucht der Browser selbst, Buchstabe
@@ -88,6 +88,9 @@ Einstellungen haben eine eigene Suche: Sie dämpft, was nicht passt, und scrollt
 Übrige zu verbergen. Der Bereich für Schnellspeicherungen entsteht in einem Browser, der ihn schon hat,
 kein zweites Mal. Die Synchronisierung schickt ein großes Konto ebenso seitenweise hinauf, wie sie es
 herunterholt, und eine auf einem anderen Gerät gelöschte Gruppe lässt ihre Links nicht mehr an sich hängen.
+Auch die Indexschicht unter der Datenbank ist eine Version neuer: Eine Abfrage über einen
+zusammengesetzten Index konnte eine Zeile zu viel zurückgeben — so überlebte ein Duplikat einen Import
+oder eine Zusammenführung.
 
 Datenschutzerklärung: https://stramus.space/privacy.html
 Quellcode: https://github.com/olluorg/stramus

@@ -80,7 +80,7 @@ icone.
 Un PIN su una sezione la toglie dallo schermo; non è cifratura, e non la nasconde al server. La
 informativa sulla privacy lo dice chiaramente, e dice anche cos'altro comporta avere un account.
 
-Novità della 1.5.1.
+Novità della 1.5.2.
 La ricerca perdona un refuso e perdona una disposizione di tastiera dimenticata: una richiesta scritta con
 quella sbagliata viene rifatta con l'altra, così «ыекфьгы» trova Stramus. Vale per i tuoi link, per le
 schede aperte e per la cronologia; la cronologia però la cerca il browser stesso, lettera per lettera,
@@ -89,6 +89,8 @@ smorza ciò che non corrisponde e scorre fino a ciò che corrisponde, invece di 
 sezione dei salvataggi rapidi non viene più creata una seconda volta in un browser che l'aveva già. La
 sincronizzazione manda su un account grande a pagine come lo porta giù, e un gruppo eliminato sull'altra
 macchina non lascia più i suoi link appesi a sé.
+Anche lo strato di indici sotto il database sale di una versione: una query su un indice composto poteva
+restituire una riga di troppo, ed è così che un doppione sopravviveva a un'importazione o a un'unione.
 
 Informativa sulla privacy: https://stramus.space/privacy.html
 Codice sorgente: https://github.com/olluorg/stramus
