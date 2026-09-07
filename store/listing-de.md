@@ -10,87 +10,55 @@
 
 ---
 
-Deine Seite für neue Tabs, mit deinen Tabs darauf.
+Eine Neuer-Tab-Seite, auf der endlich Ihre Tabs stehen.
 
-stramus macht aus der Seite, die du zwanzigmal am Tag öffnest, den Ort, an dem die Seiten liegen, die du
-wirklich brauchst. Speichere deine offenen Tabs in einer Sammlung, gib ihr einen Namen und schließe sie,
-ohne sie zu verlieren. Alles wird auf deinem eigenen Rechner gespeichert, und das funktioniert ganz ohne
-Konto — melde dich nur an, wenn du dieselben Sammlungen auch in deinem anderen Browser haben willst.
+stramus macht aus der Seite, die Sie zwanzig Mal am Tag öffnen, den Ort, an dem Ihre Seiten liegen.
+Speichern Sie die offenen Tabs in einer Sammlung, geben Sie ihr einen Namen und schließen Sie sie, ohne
+etwas zu verlieren. Alles bleibt auf Ihrem Rechner und funktioniert ganz ohne Konto — anmelden müssen Sie
+sich nur, wenn Sie dieselben Sammlungen in einem zweiten Browser haben wollen.
 
-Speichere deine offenen Tabs.
-Die Tab-Leiste zeigt jeden Tab in jedem Fenster. Ziehe einen in eine Sammlung, oder speichere gleich ein
-ganzes Fenster. Ein gespeicherter Tab kann sofort geschlossen werden — genau darum geht es.
+Offene Tabs speichern.
+Die Tab-Leiste zeigt jeden Tab in jedem Fenster. Ziehen Sie einen in eine Sammlung oder speichern Sie ein
+ganzes Fenster auf einmal — und schließen Sie es dann, dafür ist das alles da.
 
-Speichere eine Seite, ohne stramus zu öffnen.
-Ein Tastenkürzel, ein Rechtsklick oder die Schaltfläche in der Symbolleiste speichert die Seite, auf der
-du gerade bist — oder jeden Link darauf —, aus welchem Tab auch immer. Eine Benachrichtigung sagt sofort
-"gespeichert", und beim nächsten Öffnen von stramus wird daraus eine Karte.
+Eine Seite speichern, ohne stramus zu öffnen.
+Ein Tastenkürzel, ein Rechtsklick oder die Schaltfläche in der Leiste speichert die aktuelle Seite — oder
+jeden Link darauf — aus jedem beliebigen Tab.
 
-Ordne sie, wie du denkst.
-Bereiche in der Seitenleiste enthalten Sammlungen, Sammlungen enthalten Karten, und Karten lassen sich
-unter eigenen Überschriften gruppieren. Alles per Drag-and-drop, und alles, was aus Versehen passiert,
-lässt sich rückgängig machen.
+So ordnen, wie Sie denken.
+Bereiche halten Sammlungen, Sammlungen halten Karten, und Karten gruppieren sich unter Ihren eigenen
+Überschriften. Alles lässt sich ziehen, und was aus Versehen geschah, lässt sich zurücknehmen.
 
-Karten sind nicht nur Links.
-Eine Karte kann ein Link sein, eine in Markdown geschriebene Notiz oder eine Datei — ein Bild, ein PDF,
-was auch immer du darauf ziehst — und liegt in der Sammlung neben den Links, zu denen sie gehört.
+Eine Karte ist mehr als ein Link.
+Sie kann ein Link sein, eine Notiz in Markdown oder eine Datei — ein Bild, ein PDF, was auch immer — und
+liegt neben den Links, zu denen sie gehört.
 
-Finde es mit einem Tastendruck.
-Die Suchleiste durchsucht gleichzeitig deine Karten, deine offenen Tabs und deinen Browserverlauf und
-zeigt zuerst, was du tatsächlich öffnest. Ein leeres Suchfeld zeigt schon deine meistbesuchten Seiten.
-Tippst du eher eine Suchanfrage als eine Adresse ein, geht sie an deine eigene Standardsuchmaschine.
+Mit einem Anschlag finden.
+Die Suchleiste durchsucht Ihre Karten, die offenen Tabs und den Verlauf auf einmal und verzeiht einen
+Tippfehler oder eine vergessene Tastaturbelegung. Leer zeigt sie schon die Seiten, die Sie wirklich
+öffnen; eine Suchanfrage statt einer Seite geht an Ihre Standardsuchmaschine.
 
-Frag das Modell deines Browsers.
-Hat Chrome ein Modell direkt auf dem Gerät, bietet die Suchleiste an, es zu fragen — in einem Fenster
-über deiner Sammlung, auf deinem Rechner, ohne dass irgendetwas irgendwohin gesendet wird. Lieber ein
-Web-Assistent? Wähle in den Einstellungen ChatGPT, Gemini oder Claude, und deine Frage öffnet sich
-stattdessen in einem Chat mit ihnen.
+Das Modell im Browser fragen.
+Hat Chrome eines auf dem Gerät, bietet die Suchleiste es an — in einem Fenster über der Sammlung, auf
+Ihrem Rechner, ohne dass ein Wort nach draußen geht. Lieber ein Web-Assistent? Wählen Sie in den
+Einstellungen ChatGPT, Gemini oder Claude.
 
-Behalte einen Teil für dich.
-Ein Bereich lässt sich mit einer PIN sperren, sodass das, was dahinter liegt, nicht auf dem Bildschirm
-erscheint, wenn du ihn teilst.
+Nach Ihrem Geschmack.
+Fünf Themes mit heller und dunkler Hälfte, eine Akzentfarbe und ein eigener Hintergrund. Eine PIN nimmt
+einen Bereich vom Bildschirm — das ist keine Verschlüsselung, und die Datenschutzerklärung sagt das auch
+so. Elf Sprachen, Import aus Lesezeichen, CSV, OneTab und Toby, Export zurück und die ganze Datenbank in
+einer Sicherungsdatei.
 
-Mach es zu deinem.
-Fünf Designs, jedes mit einer hellen und einer dunklen Hälfte, eine Akzentfarbe deiner Wahl und ein
-Hintergrund hinter der App — ein Verlauf oder ein eigenes Bild. Eine Sammlung lässt sich mit einem
-farbigen Zeichen oder einem Emoji markieren. Zwei Kartendichten und drei Eckenradien, falls dir so etwas
-wichtig ist.
-
-Und der Rest.
-Elf Sprachen für die Oberfläche, von Englisch bis Türkisch. Import aus deinen Lesezeichen, einer
-CSV-Datei, einem OneTab- oder einem Toby-Export; Export zurück in Lesezeichen oder CSV, oder die ganze
-Datenbank als eine einzige Sicherungsdatei. Standbilder für gespeicherte Videos, aus, bis du sie
-einschaltest. Tabs sortieren. Ein Favicon-Cache, damit deine Links ihre Symbole auch offline behalten.
-
-Privat, von Grund auf.
-Keine Analyse, keine Telemetrie, kein Tracking, keine Werbung — mit oder ohne Konto. Ohne Konto verlässt
-kein einziges deiner Daten den Rechner: deine Sammlungen haben keinen Server, zu dem sie gehen könnten.
-Mit Konto werden sie synchronisiert, damit dein anderer Browser sie auch hat — und sonst nichts:
-deine Nutzungsstatistik bleibt auf diesem Rechner, solange du sie nicht selbst einschaltest, und dein
-Browserverlauf wird nie hochgeladen. stramus liest deine Tabs und deinen Verlauf, weil genau das die
-Aufgabe eines Tab-Managers ist — und liest sie im Moment der Nutzung, ohne eine Kopie zu behalten.
-
-Seiten-Icons kommen aus dem eigenen Icon-Speicher deines Browsers, sodass eine besuchte Seite gezeichnet
-wird, ohne jemanden zu fragen. Für eine Seite, die du noch nicht besucht hast, holt unser Server das Icon
-für dich — anonym, ohne Konto und ohne Protokoll —, statt deine gespeicherten Adressen einem öffentlichen
-Icon-Dienst einzeln mitzuteilen.
-
-Eine PIN auf einem Bereich hält ihn vom Bildschirm fern; sie ist keine Verschlüsselung und verbirgt den
-Bereich nicht vor dem Server. Das steht so klar in der Datenschutzerklärung, ebenso wie das, was ein
-Konto sonst noch bedeutet.
+Datenschutz ist hier Bauweise, kein Versprechen.
+Keine Analyse, keine Telemetrie, kein Tracking, keine Werbung — mit Konto und ohne. Ohne Konto haben Ihre
+Daten keinen Weg nach draußen; mit Konto werden Sammlungen synchronisiert, damit sie im zweiten Browser
+sind, und Ihr Verlauf verlässt diesen Rechner nie. Website-Symbole kommen aus dem Speicher des Browsers,
+und für eine Seite, auf der Sie noch nicht waren, holt unser Server das Symbol anonym — statt Ihre Hosts
+einem fremden Dienst zu nennen.
 
 Neu in 1.5.2.
-Die Suche verzeiht jetzt einen Tippfehler — und eine vergessene Tastaturbelegung: Eine in der falschen
-getippte Anfrage wird noch einmal in der anderen gestellt, sodass „ыекфьгы“ Stramus findet. Beides gilt
-für Ihre Links, Ihre offenen Tabs und den Verlauf; den Verlauf durchsucht der Browser selbst, Buchstabe
-für Buchstabe, deshalb greift ein Fehlschlag dort auf die zuletzt gesehenen Seiten zurück. Die
-Einstellungen haben eine eigene Suche: Sie dämpft, was nicht passt, und scrollt zum Treffer, statt alles
-Übrige zu verbergen. Der Bereich für Schnellspeicherungen entsteht in einem Browser, der ihn schon hat,
-kein zweites Mal. Die Synchronisierung schickt ein großes Konto ebenso seitenweise hinauf, wie sie es
-herunterholt, und eine auf einem anderen Gerät gelöschte Gruppe lässt ihre Links nicht mehr an sich hängen.
-Auch die Indexschicht unter der Datenbank ist eine Version neuer: Eine Abfrage über einen
-zusammengesetzten Index konnte eine Zeile zu viel zurückgeben — so überlebte ein Duplikat einen Import
-oder eine Zusammenführung.
+Die Suche verzeiht einen Tippfehler und eine vergessene Tastaturbelegung — „ыекфьгы“ findet Stramus. Die
+Einstellungen haben eine eigene Suche. Import und Zusammenführen lassen keine Duplikate mehr zurück.
 
 Datenschutzerklärung: https://stramus.space/privacy.html
 Quellcode: https://github.com/olluorg/stramus

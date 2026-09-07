@@ -10,83 +10,53 @@
 
 ---
 
-Sekmelerinizin üzerinde olduğu yeni sekme sayfanız.
+Sonunda sekmelerinizin durduğu bir yeni sekme sayfası.
 
-stramus, günde yirmi kez açtığınız o sayfayı, gerçekten kullandığınız sayfaların durduğu yere dönüştürür.
-Açık sekmelerinizi bir koleksiyona kaydedin, ona bir isim verin ve onları kaybetmeden kapatın. Her şey
-kendi bilgisayarınızda saklanır ve hiçbir hesap olmadan da bu şekilde çalışır — yalnızca aynı
-koleksiyonları başka bir tarayıcınızda da görmek istiyorsanız oturum açın.
+stramus, günde yirmi kez açtığınız sayfayı, sayfalarınızın durduğu yere çevirir. Açık sekmeleri bir
+koleksiyona kaydedin, adını koyun ve hiçbir şey kaybetmeden kapatın. Her şey bilgisayarınızda kalır ve
+hesapsız da çalışır: giriş yapmanız, yalnızca aynı koleksiyonları ikinci bir tarayıcıda isterseniz
+gerekir.
 
 Açık sekmelerinizi kaydedin.
-Sekme paneli, her penceredeki her sekmeyi listeler. Birini bir koleksiyona sürükleyin, ya da tüm bir
-pencereyi tek seferde kaydedin. Kaydedilen bir sekme hemen kapatılabilir — amaç zaten budur.
+Sekme paneli her penceredeki her sekmeyi gösterir. Birini bir koleksiyona sürükleyin ya da bütün
+pencereyi tek seferde kaydedin — sonra kapatın, zaten bunun içindi.
 
-stramus'u açmadan bir sayfayı kaydedin.
-Bir klavye kısayolu, bir sağ tık ya da araç çubuğundaki düğme, hangi sekmede olursanız olun bulunduğunuz
-sayfayı — ya da üzerindeki herhangi bir bağlantıyı — kaydeder. Bir bildirim hemen "kaydedildi" der;
-stramus'u bir sonraki açışınızda ise bu bir karta dönüşür.
+stramus'u açmadan sayfa kaydedin.
+Bir kısayol, sağ tık ya da araç çubuğundaki düğme, herhangi bir sekmeden geçerli sayfayı — ya da
+üzerindeki herhangi bir bağlantıyı — kaydeder.
 
-Kendi düşündüğünüz gibi düzenleyin.
-Kenar çubuğundaki bölümler koleksiyonları, koleksiyonlar kartları barındırır; kartlar da kendi
-belirlediğiniz başlıklar altında gruplanabilir. Her şey sürükle-bırak ile yapılır, ve yanlışlıkla geri
-alınan her şey yeniden geri getirilebilir.
+Düşündüğünüz gibi dizin.
+Bölümler koleksiyonları, koleksiyonlar kartları tutar; kartlar da kendi başlıklarınızın altında toplanır.
+Her şey sürüklenir, yanlışlıkla yapılan geri alınır.
 
-Kartlar yalnızca bağlantı değildir.
-Bir kart bir bağlantı, Markdown ile yazılmış bir not, ya da bir dosya olabilir — bir görsel, bir PDF,
-üzerine bıraktığınız her ne ise — ve ait olduğu bağlantılarla birlikte koleksiyonda saklanır.
+Kart yalnızca bir bağlantı değildir.
+Bir bağlantı, Markdown ile bir not ya da bir dosya olabilir — bir görsel, bir PDF, ne olursa — ve ait
+olduğu bağlantıların yanında durur.
 
-Tek tuşla bulun.
-Arama kutusu; kartlarınızı, açık sekmelerinizi ve tarama geçmişinizi aynı anda arar ve sonuçları gerçekten
-açtığınız şeylere göre sıralar. Boş bir arama kutusu bile en çok ziyaret ettiğiniz siteleri gösterir.
-Yazdığınız şey bir adres değil de bir arama sorgusuysa, kendi varsayılan arama motorunuza gönderilir.
+Tek tuşta bulun.
+Arama çubuğu kartlarınızda, açık sekmelerde ve geçmişte aynı anda arar; bir yazım yanlışını ya da
+unutulmuş bir klavye düzenini affeder. Boşken zaten gerçekten açtığınız siteleri gösterir; sayfa değil de
+bir sorgu yazdıysanız, varsayılan arama motorunuza gider.
 
-Tarayıcının kendi modeline sorun.
-Chrome'da cihaz üzerinde çalışan bir modelin bulunduğu yerlerde, arama kutusu ona sormayı önerir —
-koleksiyonunuzun üzerinde açılan bir pencerede, kendi bilgisayarınızda, hiçbir şey hiçbir yere
-gönderilmeden. Web tabanlı bir asistanı mı tercih edersiniz? Ayarlardan ChatGPT, Gemini ya da Claude'u
-seçin; sorunuz bunun yerine onlarla bir sohbette açılsın.
-
-Bir kısmını kendinize saklayın.
-Bir bölüm PIN ile kilitlenebilir, böylece onu paylaştığınızda arkasındaki içerik ekranda görünmez.
+Tarayıcıdaki modele sorun.
+Chrome'un cihazda bir modeli varsa, arama çubuğu bunu önerir: koleksiyonun üzerindeki bir pencerede,
+bilgisayarınızda, tek bir kelime dışarı çıkmadan. Web asistanı mı daha alışıldık? Ayarlardan ChatGPT,
+Gemini ya da Claude'u seçin.
 
 Kendinize göre.
-Beş tema, her birinin açık ve koyu bir yarısı, kendi seçtiğiniz bir vurgu rengi ve uygulamanın arkasında
-bir arka plan — bir geçiş ya da kendi resminiz. Bir koleksiyona renkli bir simge veya bir emoji ile
-işaret koyabilirsiniz. İki kart yoğunluğu ve üç köşe yuvarlaklığı, bunlar sizin için önemliyse.
+Açık ve koyu yarısı olan beş tema, bir vurgu rengi ve kendi arka planınız. PIN bir bölümü ekrandan alır —
+bu şifreleme değildir, gizlilik politikası da bunu açıkça söyler. On bir dil; yer imlerinden, CSV'den,
+OneTab ya da Toby'den içe aktarma, geri dışa aktarma ve tüm veritabanı tek bir yedek dosyasında.
 
-Ve gerisi.
-İngilizceden Türkçeye kadar on bir arayüz dili. Yer imlerinizden, bir CSV dosyasından, bir OneTab veya
-bir Toby dışa aktarımından içe aktarma; yer imlerine ve CSV'ye geri dışa aktarma ya da tüm veritabanını
-tek bir yedek dosyası olarak alma. Kaydedilen videoların donuk kareleri — siz açana kadar kapalı. Sekme
-sıralama. Bağlantılarınızın simgelerini çevrimdışı da korumasını sağlayan bir favicon önbelleği.
-
-Yapısı gereği gizli.
-Hesap olsun ya da olmasın; analiz yok, telemetri yok, izleme yok, reklam yok. Hesap yokken hiçbir
-verinizi bilgisayarınız terk etmez — çünkü koleksiyonlarınızın gidebileceği bir sunucu yoktur. Bir
-hesapla, diğer tarayıcınızda da bulunabilsinler diye yalnızca koleksiyonlarınız eşitlenir — başka hiçbir
-şey eşitlenmez: siz kendiniz açmadıkça tarama istatistikleriniz bu bilgisayarda kalır, ve tarama
-geçmişiniz asla yüklenmez. stramus sekmelerinizi ve geçmişinizi okur, çünkü bir sekme yöneticisinin işi
-tam olarak budur — ve onları yalnızca o an okur, hiçbir kopyasını tutmaz.
-
-Site simgeleri tarayıcınızın kendi simge deposundan gelir, bu yüzden ziyaret ettiğiniz bir site kimseye
-sorulmadan çizilir. Henüz ziyaret etmediğiniz bir site için, kaydettiğiniz adresleri tek tek herkese açık
-bir simge servisine teslim etmek yerine, simge sizin adınıza sunucumuz tarafından getirilir — anonim
-olarak, hiçbir hesapla ilişkilendirilmeden ve hiçbir şey kaydedilmeden.
-
-Bir bölümdeki PIN, onu ekrandan kaldırır; bu bir şifreleme değildir ve bölümü sunucudan gizlemez. Gizlilik
-politikası bunu açıkça belirtir, ve bir hesabın başka ne anlama geldiğini de anlatır.
+Burada gizlilik bir söz değil, yapının kendisi.
+Analitik yok, telemetri yok, izleme yok, reklam yok — hesapla da hesapsız da. Hesapsızken verilerinizin
+gidecek yeri yoktur; hesapla koleksiyonlar ikinci tarayıcıda olsun diye eşitlenir, tarama geçmişiniz ise
+bu makineden hiç çıkmaz. Site simgeleri tarayıcının kendi deposundan gelir; gitmediğiniz bir sitenin
+simgesini ise, ana makine listenizi dışarıdaki bir servise vermek yerine, sunucumuz anonim olarak getirir.
 
 1.5.2'deki yenilikler.
-Arama artık bir yazım yanlışını affediyor — bir de unutulmuş klavye düzenini: yanlış düzende yazılmış bir
-sorgu bir de öbür düzende soruluyor, böylece «ыекфьгы» Stramus'u buluyor. İkisi de bağlantılarınızda, açık
-sekmelerinizde ve geçmişte geçerli; geçmişi tarayıcının kendisi harfi harfine aradığı için oradaki bir
-boşluk yakın zamanda gördüğünüz sayfalara düşüyor. Ayarların kendi araması oldu: uymayanı soldurup uyana
-kaydırıyor, gerisini gizlemek yerine. Hızlı kayıtlar bölümü, zaten böyle bir bölümü olan bir tarayıcıda
-ikinci kez oluşturulmuyor. Eşitleme büyük bir hesabı indirdiği gibi sayfa sayfa yolluyor da; başka bir
-makinede silinen bir grup ise bağlantılarını artık kendine asılı bırakmıyor.
-Veritabanının altındaki dizin katmanı da bir sürüm yenilendi: bileşik bir dizin üzerindeki sorgu bir
-satır fazla döndürebiliyordu; yinelenen bir kayıt içe aktarmadan ya da birleştirmeden böyle sağ
-çıkıyordu.
+Arama bir yazım yanlışını ve unutulmuş bir klavye düzenini affediyor: «ыекфьгы» Stramus'u buluyor.
+Ayarların kendi araması var. İçe aktarma ve birleştirme artık yinelenen kayıt bırakmıyor.
 
 Gizlilik politikası: https://stramus.space/privacy.html
 Kaynak kodu: https://github.com/olluorg/stramus

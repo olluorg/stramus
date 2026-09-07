@@ -10,91 +10,55 @@
 
 ---
 
-Votre page de nouvel onglet, avec vos onglets dessus.
+Une page de nouvel onglet qui a enfin vos onglets.
 
-stramus transforme la page que vous ouvrez vingt fois par jour en l'endroit où se trouvent les pages que
-vous utilisez vraiment. Enregistrez vos onglets ouverts dans une collection, donnez-lui un nom, et
-fermez-les sans rien perdre. Tout est stocké sur votre propre machine, et cela fonctionne ainsi sans
-aucun compte — connectez-vous seulement si vous voulez retrouver les mêmes collections sur votre autre
-navigateur.
+stramus fait de la page que vous ouvrez vingt fois par jour l'endroit où vivent vos pages. Enregistrez
+les onglets ouverts dans une collection, nommez-la et fermez-les sans rien perdre. Tout reste sur votre
+ordinateur et fonctionne sans aucun compte : on se connecte seulement pour retrouver les mêmes
+collections dans un second navigateur.
 
 Enregistrez vos onglets ouverts.
-Le panneau des onglets liste chaque onglet de chaque fenêtre. Glissez-en un dans une collection, ou
-enregistrez toute une fenêtre d'un coup. Un onglet enregistré peut être fermé sur-le-champ — c'est bien
-le but.
+Le panneau des onglets montre tous les onglets de toutes les fenêtres. Glissez-en un dans une collection,
+ou enregistrez une fenêtre entière d'un coup — puis fermez-la, c'était bien le but.
 
 Enregistrez une page sans ouvrir stramus.
-Un raccourci clavier, un clic droit ou le bouton de la barre d'outils enregistre la page où vous êtes —
-ou n'importe quel lien dessus — depuis l'onglet où vous vous trouvez. Une notification dit
-« enregistré » sur-le-champ, et cela devient une carte à la prochaine ouverture de stramus.
+Un raccourci, un clic droit ou le bouton de la barre enregistre la page en cours — ou n'importe quel lien
+dessus — depuis n'importe quel onglet.
 
-Organisez-les à votre façon.
-Les sections dans la barre latérale contiennent des collections, les collections contiennent des cartes,
-et les cartes peuvent être regroupées sous vos propres titres. Tout se fait par glisser-déposer, et tout
-ce qui est fait par erreur peut être annulé.
+Rangez comme vous pensez.
+Les sections contiennent des collections, les collections des cartes, et les cartes se regroupent sous
+vos propres titres. Tout se déplace à la souris, et ce qui a été fait par mégarde s'annule.
 
-Les cartes ne sont pas que des liens.
-Une carte peut être un lien, une note écrite en Markdown, ou un fichier — une image, un PDF, tout ce que
-vous y déposez — conservé dans la collection aux côtés des liens auxquels il se rattache.
+Une carte, ce n'est pas qu'un lien.
+Ce peut être un lien, une note en Markdown ou un fichier — une image, un PDF, peu importe — posé à côté
+des liens auxquels il se rapporte.
 
-Retrouvez-le en une touche.
-La barre de recherche fouille à la fois vos cartes, vos onglets ouverts et votre historique de navigation,
-et classe les résultats selon ce que vous ouvrez vraiment. Une barre vide affiche déjà vos sites les plus
-visités. Si ce que vous avez tapé est une recherche plutôt qu'une adresse, elle part vers votre propre
-moteur de recherche par défaut.
+Trouvez d'une frappe.
+La barre de recherche cherche à la fois dans vos cartes, vos onglets ouverts et votre historique, et
+pardonne une faute de frappe ou une disposition de clavier oubliée. Vide, elle montre déjà les sites que
+vous ouvrez vraiment ; une requête plutôt qu'une page part vers votre moteur habituel.
 
-Interrogez le modèle de votre navigateur.
-Là où Chrome dispose d'un modèle embarqué sur l'appareil, la barre de recherche propose de l'interroger —
-dans une fenêtre au-dessus de votre collection, sur votre machine, sans rien envoyer nulle part. Vous
-préférez un assistant en ligne ? Choisissez ChatGPT, Gemini ou Claude dans les réglages, et votre question
-s'ouvre à la place dans une discussion avec eux.
-
-Gardez-en une partie pour vous.
-Une section peut être verrouillée par un code PIN, pour que ce qu'elle contient ne s'affiche pas à
-l'écran quand vous la partagez.
+Interrogez le modèle intégré au navigateur.
+Si Chrome en a un sur l'appareil, la barre vous le propose : dans une fenêtre au-dessus de la collection,
+sur votre ordinateur, sans qu'un mot ne parte ailleurs. Vous préférez un assistant web ? Choisissez
+ChatGPT, Gemini ou Claude dans les réglages.
 
 À votre goût.
-Cinq thèmes, chacun avec sa moitié claire et sa moitié sombre, une couleur d'accent à vous, et un fond
-derrière l'application — un dégradé, ou votre propre image. Une collection peut porter une marque : un
-symbole en couleur, ou un émoji. Deux densités de cartes et trois rayons d'angles, si cela compte pour
-vous.
+Cinq thèmes, une moitié claire et une moitié sombre, une couleur d'accent et un fond à vous. Un code PIN
+retire une section de l'écran — ce n'est pas du chiffrement, et la politique de confidentialité le dit
+franchement. Onze langues, import depuis les favoris, CSV, OneTab ou Toby, export en retour, et toute la
+base dans un seul fichier de sauvegarde.
 
-Et le reste.
-Onze langues d'interface, de l'anglais au turc. Import depuis vos favoris, un fichier CSV, un export
-OneTab ou un export Toby ; export vers les favoris ou le CSV, ou toute la base en un seul fichier de
-sauvegarde. Les images des vidéos enregistrées, désactivées tant que vous ne les activez pas. Tri des
-onglets. Un cache de favicons, pour que vos liens gardent leurs icônes même hors ligne.
-
-Privé par construction.
-Aucune analyse, aucune télémétrie, aucun suivi, aucune publicité — avec ou sans compte. Sans compte,
-aucune de vos données ne quitte votre machine : vos collections n'ont aucun serveur où aller. Avec un
-compte, elles sont synchronisées pour que votre autre navigateur puisse les avoir — et rien d'autre ne
-l'est : vos statistiques de navigation restent sur cette machine tant que vous ne les activez pas
-vous-même, et votre historique de navigation n'est jamais envoyé. stramus lit vos onglets et votre
-historique parce que c'est le travail même d'un gestionnaire d'onglets — et il les lit sur l'instant,
-sans en garder de copie.
-
-Les icônes des sites viennent du propre magasin d'icônes de votre navigateur, si bien qu'un site que vous
-avez visité s'affiche sans rien demander à personne. Pour un site que vous n'avez pas visité, l'icône est
-récupérée par notre serveur en votre nom — anonymement, sans compte associé et sans rien journaliser —
-plutôt qu'en confiant vos adresses enregistrées, une à une, à un service d'icônes public.
-
-Un code PIN sur une section la retire de l'écran ; ce n'est pas du chiffrement, et cela ne la cache pas
-au serveur. La politique de confidentialité le dit clairement, ainsi que ce qu'implique par ailleurs un
-compte.
+Ici la confidentialité tient à la construction, pas à une promesse.
+Pas d'analytique, pas de télémétrie, pas de pistage, pas de publicité — avec compte ou sans. Sans compte,
+vos données n'ont nulle part où aller ; avec un compte, les collections se synchronisent pour être dans
+le second navigateur, et votre historique ne quitte jamais cette machine. Les icônes viennent du magasin
+du navigateur, et pour un site où vous n'êtes pas allé, notre serveur va la chercher anonymement plutôt
+que de livrer vos hôtes à un service tiers.
 
 Nouveautés de la 1.5.2.
-La recherche pardonne désormais une faute de frappe, et pardonne une disposition de clavier oubliée : une
-requête tapée dans la mauvaise est reposée dans l'autre, si bien que « ыекфьгы » trouve Stramus. Les deux
-valent pour vos liens, vos onglets ouverts et l'historique ; l'historique, c'est le navigateur lui-même
-qui le cherche, lettre à lettre, donc un échec s'y rabat sur les pages vues récemment. Les réglages ont
-leur propre recherche : elle atténue ce qui ne correspond pas et défile jusqu'à ce qui correspond, au lieu
-de masquer le reste. La section des enregistrements rapides n'est plus créée une deuxième fois dans un
-navigateur qui en avait déjà une. La synchronisation envoie un grand compte par pages comme elle le
-rapatrie, et un groupe supprimé sur une autre machine ne laisse plus ses liens accrochés à lui.
-La couche d'index sous la base est elle aussi d'une version plus récente : une requête sur un index
-composé pouvait renvoyer une ligne de trop, et c'est ainsi qu'un doublon survivait à un import ou à une
-fusion.
+La recherche pardonne une faute de frappe et une disposition de clavier oubliée : « ыекфьгы » trouve
+Stramus. Les réglages ont leur propre recherche. L'import et la fusion ne laissent plus de doublons.
 
 Politique de confidentialité : https://stramus.space/privacy.html
 Code source : https://github.com/olluorg/stramus

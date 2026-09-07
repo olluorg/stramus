@@ -10,87 +10,54 @@
 
 ---
 
-La tua pagina di nuova scheda, con sopra le tue schede.
+Una pagina di nuova scheda che finalmente ha le tue schede.
 
-stramus trasforma la pagina che apri venti volte al giorno nel posto dove restano le pagine che usi
-davvero. Salva le schede che hai aperte in una raccolta, dalle un nome, e chiudile senza perderle. Tutto
-viene salvato sul tuo stesso computer, e funziona così senza alcun account — accedi solo se vuoi ritrovare
-le stesse raccolte anche sull'altro tuo browser.
+stramus trasforma la pagina che apri venti volte al giorno nel posto dove stanno le tue pagine. Salva le
+schede aperte in una raccolta, dalle un nome e chiudile senza perdere niente. Tutto resta sul tuo
+computer e funziona senza alcun account: si entra solo per avere le stesse raccolte in un secondo
+browser.
 
 Salva le schede aperte.
-Il pannello delle schede elenca ogni scheda di ogni finestra. Trascinane una in una raccolta, oppure
-salva un'intera finestra in un colpo solo. Una scheda salvata può essere chiusa lì per lì — è proprio
-questo il punto.
+Il pannello delle schede mostra ogni scheda di ogni finestra. Trascinane una in una raccolta, o salva una
+finestra intera in un colpo solo — e poi chiudila, era tutto per questo.
 
 Salva una pagina senza aprire stramus.
-Una scorciatoia da tastiera, un clic destro o il pulsante nella barra degli strumenti salvano la pagina
-in cui ti trovi — o qualsiasi link al suo interno — da qualunque scheda. Una notifica dice "salvato" lì
-per lì, e alla prossima apertura di stramus diventa una card.
+Una scorciatoia, il tasto destro o il pulsante nella barra salvano la pagina corrente — o qualsiasi link
+su di essa — da qualunque scheda.
 
-Organizzale come pensi tu.
-Le sezioni nella barra laterale contengono raccolte; le raccolte contengono schede (card); le card
-possono essere raggruppate sotto titoli scelti da te. Tutto funziona trascinando, e ciò che viene
-annullato per sbaglio può essere ripristinato.
+Ordina come pensi.
+Le sezioni tengono le raccolte, le raccolte tengono le carte, e le carte si raggruppano sotto titoli
+tuoi. Tutto si trascina, e ciò che è stato fatto per sbaglio si annulla.
 
-Le card non sono solo link.
-Una card può essere un link, una nota scritta in Markdown, oppure un file — un'immagine, un PDF,
-qualunque cosa vi trascini sopra — conservato nella raccolta insieme ai link a cui appartiene.
+Una carta è più di un link.
+Può essere un link, una nota in Markdown o un file — un'immagine, un PDF, qualunque cosa — che sta
+accanto ai link a cui appartiene.
 
-Trovala con un solo tasto.
-La casella di ricerca cerca insieme tra le tue card, le schede aperte e la cronologia di navigazione, e
-ordina i risultati in base a ciò che apri davvero. Una ricerca vuota mostra già i tuoi siti più visitati.
-Se quello che hai digitato è una ricerca e non un indirizzo, va al tuo motore di ricerca predefinito.
+Trovalo con un tasto.
+La barra di ricerca guarda insieme nelle tue carte, nelle schede aperte e nella cronologia, e perdona un
+refuso o una disposizione di tastiera dimenticata. Vuota mostra già i siti che apri davvero; una ricerca
+invece di una pagina va al tuo motore predefinito.
 
-Chiedi al modello del browser stesso.
-Dove Chrome dispone di un modello sul dispositivo, la casella di ricerca propone di interrogarlo — in
-una finestra sopra la tua raccolta, sul tuo computer, senza inviare nulla da nessuna parte. Preferisci un
-assistente web? Scegli ChatGPT, Gemini o Claude nelle impostazioni, e la tua domanda si aprirà invece in
-una chat con loro.
+Chiedi al modello dentro il browser.
+Se Chrome ne ha uno sul dispositivo, la barra te lo propone: in una finestra sopra la raccolta, sul tuo
+computer, senza mandare una parola da nessuna parte. Preferisci un assistente web? Scegli ChatGPT, Gemini
+o Claude nelle impostazioni.
 
-Tienine una parte per te.
-Una sezione può essere bloccata con un PIN, così ciò che c'è dietro non compare a schermo quando la
-condividi.
+Su misura.
+Cinque temi con metà chiara e metà scura, un colore d'accento e uno sfondo tuo. Un PIN toglie una sezione
+dallo schermo — non è cifratura, e l'informativa lo dice chiaramente. Undici lingue, importazione da
+segnalibri, CSV, OneTab o Toby, esportazione indietro e l'intero database in un file di backup.
 
-Come piace a te.
-Cinque temi, ognuno con la sua metà chiara e la sua metà scura, un colore d'accento tuo e uno sfondo
-dietro l'app — una sfumatura o una tua immagine. Una raccolta può portare un segno: un simbolo colorato
-o un'emoji. Due densità delle card e tre raggi degli angoli, se la cosa ti interessa.
-
-E il resto.
-Undici lingue dell'interfaccia, dall'inglese al turco. Importazione dai preferiti, da un file CSV, da
-un'esportazione OneTab o da una di Toby; esportazione verso preferiti o CSV, oppure l'intero database in
-un unico file di backup. I fotogrammi dei video salvati, spenti finché non li accendi. Ordinamento delle
-schede. Una cache dei favicon, così i tuoi link mantengono le loro icone anche offline.
-
-Privata per costruzione.
-Nessuna analisi, nessuna telemetria, nessun tracciamento, nessuna pubblicità — con o senza account. Senza
-un account, nessuno dei tuoi dati lascia il tuo computer: le tue raccolte non hanno alcun server verso
-cui andare. Con un account vengono sincronizzate, così l'altro tuo browser può averle — e nient'altro lo
-è: le tue statistiche di navigazione restano su questo computer a meno che tu stesso non le attivi, e la
-tua cronologia di navigazione non viene mai caricata. stramus legge le tue schede e la tua cronologia
-perché è proprio questo il lavoro di un gestore di schede, e le legge nel momento stesso, senza
-conservarne una copia.
-
-Le icone dei siti provengono dall'archivio di icone del tuo stesso browser, così un sito che hai già
-visitato viene disegnato senza chiedere nulla a nessuno. Per un sito che non hai visitato, l'icona viene
-recuperata dal nostro server per tuo conto — in modo anonimo, senza alcun account collegato e senza
-registrare nulla — anziché consegnare i tuoi host salvati, uno alla volta, a un servizio pubblico di
-icone.
-
-Un PIN su una sezione la toglie dallo schermo; non è cifratura, e non la nasconde al server. La
-informativa sulla privacy lo dice chiaramente, e dice anche cos'altro comporta avere un account.
+Qui la riservatezza è come è fatto, non una promessa.
+Niente analitica, niente telemetria, niente tracciamento, niente pubblicità — con account e senza. Senza
+account i tuoi dati non hanno dove andare; con l'account si sincronizzano le raccolte, così sono anche
+nel secondo browser, e la cronologia non lascia mai questa macchina. Le icone vengono dall'archivio del
+browser, e per un sito dove non sei stato le prende il nostro server in modo anonimo, invece di
+consegnare i tuoi host a un servizio esterno.
 
 Novità della 1.5.2.
-La ricerca perdona un refuso e perdona una disposizione di tastiera dimenticata: una richiesta scritta con
-quella sbagliata viene rifatta con l'altra, così «ыекфьгы» trova Stramus. Vale per i tuoi link, per le
-schede aperte e per la cronologia; la cronologia però la cerca il browser stesso, lettera per lettera,
-quindi un buco viene ripreso dalle pagine viste di recente. Le impostazioni hanno una ricerca propria:
-smorza ciò che non corrisponde e scorre fino a ciò che corrisponde, invece di nascondere il resto. La
-sezione dei salvataggi rapidi non viene più creata una seconda volta in un browser che l'aveva già. La
-sincronizzazione manda su un account grande a pagine come lo porta giù, e un gruppo eliminato sull'altra
-macchina non lascia più i suoi link appesi a sé.
-Anche lo strato di indici sotto il database sale di una versione: una query su un indice composto poteva
-restituire una riga di troppo, ed è così che un doppione sopravviveva a un'importazione o a un'unione.
+La ricerca perdona un refuso e una disposizione di tastiera dimenticata: «ыекфьгы» trova Stramus. Le
+impostazioni hanno una ricerca propria. Importazione e unione non lasciano più doppioni.
 
 Informativa sulla privacy: https://stramus.space/privacy.html
 Codice sorgente: https://github.com/olluorg/stramus

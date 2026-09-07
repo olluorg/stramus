@@ -10,80 +10,52 @@
 
 ---
 
-Your new tab page, with your tabs on it.
+A new-tab page that finally has your tabs on it.
 
-stramus turns the page you open twenty times a day into the place where the pages you actually use are
-kept. Save the tabs you have open into a collection, give it a name, and close them without losing
-them. Everything is stored on your own machine, and it works that way with no account at all — sign in
-only if you want the same collections on your other browser.
+stramus turns the page you open twenty times a day into the place your pages live. Save your open tabs
+into a collection, name it, and close them without losing anything. Everything stays on your computer and
+works with no account at all — you sign in only to have the same collections in a second browser.
 
 Save your open tabs.
-The tab pane lists every tab in every window. Drag one into a collection, or save a whole window at
-once. A tab that is saved can be closed on the spot — that is the point.
+The tabs panel shows every tab in every window. Drag one into a collection, or save a whole window at
+once, and then close it — which is what this was all for.
 
 Save a page without opening stramus.
-A keyboard shortcut, a right-click, or the toolbar button saves the page you are on — or any link on it
-— from whatever tab you are in. It says "saved" there and then, and becomes a card the next time you
-open stramus.
+A shortcut, a right-click or the toolbar button saves the current page, or any link on it, from any tab.
 
-Organise them the way you think.
-Sections in the sidebar hold collections; collections hold cards; cards can be grouped under headings
-of your own. Everything is drag-and-drop, and anything undone by accident can be undone.
+Lay it out the way you think.
+Sections hold collections, collections hold cards, and cards group under headings of your own. Everything
+drags, and anything done by accident undoes.
 
-Cards are not only links.
-A card can be a link, a note written in Markdown, or a file — an image, a PDF, whatever you drop on it
-— kept in the collection along with the links it belongs with.
+A card is more than a link.
+It can be a link, a note in Markdown, or a file — an image, a PDF, whatever it is — kept beside the links
+it belongs with.
 
 Find it in one keystroke.
-The search box searches your cards, your open tabs and your browsing history at once, and ranks what it
-finds by what you actually open. An empty box already shows your top sites. If what you typed is a
-search rather than a page, it goes to your own default search engine.
+The search box looks through your cards, your open tabs and your history at once, and forgives a typo or
+a forgotten keyboard layout. Empty, it already shows the sites you actually open; a search term rather
+than a page goes to your default search engine.
 
-Ask the browser's own model.
-Where Chrome has an on-device model, the search box will ask it — in a window over your collection, on
-your machine, with nothing sent anywhere. Prefer a web assistant? Choose ChatGPT, Gemini or Claude in
-the settings, and your question opens in a chat with them instead.
-
-Keep some of it to yourself.
-A section can be locked with a PIN, so that what is behind it is not on screen when you share it.
+Ask the model built into your browser.
+If Chrome has one on the device, the search box offers it — in a panel over your collection, on your
+computer, with nothing sent anywhere. Prefer a web assistant? Choose ChatGPT, Gemini or Claude in
+settings.
 
 Make it yours.
-Five themes, each with a light and a dark half, an accent colour of your own, and a background behind
-the app — a gradient, or a picture you pick. Mark a collection with a glyph in a colour, or an emoji.
-Two card densities and three corner radii, if you care about that sort of thing.
+Five themes with a light and a dark half, an accent colour, and a background of your own. A PIN keeps a
+section off the screen — that is not encryption, and the privacy policy says so plainly. Eleven interface
+languages, import from bookmarks, CSV, OneTab or Toby, export back, and the whole database in one backup
+file.
 
-And the rest of it.
-Eleven interface languages, from English to Turkish. Import from your bookmarks, a CSV file, a OneTab
-export or a Toby one; export back to bookmarks or CSV, or take the whole database as a single backup
-file. Still frames for saved videos, off until you switch them on. Tab sorting. A favicon cache, so your
-links keep their icons offline.
-
-Private by construction.
-No analytics, no telemetry, no tracking, no advertising — with or without an account. Without one, none
-of your data leaves your machine: your collections have no server to go to. With an account they are
-synced so your other browser can have them, and nothing else is: your browsing statistics stay on this
-machine unless you switch that on yourself, and your browser history is never uploaded. It reads your
-tabs and your history because that is what a tab manager does, and it reads them in the moment, without
-keeping a copy.
-
-Site icons come from your browser's own icon store, so a site you have visited is drawn without asking
-anyone. For a site you have not visited, the icon is fetched by our server on your behalf — anonymously,
-with no account attached and nothing logged — rather than by handing your saved hosts to a public icon
-service one request at a time.
-
-A PIN on a section keeps it off your screen; it is not encryption, and it does not hide the section
-from the server. The privacy policy says so plainly, and says what else an account means.
+Privacy here is how it is built, not a promise.
+No analytics, no telemetry, no tracking, no ads — with an account or without. With no account your data
+has nowhere to go; with one, collections sync so that they are in your second browser, and your browsing
+history never leaves this machine. Site icons come from your browser's own store, and for a site you have
+not visited our server fetches the icon anonymously rather than handing your hosts to a public service.
 
 New in 1.5.2.
-Search forgives a typo now, and forgives a forgotten keyboard layout: a query typed in the wrong one is
-asked again as the other, so "ыекфьгы" finds Stramus. Both work over your links, your open tabs and your
-history — and because history is matched by the browser letter for letter, a miss there now falls back to
-the pages you have seen recently. Settings have a search of their own: it dims what does not match and
-scrolls to what does, rather than hiding the rest. The quick-saves section is no longer made a second time
-in a browser that already had one. Synchronising sends a large account up in pages as well as bringing it
-down, and a group deleted on another machine no longer leaves its links hanging off it.
-The store's own index layer is a version newer, too: a query over a compound index could hand back one
-row too many, which is how a duplicate survived an import or a merge.
+Search forgives a typo and a forgotten keyboard layout — "ыекфьгы" finds Stramus. Settings have a search
+of their own. Import and merging no longer leave duplicates behind.
 
 Privacy policy: https://stramus.space/privacy.html
 Source code: https://github.com/olluorg/stramus
