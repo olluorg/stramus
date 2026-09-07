@@ -12,49 +12,37 @@
 
 Una página de nueva pestaña que por fin tiene tus pestañas.
 
-stramus convierte la página que abres veinte veces al día en el sitio donde están tus páginas. Guarda las
-pestañas abiertas en una colección, ponle nombre y ciérralas sin perder nada. Todo se queda en tu
-ordenador y funciona sin cuenta ninguna: solo entras si quieres las mismas colecciones en un segundo
-navegador.
+Si tienes cuarenta pestañas abiertas y no eres capaz de cerrar ninguna, para eso está stramus. Guarda una
+ventana entera en una colección, ponle nombre y cierra las pestañas: los títulos, los iconos y el orden
+se quedan, y mañana sigue todo ahí.
 
-Guarda tus pestañas abiertas.
-El panel de pestañas muestra todas las pestañas de todas las ventanas. Arrastra una a una colección o
-guarda la ventana entera de golpe, y ciérrala: para eso era todo esto.
+Lo demás son cosas pequeñas, de todos los días: guardar una página sin abrir stramus; encontrar lo
+guardado, una pestaña abierta y una página del historial en una sola línea; ordenarlo arrastrando;
+tener una nota junto a los enlaces de los que salió.
 
-Guarda una página sin abrir stramus.
-Un atajo, el clic derecho o el botón de la barra guardan la página actual —o cualquier enlace de ella—
-desde cualquier pestaña.
+Todo se queda contigo.
+La extensión funciona entera en tu ordenador, y tus datos no tienen a dónde ir. La cuenta solo hace falta
+para un segundo navegador; se sincronizan las colecciones, y tu historial no sale nunca. Sin analítica,
+sin telemetría, sin rastreo, sin anuncios, con cuenta o sin ella. El código es abierto, y todo lo
+guardado se exporta de vuelta a marcadores, CSV o un único archivo de copia: puedes irte cualquier día.
 
-Ordénalo como piensas.
-Las secciones guardan colecciones, las colecciones guardan tarjetas y las tarjetas se agrupan bajo
-títulos tuyos. Todo se arrastra, y lo hecho sin querer se deshace.
+Qué hay dentro:
 
-Una tarjeta es más que un enlace.
-Puede ser un enlace, una nota en Markdown o un archivo —una imagen, un PDF, lo que sea— que vive junto a
-los enlaces a los que pertenece.
-
-Encuéntralo de una tecla.
-La barra de búsqueda mira a la vez en tus tarjetas, tus pestañas abiertas y tu historial, y perdona una
-errata o una distribución de teclado olvidada. Vacía ya enseña los sitios que de verdad abres; una
-búsqueda en lugar de una página se va a tu buscador.
-
-Pregunta al modelo del navegador.
-Si Chrome tiene uno en el dispositivo, la barra te lo ofrece: en una ventana sobre la colección, en tu
-ordenador, sin enviar una palabra a ninguna parte. ¿Prefieres un asistente web? Elige ChatGPT, Gemini o
-Claude en los ajustes.
-
-A tu medida.
-Cinco temas con mitad clara y mitad oscura, un color de acento y un fondo propio. Un PIN quita una
-sección de la pantalla —no es cifrado, y la política de privacidad lo dice sin rodeos—. Once idiomas,
-importación desde marcadores, CSV, OneTab o Toby, exportación de vuelta y toda la base en un archivo de
-copia de seguridad.
-
-Aquí la privacidad es cómo está hecho, no una promesa.
-Sin analítica, sin telemetría, sin rastreo, sin anuncios, con cuenta o sin ella. Sin cuenta tus datos no
-tienen a dónde ir; con cuenta se sincronizan las colecciones para que estén en el segundo navegador, y tu
-historial no sale nunca de esta máquina. Los iconos salen del propio almacén del navegador, y el de un
-sitio donde no has estado lo trae nuestro servidor de forma anónima, en vez de dar tus dominios a un
-servicio ajeno.
+⚡ Sesiones — una ventana entera a una colección de un gesto, y de vuelta en el mismo orden.
+📌 Guardar desde cualquier sitio — un atajo, el clic derecho o el botón de la barra. No hace falta abrir
+stramus; el «guardado» aparece al momento.
+🔍 Una búsqueda para todo — tarjetas, pestañas abiertas e historial en una línea. Perdona una errata o
+una distribución de teclado olvidada, así que no tienes que recordar dónde lo viste.
+📁 Secciones y colecciones — pestañas por proyecto y por tema, todo a la vista en una página.
+✋ Arrastrar y soltar — tarjetas, colecciones y secciones siguen al ratón, y lo hecho sin querer se
+deshace.
+📝 Notas y archivos — Markdown, imágenes y PDF viven en la colección junto a los enlaces.
+🤖 El modelo del navegador — si Chrome tiene uno en el dispositivo, pregúntale sin que salga una palabra.
+O elige ChatGPT, Gemini o Claude en los ajustes.
+🔒 Un PIN en una sección — la quita de la pantalla. No es cifrado, y la política de privacidad lo dice.
+🎨 Temas y fondos — cinco temas con mitad clara y mitad oscura, un color de acento, una imagen tuya.
+📦 Importar y exportar — marcadores, CSV, OneTab y Toby; y de vuelta por el mismo camino.
+🌍 Once idiomas de interfaz.
 
 Novedades de la 1.5.2.
 La búsqueda perdona una errata y una distribución de teclado olvidada: «ыекфьгы» encuentra Stramus. Los

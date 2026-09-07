@@ -12,48 +12,36 @@
 
 Una pagina di nuova scheda che finalmente ha le tue schede.
 
-stramus trasforma la pagina che apri venti volte al giorno nel posto dove stanno le tue pagine. Salva le
-schede aperte in una raccolta, dalle un nome e chiudile senza perdere niente. Tutto resta sul tuo
-computer e funziona senza alcun account: si entra solo per avere le stesse raccolte in un secondo
-browser.
+Se hai quaranta schede aperte e non riesci a chiuderne nemmeno una, stramus è fatto per questo. Salva una
+finestra intera in una raccolta, dalle un nome e chiudi le schede: titoli, icone e ordine restano, e
+domani è tutto ancora lì.
 
-Salva le schede aperte.
-Il pannello delle schede mostra ogni scheda di ogni finestra. Trascinane una in una raccolta, o salva una
-finestra intera in un colpo solo — e poi chiudila, era tutto per questo.
+Il resto sono piccole cose, tutti i giorni: salvare una pagina senza aprire stramus; trovare il salvato,
+una scheda aperta e una pagina della cronologia in una riga sola; sistemare trascinando; tenere una nota
+accanto ai link da cui è nata.
 
-Salva una pagina senza aprire stramus.
-Una scorciatoia, il tasto destro o il pulsante nella barra salvano la pagina corrente — o qualsiasi link
-su di essa — da qualunque scheda.
+Tutto resta da te.
+L'estensione gira per intero sul tuo computer, e i tuoi dati non hanno dove andare. L'account serve solo
+per un secondo browser; si sincronizzano le raccolte, la cronologia non esce mai. Niente analitica,
+niente telemetria, niente tracciamento, niente pubblicità — con account e senza. Il codice è aperto, e
+tutto il salvato torna fuori in segnalibri, CSV o un unico file di backup: puoi andartene ogni giorno.
 
-Ordina come pensi.
-Le sezioni tengono le raccolte, le raccolte tengono le carte, e le carte si raggruppano sotto titoli
-tuoi. Tutto si trascina, e ciò che è stato fatto per sbaglio si annulla.
+Cosa c'è dentro:
 
-Una carta è più di un link.
-Può essere un link, una nota in Markdown o un file — un'immagine, un PDF, qualunque cosa — che sta
-accanto ai link a cui appartiene.
-
-Trovalo con un tasto.
-La barra di ricerca guarda insieme nelle tue carte, nelle schede aperte e nella cronologia, e perdona un
-refuso o una disposizione di tastiera dimenticata. Vuota mostra già i siti che apri davvero; una ricerca
-invece di una pagina va al tuo motore predefinito.
-
-Chiedi al modello dentro il browser.
-Se Chrome ne ha uno sul dispositivo, la barra te lo propone: in una finestra sopra la raccolta, sul tuo
-computer, senza mandare una parola da nessuna parte. Preferisci un assistente web? Scegli ChatGPT, Gemini
-o Claude nelle impostazioni.
-
-Su misura.
-Cinque temi con metà chiara e metà scura, un colore d'accento e uno sfondo tuo. Un PIN toglie una sezione
-dallo schermo — non è cifratura, e l'informativa lo dice chiaramente. Undici lingue, importazione da
-segnalibri, CSV, OneTab o Toby, esportazione indietro e l'intero database in un file di backup.
-
-Qui la riservatezza è come è fatto, non una promessa.
-Niente analitica, niente telemetria, niente tracciamento, niente pubblicità — con account e senza. Senza
-account i tuoi dati non hanno dove andare; con l'account si sincronizzano le raccolte, così sono anche
-nel secondo browser, e la cronologia non lascia mai questa macchina. Le icone vengono dall'archivio del
-browser, e per un sito dove non sei stato le prende il nostro server in modo anonimo, invece di
-consegnare i tuoi host a un servizio esterno.
+⚡ Sessioni — una finestra intera in una raccolta con un gesto, e indietro nello stesso ordine.
+📌 Salvare da ovunque — una scorciatoia, il tasto destro o il pulsante nella barra. Non serve aprire
+stramus, il «salvato» compare subito.
+🔍 Una ricerca per tutto — carte, schede aperte e cronologia in una riga. Perdona un refuso o una
+disposizione di tastiera dimenticata, così non devi ricordare dove l'avevi visto.
+📁 Sezioni e raccolte — le schede per progetto e per argomento, tutto su una pagina.
+✋ Trascinamento — carte, raccolte e sezioni seguono il mouse, e uno sbaglio si annulla.
+📝 Note e file — Markdown, immagini e PDF stanno nella raccolta accanto ai link.
+🤖 Il modello del browser — se Chrome ne ha uno sul dispositivo, chiedilo a lui senza che esca una parola.
+Oppure scegli ChatGPT, Gemini o Claude nelle impostazioni.
+🔒 Un PIN su una sezione — la toglie dallo schermo. Non è cifratura, e l'informativa lo dice.
+🎨 Temi e sfondi — cinque temi con metà chiara e metà scura, un colore d'accento, un'immagine tua.
+📦 Importazione ed esportazione — segnalibri, CSV, OneTab e Toby; e la stessa strada al contrario.
+🌍 Undici lingue dell'interfaccia.
 
 Novità della 1.5.2.
 La ricerca perdona un refuso e una disposizione di tastiera dimenticata: «ыекфьгы» trova Stramus. Le

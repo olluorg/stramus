@@ -12,47 +12,36 @@
 
 Sonunda sekmelerinizin durduğu bir yeni sekme sayfası.
 
-stramus, günde yirmi kez açtığınız sayfayı, sayfalarınızın durduğu yere çevirir. Açık sekmeleri bir
-koleksiyona kaydedin, adını koyun ve hiçbir şey kaybetmeden kapatın. Her şey bilgisayarınızda kalır ve
-hesapsız da çalışır: giriş yapmanız, yalnızca aynı koleksiyonları ikinci bir tarayıcıda isterseniz
-gerekir.
+Kırk sekmeniz açıksa ve hiçbirini kapatmaya eliniz gitmiyorsa, stramus tam bunun için. Bütün bir
+pencereyi bir koleksiyona kaydedin, adını koyun ve sekmeleri kapatın: başlıklar, simgeler ve sıra kalır,
+yarın da hepsi yerinde durur.
 
-Açık sekmelerinizi kaydedin.
-Sekme paneli her penceredeki her sekmeyi gösterir. Birini bir koleksiyona sürükleyin ya da bütün
-pencereyi tek seferde kaydedin — sonra kapatın, zaten bunun içindi.
+Gerisi küçük şeyler, ama her gün: stramus'u açmadan bir sayfa kaydetmek; kaydettiğinizi, açık bir sekmeyi
+ve geçmişten bir sayfayı tek satırda bulmak; sürükleyerek dizmek; bir notu, doğduğu bağlantıların yanında
+tutmak.
 
-stramus'u açmadan sayfa kaydedin.
-Bir kısayol, sağ tık ya da araç çubuğundaki düğme, herhangi bir sekmeden geçerli sayfayı — ya da
-üzerindeki herhangi bir bağlantıyı — kaydeder.
+Her şey sizde kalır.
+Uzantı tümüyle bilgisayarınızda çalışır, verilerinizin gidecek bir yeri yoktur. Hesap yalnızca ikinci bir
+tarayıcı için gerekir; koleksiyonlar eşitlenir, tarama geçmişiniz hiç çıkmaz. Analitik yok, telemetri
+yok, izleme yok, reklam yok — hesapla da hesapsız da. Kaynak kodu açık ve kaydettiğiniz her şey yer
+imlerine, CSV'ye ya da tek bir yedek dosyasına geri çıkar: istediğiniz gün gidebilirsiniz.
 
-Düşündüğünüz gibi dizin.
-Bölümler koleksiyonları, koleksiyonlar kartları tutar; kartlar da kendi başlıklarınızın altında toplanır.
-Her şey sürüklenir, yanlışlıkla yapılan geri alınır.
+İçinde ne var:
 
-Kart yalnızca bir bağlantı değildir.
-Bir bağlantı, Markdown ile bir not ya da bir dosya olabilir — bir görsel, bir PDF, ne olursa — ve ait
-olduğu bağlantıların yanında durur.
-
-Tek tuşta bulun.
-Arama çubuğu kartlarınızda, açık sekmelerde ve geçmişte aynı anda arar; bir yazım yanlışını ya da
-unutulmuş bir klavye düzenini affeder. Boşken zaten gerçekten açtığınız siteleri gösterir; sayfa değil de
-bir sorgu yazdıysanız, varsayılan arama motorunuza gider.
-
-Tarayıcıdaki modele sorun.
-Chrome'un cihazda bir modeli varsa, arama çubuğu bunu önerir: koleksiyonun üzerindeki bir pencerede,
-bilgisayarınızda, tek bir kelime dışarı çıkmadan. Web asistanı mı daha alışıldık? Ayarlardan ChatGPT,
-Gemini ya da Claude'u seçin.
-
-Kendinize göre.
-Açık ve koyu yarısı olan beş tema, bir vurgu rengi ve kendi arka planınız. PIN bir bölümü ekrandan alır —
-bu şifreleme değildir, gizlilik politikası da bunu açıkça söyler. On bir dil; yer imlerinden, CSV'den,
-OneTab ya da Toby'den içe aktarma, geri dışa aktarma ve tüm veritabanı tek bir yedek dosyasında.
-
-Burada gizlilik bir söz değil, yapının kendisi.
-Analitik yok, telemetri yok, izleme yok, reklam yok — hesapla da hesapsız da. Hesapsızken verilerinizin
-gidecek yeri yoktur; hesapla koleksiyonlar ikinci tarayıcıda olsun diye eşitlenir, tarama geçmişiniz ise
-bu makineden hiç çıkmaz. Site simgeleri tarayıcının kendi deposundan gelir; gitmediğiniz bir sitenin
-simgesini ise, ana makine listenizi dışarıdaki bir servise vermek yerine, sunucumuz anonim olarak getirir.
+⚡ Oturumlar — bütün bir pencere tek hareketle koleksiyona, aynı sırayla da geri.
+📌 Her yerden kaydetme — bir kısayol, sağ tık ya da araç çubuğundaki düğme. stramus'un açık olması
+gerekmez, «kaydedildi» hemen görünür.
+🔍 Her şey için tek arama — kartlar, açık sekmeler ve geçmiş tek satırda. Bir yazım yanlışını ya da
+unutulmuş bir klavye düzenini affeder; nerede gördüğünüzü hatırlamanız gerekmez.
+📁 Bölümler ve koleksiyonlar — sekmeler projeye ve konuya göre, hepsi tek sayfada.
+✋ Sürükle bırak — kartlar, koleksiyonlar ve bölümler fareyi izler, yanlışlıkla yapılan geri alınır.
+📝 Notlar ve dosyalar — Markdown, görseller ve PDF'ler koleksiyonda bağlantıların yanında durur.
+🤖 Tarayıcıdaki model — Chrome'un cihazda bir modeli varsa, tek kelime dışarı çıkmadan ona sorun. Ya da
+ayarlardan ChatGPT, Gemini veya Claude'u seçin.
+🔒 Bölüme PIN — onu ekrandan alır. Bu şifreleme değildir, gizlilik politikası da bunu söyler.
+🎨 Temalar ve arka planlar — açık ve koyu yarısı olan beş tema, bir vurgu rengi, kendi görseliniz.
+📦 İçe ve dışa aktarma — yer imleri, CSV, OneTab ve Toby; aynı yol tersine de işler.
+🌍 On bir arayüz dili.
 
 1.5.2'deki yenilikler.
 Arama bir yazım yanlışını ve unutulmuş bir klavye düzenini affediyor: «ыекфьгы» Stramus'u buluyor.

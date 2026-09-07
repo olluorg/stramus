@@ -12,49 +12,41 @@
 
 Eine Neuer-Tab-Seite, auf der endlich Ihre Tabs stehen.
 
-stramus macht aus der Seite, die Sie zwanzig Mal am Tag öffnen, den Ort, an dem Ihre Seiten liegen.
-Speichern Sie die offenen Tabs in einer Sammlung, geben Sie ihr einen Namen und schließen Sie sie, ohne
-etwas zu verlieren. Alles bleibt auf Ihrem Rechner und funktioniert ganz ohne Konto — anmelden müssen Sie
-sich nur, wenn Sie dieselben Sammlungen in einem zweiten Browser haben wollen.
+Wenn Sie vierzig Tabs offen haben und keinen davon zumachen können — dafür ist stramus da. Speichern Sie
+ein ganzes Fenster in einer Sammlung, geben Sie ihr einen Namen und schließen Sie die Tabs: Titel,
+Symbole und Reihenfolge bleiben, und morgen ist alles noch da.
 
-Offene Tabs speichern.
-Die Tab-Leiste zeigt jeden Tab in jedem Fenster. Ziehen Sie einen in eine Sammlung oder speichern Sie ein
-ganzes Fenster auf einmal — und schließen Sie es dann, dafür ist das alles da.
+Der Rest sind Kleinigkeiten, jeden Tag: eine Seite speichern, ohne stramus zu öffnen; Gespeichertes,
+einen offenen Tab und eine Seite aus dem Verlauf in einer Zeile finden; alles per Ziehen ordnen; eine
+Notiz neben den Links behalten, aus denen sie entstanden ist.
 
-Eine Seite speichern, ohne stramus zu öffnen.
-Ein Tastenkürzel, ein Rechtsklick oder die Schaltfläche in der Leiste speichert die aktuelle Seite — oder
-jeden Link darauf — aus jedem beliebigen Tab.
+Alles bleibt bei Ihnen.
+Die Erweiterung läuft ganz auf Ihrem Rechner, und Ihre Daten haben keinen Weg nach draußen. Ein Konto
+brauchen Sie nur für den zweiten Browser; synchronisiert werden Sammlungen, Ihr Verlauf nie. Keine
+Analyse, keine Telemetrie, kein Tracking, keine Werbung — mit Konto und ohne. Der Quellcode ist offen,
+und alles Gespeicherte geht zurück in Lesezeichen, CSV oder eine einzige Sicherungsdatei: Sie können
+jeden Tag gehen.
 
-So ordnen, wie Sie denken.
-Bereiche halten Sammlungen, Sammlungen halten Karten, und Karten gruppieren sich unter Ihren eigenen
-Überschriften. Alles lässt sich ziehen, und was aus Versehen geschah, lässt sich zurücknehmen.
+Was drin ist:
 
-Eine Karte ist mehr als ein Link.
-Sie kann ein Link sein, eine Notiz in Markdown oder eine Datei — ein Bild, ein PDF, was auch immer — und
-liegt neben den Links, zu denen sie gehört.
-
-Mit einem Anschlag finden.
-Die Suchleiste durchsucht Ihre Karten, die offenen Tabs und den Verlauf auf einmal und verzeiht einen
-Tippfehler oder eine vergessene Tastaturbelegung. Leer zeigt sie schon die Seiten, die Sie wirklich
-öffnen; eine Suchanfrage statt einer Seite geht an Ihre Standardsuchmaschine.
-
-Das Modell im Browser fragen.
-Hat Chrome eines auf dem Gerät, bietet die Suchleiste es an — in einem Fenster über der Sammlung, auf
-Ihrem Rechner, ohne dass ein Wort nach draußen geht. Lieber ein Web-Assistent? Wählen Sie in den
-Einstellungen ChatGPT, Gemini oder Claude.
-
-Nach Ihrem Geschmack.
-Fünf Themes mit heller und dunkler Hälfte, eine Akzentfarbe und ein eigener Hintergrund. Eine PIN nimmt
-einen Bereich vom Bildschirm — das ist keine Verschlüsselung, und die Datenschutzerklärung sagt das auch
-so. Elf Sprachen, Import aus Lesezeichen, CSV, OneTab und Toby, Export zurück und die ganze Datenbank in
-einer Sicherungsdatei.
-
-Datenschutz ist hier Bauweise, kein Versprechen.
-Keine Analyse, keine Telemetrie, kein Tracking, keine Werbung — mit Konto und ohne. Ohne Konto haben Ihre
-Daten keinen Weg nach draußen; mit Konto werden Sammlungen synchronisiert, damit sie im zweiten Browser
-sind, und Ihr Verlauf verlässt diesen Rechner nie. Website-Symbole kommen aus dem Speicher des Browsers,
-und für eine Seite, auf der Sie noch nicht waren, holt unser Server das Symbol anonym — statt Ihre Hosts
-einem fremden Dienst zu nennen.
+⚡ Sitzungen — ein ganzes Fenster in einer Bewegung in eine Sammlung, und in derselben Reihenfolge
+zurück.
+📌 Von überall speichern — Tastenkürzel, Rechtsklick oder die Schaltfläche in der Leiste. stramus muss
+nicht offen sein, „gespeichert“ erscheint sofort.
+🔍 Eine Suche für alles — Karten, offene Tabs und Verlauf in einer Zeile. Sie verzeiht einen Tippfehler
+oder eine vergessene Tastaturbelegung, damit Sie nicht wissen müssen, wo Sie es gesehen haben.
+📁 Bereiche und Sammlungen — Tabs nach Projekt und Thema, alles auf einer Seite.
+✋ Ziehen und Ablegen — Karten, Sammlungen und Bereiche folgen der Maus, ein Versehen lässt sich
+zurücknehmen.
+📝 Notizen und Dateien — Markdown, Bilder und PDFs liegen in der Sammlung neben den Links.
+🤖 Das Modell im Browser — hat Chrome eines auf dem Gerät, fragen Sie es, ohne dass ein Wort nach draußen
+geht. Oder wählen Sie in den Einstellungen ChatGPT, Gemini oder Claude.
+🔒 Eine PIN auf einem Bereich — nimmt ihn vom Bildschirm. Das ist keine Verschlüsselung, und die
+Datenschutzerklärung sagt das auch so.
+🎨 Themes und Hintergründe — fünf Themes mit heller und dunkler Hälfte, eine Akzentfarbe, ein eigenes
+Bild.
+📦 Import und Export — Lesezeichen, CSV, OneTab und Toby; und denselben Weg zurück.
+🌍 Elf Sprachen für die Oberfläche.
 
 Neu in 1.5.2.
 Die Suche verzeiht einen Tippfehler und eine vergessene Tastaturbelegung — „ыекфьгы“ findet Stramus. Die

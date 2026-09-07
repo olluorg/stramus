@@ -12,46 +12,37 @@
 
 A new-tab page that finally has your tabs on it.
 
-stramus turns the page you open twenty times a day into the place your pages live. Save your open tabs
-into a collection, name it, and close them without losing anything. Everything stays on your computer and
-works with no account at all — you sign in only to have the same collections in a second browser.
+If you have forty tabs open and cannot bring yourself to close any of them — that is what stramus is for.
+Save a whole window into a collection, give it a name and close the tabs: the titles, the icons and the
+order stay, and tomorrow it is all still there.
 
-Save your open tabs.
-The tabs panel shows every tab in every window. Drag one into a collection, or save a whole window at
-once, and then close it — which is what this was all for.
+The rest is small things, every day: save a page without opening stramus; find what you saved, an open
+tab and a page from your history in one line; lay it out by dragging; keep a note beside the links it
+grew out of.
 
-Save a page without opening stramus.
-A shortcut, a right-click or the toolbar button saves the current page, or any link on it, from any tab.
+Everything stays with you.
+The extension runs entirely on your computer, and your data has nowhere to go. An account is only for a
+second browser; collections sync, your browsing history never leaves. No analytics, no telemetry, no
+tracking, no ads — with an account or without. The source is open, and everything you saved exports back
+to bookmarks, CSV or a single backup file: you can leave any day.
 
-Lay it out the way you think.
-Sections hold collections, collections hold cards, and cards group under headings of your own. Everything
-drags, and anything done by accident undoes.
+What is inside:
 
-A card is more than a link.
-It can be a link, a note in Markdown, or a file — an image, a PDF, whatever it is — kept beside the links
-it belongs with.
-
-Find it in one keystroke.
-The search box looks through your cards, your open tabs and your history at once, and forgives a typo or
-a forgotten keyboard layout. Empty, it already shows the sites you actually open; a search term rather
-than a page goes to your default search engine.
-
-Ask the model built into your browser.
-If Chrome has one on the device, the search box offers it — in a panel over your collection, on your
-computer, with nothing sent anywhere. Prefer a web assistant? Choose ChatGPT, Gemini or Claude in
-settings.
-
-Make it yours.
-Five themes with a light and a dark half, an accent colour, and a background of your own. A PIN keeps a
-section off the screen — that is not encryption, and the privacy policy says so plainly. Eleven interface
-languages, import from bookmarks, CSV, OneTab or Toby, export back, and the whole database in one backup
-file.
-
-Privacy here is how it is built, not a promise.
-No analytics, no telemetry, no tracking, no ads — with an account or without. With no account your data
-has nowhere to go; with one, collections sync so that they are in your second browser, and your browsing
-history never leaves this machine. Site icons come from your browser's own store, and for a site you have
-not visited our server fetches the icon anonymously rather than handing your hosts to a public service.
+⚡ Sessions — a whole window into a collection in one motion, and back in the same order.
+📌 Save from anywhere — a shortcut, a right-click or the toolbar button. No need to open stramus first;
+"saved" appears at once.
+🔍 One search for everything — cards, open tabs and history in a single line. It forgives a typo or a
+forgotten keyboard layout, so you need not remember where you saw the thing.
+📁 Sections and collections — tabs by project and by topic, all of it on one page.
+✋ Drag and drop — cards, collections and sections follow the mouse, and an accident undoes.
+📝 Notes and files — Markdown, images and PDFs sit in the collection beside the links.
+🤖 The model in your browser — if Chrome has one on the device, ask it without a word going out. Or
+choose ChatGPT, Gemini or Claude in settings.
+🔒 A PIN on a section — keeps it off the screen. That is not encryption, and the privacy policy says so.
+🎨 Themes and backgrounds — five themes with a light and a dark half, an accent colour, a picture of your
+own.
+📦 Import and export — bookmarks, CSV, OneTab and Toby; and back out the same way.
+🌍 Eleven interface languages.
 
 New in 1.5.2.
 Search forgives a typo and a forgotten keyboard layout — "ыекфьгы" finds Stramus. Settings have a search
