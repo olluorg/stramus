@@ -83,7 +83,7 @@ Un code PIN sur une section la retire de l'écran ; ce n'est pas du chiffrement,
 au serveur. La politique de confidentialité le dit clairement, ainsi que ce qu'implique par ailleurs un
 compte.
 
-Nouveautés de la 1.5.1.
+Nouveautés de la 1.5.2.
 La recherche pardonne désormais une faute de frappe, et pardonne une disposition de clavier oubliée : une
 requête tapée dans la mauvaise est reposée dans l'autre, si bien que « ыекфьгы » trouve Stramus. Les deux
 valent pour vos liens, vos onglets ouverts et l'historique ; l'historique, c'est le navigateur lui-même
@@ -92,6 +92,9 @@ leur propre recherche : elle atténue ce qui ne correspond pas et défile jusqu'
 de masquer le reste. La section des enregistrements rapides n'est plus créée une deuxième fois dans un
 navigateur qui en avait déjà une. La synchronisation envoie un grand compte par pages comme elle le
 rapatrie, et un groupe supprimé sur une autre machine ne laisse plus ses liens accrochés à lui.
+La couche d'index sous la base est elle aussi d'une version plus récente : une requête sur un index
+composé pouvait renvoyer une ligne de trop, et c'est ainsi qu'un doublon survivait à un import ou à une
+fusion.
 
 Politique de confidentialité : https://stramus.space/privacy.html
 Code source : https://github.com/olluorg/stramus

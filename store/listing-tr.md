@@ -76,7 +76,7 @@ olarak, hiçbir hesapla ilişkilendirilmeden ve hiçbir şey kaydedilmeden.
 Bir bölümdeki PIN, onu ekrandan kaldırır; bu bir şifreleme değildir ve bölümü sunucudan gizlemez. Gizlilik
 politikası bunu açıkça belirtir, ve bir hesabın başka ne anlama geldiğini de anlatır.
 
-1.5.1'deki yenilikler.
+1.5.2'deki yenilikler.
 Arama artık bir yazım yanlışını affediyor — bir de unutulmuş klavye düzenini: yanlış düzende yazılmış bir
 sorgu bir de öbür düzende soruluyor, böylece «ыекфьгы» Stramus'u buluyor. İkisi de bağlantılarınızda, açık
 sekmelerinizde ve geçmişte geçerli; geçmişi tarayıcının kendisi harfi harfine aradığı için oradaki bir
@@ -84,6 +84,9 @@ boşluk yakın zamanda gördüğünüz sayfalara düşüyor. Ayarların kendi ar
 kaydırıyor, gerisini gizlemek yerine. Hızlı kayıtlar bölümü, zaten böyle bir bölümü olan bir tarayıcıda
 ikinci kez oluşturulmuyor. Eşitleme büyük bir hesabı indirdiği gibi sayfa sayfa yolluyor da; başka bir
 makinede silinen bir grup ise bağlantılarını artık kendine asılı bırakmıyor.
+Veritabanının altındaki dizin katmanı da bir sürüm yenilendi: bileşik bir dizin üzerindeki sorgu bir
+satır fazla döndürebiliyordu; yinelenen bir kayıt içe aktarmadan ya da birleştirmeden böyle sağ
+çıkıyordu.
 
 Gizlilik politikası: https://stramus.space/privacy.html
 Kaynak kodu: https://github.com/olluorg/stramus

@@ -76,7 +76,7 @@ seus endereços salvos, um a um, a um serviço público de ícones.
 Um PIN numa seção a tira da tela; não é criptografia, e não a esconde do servidor. A política de
 privacidade diz isso claramente, e diz também o que mais uma conta significa.
 
-Novidades da 1.5.1.
+Novidades da 1.5.2.
 A busca agora perdoa um erro de digitação e perdoa um layout de teclado esquecido: uma consulta digitada
 no layout errado é refeita no outro, de modo que «ыекфьгы» encontra o Stramus. Isso vale para seus links,
 suas abas abertas e o histórico; o histórico quem procura é o próprio navegador, letra por letra, então
@@ -85,6 +85,8 @@ própria: ela esmaece o que não combina e rola até o que combina, em vez de es
 salvamentos rápidos não é mais criada uma segunda vez num navegador que já a tinha. A sincronização envia
 uma conta grande em páginas do mesmo jeito que a traz, e um grupo excluído na outra máquina não deixa mais
 seus links pendurados nele.
+A camada de índices sob o banco também subiu de versão: uma consulta sobre um índice composto podia
+devolver uma linha a mais, e era assim que uma duplicata sobrevivia a uma importação ou a uma junção.
 
 Política de privacidade: https://stramus.space/privacy.html
 Código-fonte: https://github.com/olluorg/stramus
