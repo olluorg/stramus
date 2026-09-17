@@ -45,6 +45,23 @@ sealed interface TriageStep {
         val total: Int,
         val assignments: List<TriageAssignment>,
     ) : TriageStep
+
+    /**
+     * Something slower than the plan has been asked a question, and the window says so rather than sit
+     * still while it answers. [note] is the line to show; it stands until [Regrouped] arrives.
+     *
+     * The plan itself is already on screen by then — that is the point. A run that waited for every answer
+     * before showing anything left the user looking at nothing for several seconds, with no way to tell a
+     * slow model from a broken feature.
+     */
+    data class Asking(val note: String) : TriageStep
+
+    /**
+     * The sidebar groups, settled after the fact: for each collection the run now proposes a group for,
+     * where it should go. Arrives once, ends the [Asking] line, and never overrules a group the user has
+     * already chosen by hand.
+     */
+    data class Regrouped(val groups: Map<String, String>) : TriageStep
 }
 
 /**

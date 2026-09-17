@@ -57,6 +57,8 @@ import stramus.core.repo.CardRepository
 import stramus.core.repo.DeletedSection
 import stramus.core.search.FUZZY_MIN_QUERY
 import stramus.core.search.swapLayout
+import stramus.core.topics.modelGroups
+import stramus.core.topics.topicPlan
 import stramus.core.url.hostOf
 import stramus.core.url.normalizeUrl
 import web.cssom.ClassName
@@ -559,6 +561,36 @@ private fun ChildrenBuilder.tabCardGrid(
  * count and its header tools: the window is still a drop target (the header is inside the block), and
  * a tab dropped on it joins it out of sight, as it does with a collapsed section.
  */
+/**
+ * The sidebar section called [wanted] — the one there is (among [sections]), the one this plan already
+ * made, or a new one. Remembered in [madeGroups] by [mergeKeyOf], so a plan filling five collections under
+ * "Покупки" creates that section once.
+ *
+ * A plan that proposes a group has to be able to *make* it, or the group is a promise the sidebar never
+ * keeps: before this, a collection headed for a section that did not exist quietly landed in the default
+ * one, and the plan the user had read said otherwise.
+ *
+ * `sections.create` brings a collection of its own name with it (a section with nothing under it is not
+ * somewhere anything can be saved). This plan is about to make its own collections here, so that one is
+ * taken away again rather than left as a stray "Покупки" inside "Покупки".
+ */
+private suspend fun sidebarSectionFor(
+    s: StramusStore,
+    wanted: String,
+    sections: List<Section>,
+    madeGroups: MutableMap<String, Uuid>,
+): Uuid {
+    val key = mergeKeyOf(wanted)
+    sections.firstOrNull { mergeKeyOf(it.title) == key }?.let { return it.id }
+    madeGroups[key]?.let { return it }
+    val made = s.sections.create(wanted.trim())
+    runCatching { s.collections.all() }.getOrDefault(emptyList())
+        .filter { it.sectionId == made.id }
+        .forEach { s.collections.delete(it.id) }
+    madeGroups[key] = made.id
+    return made.id
+}
+
 private fun ChildrenBuilder.tabWindow(
     strings: Strings,
     groupKey: Key,
@@ -569,11 +601,13 @@ private fun ChildrenBuilder.tabWindow(
     open: Boolean,
     saveHint: String?,
     triageHint: String?,
+    topicsHint: String?,
     onOver: () -> Unit,
     onDropHere: () -> Unit,
     onToggle: () -> Unit,
     onSave: () -> Unit,
     onTriage: () -> Unit,
+    onTopics: () -> Unit,
     onSort: (TabSort) -> Unit,
     content: ChildrenBuilder.() -> Unit,
 ) {
@@ -628,6 +662,16 @@ private fun ChildrenBuilder.tabWindow(
                         hint(triageHint)
                         onClick = { onTriage() }
                         icon("sparkles")
+                    }
+                }
+                // The same window's tabs into topics by how they were opened — no model needed, so offered
+                // wherever there are tabs to join, not only where the ✨ is.
+                if (topicsHint != null) {
+                    button {
+                        className = ClassName("tab-triage")
+                        hint(topicsHint)
+                        onClick = { onTopics() }
+                        icon("folder")
                     }
                 }
                 select {
@@ -863,6 +907,12 @@ val App = FC<AppProps> { props ->
     // The window whose tabs the model is sorting, if the ✨ has been pressed: everything the triage
     // window needs is derived from it, so closing it is forgetting one number.
     var triageWindowId by useState<Int?>(null)
+    // The same window, over a plan made from how the tabs were opened rather than by a model — see
+    // [TopicsRun]. The topics are found before it opens, so the window never starts on nothing.
+    var topicsRun by useState<TopicsRun?>(null)
+    // The first-run invitation — the same run, waiting in the page for the user to say yes rather than
+    // opening over it. See the effect that fills it, and the row it draws in the open collection.
+    var starterOffer by useState<TopicsRun?>(null)
     var draggingCardId by useState<Uuid?>(null)
     var draggingCollectionId by useState<Uuid?>(null)
     // The section being dragged by its header, to be dropped on another section and take its place.
@@ -1158,6 +1208,47 @@ val App = FC<AppProps> { props ->
     // no reason to make it wait on something it does not need.
     useEffectOnce {
         if (prefGet(ONBOARDING_SEEN_PREF) != "1") onboardingOpen = true
+    }
+
+    // A fresh install opens on one welcome note, and the user has nothing of their own in it — while
+    // their browser is usually full of it. So the first open offers to sort what is already open into
+    // topics, once the walkthrough is out of the way, and only when there is at least one topic to show:
+    // a plan of nothing but unsorted rows would be a worse first sight than the note. Made once — see
+    // [STARTER_SEEN_PREF]; the pref is written only once the answer is in, so a render that cancels this
+    // halfway does not use the offer up.
+    useEffect(store, onboardingOpen) {
+        val s = store ?: return@useEffect
+        val tc = tabCapture ?: return@useEffect
+        if (onboardingOpen || prefGet(STARTER_SEEN_PREF) == "1") return@useEffect
+        // Not "this open created the database", which is true exactly once and never again: reloading the
+        // new-tab page took the invitation away as surely as answering it would have. What decides is
+        // whether the user has anything of their own yet — a fresh install is our one welcome note in our
+        // one collection — and until that changes, the offer still means something. It is retired by the
+        // two buttons below and by nothing else, so it can be ignored without being lost.
+        val untouched = s.seeded || runCatching {
+            val existing = s.collections.all()
+            existing.size <= 1 && existing.sumOf { s.cards.count(it.id) } <= 1
+        }.getOrDefault(false)
+        if (!untouched) return@useEffect
+        val tabs = tc.currentTabs()
+        val topics = findTopics(tabs)
+        // Nothing opens by itself here, and nothing is waited for. The grouping is arithmetic over tabs
+        // already in hand — milliseconds — and the sidebar groups come from the addresses ([siteGroups]).
+        // Asking the browser's model instead cost seconds, and they were spent with an empty first screen
+        // on show and a window that then appeared over it unasked, which is a poor way to meet anybody.
+        // The model is still asked from the window's own button, where the user has pressed something and
+        // a moment's wait is theirs to expect.
+        if (topics.isNotEmpty()) {
+            // No matching against what exists here, and nothing to read the store for: this offer is only
+            // ever made to somebody whose database holds our one welcome note (see `untouched` above), so
+            // there is nothing of theirs for a topic to join. The window's own button does that instead.
+            val groups = siteGroups(topics, tabs, t)
+            // Which path drew what, said plainly: this one and the window's own button both log their
+            // collections, and only the button asks the model — so without this line the two are told
+            // apart by the absence of something, which is no way to read a log.
+            console.log("[topics] first-run offer — groups by site: ${groups.entries.joinToString { "${it.key} → ${it.value}" }}")
+            starterOffer = TopicsRun(null, starter = true, topics = topics, groups = groups)
+        }
     }
 
     useEffect(appearance) {
@@ -1523,8 +1614,15 @@ val App = FC<AppProps> { props ->
             // is the same decision the account dialog makes, and it is made the same way. A first install has
             // nothing but our own welcome note, so there is nothing to decide and nobody is asked.
             val s = store
-            val hasLocalWork = s != null && !s.seeded &&
-                s.collections.all().any { collection -> s.cards.count(collection.id) > 0 }
+            // "Anything of their own" — not "the database is older than this session". Those were the
+            // same thing until a plan could fill a fresh install in one gesture: sort the tabs on the very
+            // first screen, sign in a minute later, and `seeded` was still true, so forty collections made
+            // a minute ago went up to the account without anybody being asked. What decides is what is in
+            // there: our one welcome note in our one collection is ours, and everything past that is theirs.
+            val hasLocalWork = s != null && runCatching {
+                val existing = s.collections.all()
+                existing.size > 1 || existing.sumOf { s.cards.count(it.id) } > 1
+            }.getOrDefault(false)
             // The database was deliberately thrown away a moment ago so the account could put it back
             // (see [DbRecovery]): what is in it now is the welcome note this start seeded itself, and it
             // is not this user's first collection — it is a duplicate waiting to be pushed up. Discard
@@ -1770,6 +1868,9 @@ val App = FC<AppProps> { props ->
         madeCollections: MutableMap<String, Uuid>,
         madeSections: MutableMap<Pair<Uuid, String>, Uuid>,
         existingSections: MutableMap<Uuid, List<CardSection>>,
+        aiCreated: Boolean = true,
+        /** Sidebar sections this plan has had to create, by [mergeKeyOf] of their name — see below. */
+        madeGroups: MutableMap<String, Uuid> = mutableMapOf(),
     ): Uuid? {
         if (tab == null) return null
         val wantedTitle = assignment.collectionTitle.trim()
@@ -1791,9 +1892,7 @@ val App = FC<AppProps> { props ->
             // happened to be open.
             ?: s.collections.create(
                 assignment.collectionTitle,
-                assignment.groupTitle
-                    ?.let { wanted -> sections.firstOrNull { mergeKeyOf(it.title) == mergeKeyOf(wanted) } }
-                    ?.id
+                assignment.groupTitle?.let { wanted -> sidebarSectionFor(s, wanted, sections, madeGroups) }
                     ?: fallbackSectionId,
             ).id.also { madeCollections[assignment.collectionTitle] = it }
         val cardSectionId = assignment.sectionId
@@ -1815,7 +1914,7 @@ val App = FC<AppProps> { props ->
             tab.url,
             tab.favicon ?: faviconFor(tab.url),
             cardSectionId,
-            aiCreated = true,
+            aiCreated = aiCreated,
         ).id
     }
 
@@ -1831,16 +1930,21 @@ val App = FC<AppProps> { props ->
      * over that — an offer nobody can see is worse than none. What this makes is one card, in a
      * collection the user picked, deleted from there like any other.
      */
-    fun saveTriageOne(assignment: TriageAssignment, sectionId: Uuid) {
+    fun saveTriageOne(
+        assignment: TriageAssignment,
+        sectionId: Uuid,
+        closeTabs: Boolean = closeSavedTabs,
+        aiCreated: Boolean = true,
+    ) {
         val s = store ?: return
         val tc = tabCapture ?: return
         val tab = openTabs.firstOrNull { it.id == assignment.tabId } ?: return
         scope.launch {
-            saveTriageRow(s, assignment, tab, sectionId, mutableMapOf(), mutableMapOf(), mutableMapOf())
+            saveTriageRow(s, assignment, tab, sectionId, mutableMapOf(), mutableMapOf(), mutableMapOf(), aiCreated)
             // Closed by URL, exactly as a whole plan is (see [applyTriage]): a row stands for a *page*,
             // the duplicates of it having been collapsed into it, and the second tab of a page that has
             // just been saved is as saved as the first.
-            if (closeSavedTabs) openTabs.filter { it.url == tab.url }.forEach { tc.closeTab(it.id) }
+            if (closeTabs) openTabs.filter { it.url == tab.url }.forEach { tc.closeTab(it.id) }
             // Read back rather than checked first: one row may well have invented the collection it
             // went into, and one query on a button the user pressed themselves is not worth guarding.
             collections = s.collections.all()
@@ -1868,7 +1972,12 @@ val App = FC<AppProps> { props ->
      * way, its cards ungrouped rather than gone, which does not matter here — they are about to be
      * deleted themselves, by id, regardless of which section they landed in.
      */
-    fun applyTriage(plan: List<TriageAssignment>, sectionId: Uuid) {
+    fun applyTriage(
+        plan: List<TriageAssignment>,
+        sectionId: Uuid,
+        closeTabs: Boolean = closeSavedTabs,
+        aiCreated: Boolean = true,
+    ) {
         val s = store ?: return
         val tc = tabCapture ?: return
         if (plan.isEmpty()) return
@@ -1876,6 +1985,8 @@ val App = FC<AppProps> { props ->
         scope.launch {
             val madeCollections = mutableMapOf<String, Uuid>()
             val madeSections = mutableMapOf<Pair<Uuid, String>, Uuid>()
+            /** Sidebar sections the plan had to create for the groups it proposed — see [sidebarSectionFor]. */
+            val madeGroups = mutableMapOf<String, Uuid>()
             /** Card sections already in a collection, read once per collection — see their use below. */
             val existingSections = mutableMapOf<Uuid, List<CardSection>>()
             val createdCardIds = plan.mapNotNull { assignment ->
@@ -1887,6 +1998,8 @@ val App = FC<AppProps> { props ->
                     madeCollections,
                     madeSections,
                     existingSections,
+                    aiCreated,
+                    madeGroups,
                 )
             }
             // Closed by URL, not by the ids in the plan: the plan holds one row per *page*, the
@@ -1895,19 +2008,23 @@ val App = FC<AppProps> { props ->
             // leave it open — the one thing "keep the first tab" must not get wrong. Read regardless of
             // `closeSavedTabs`: the undo below needs to know what to reopen if the setting changes
             // between now and then, which it cannot — so it is read now, while it still means this run.
-            val closed = if (closeSavedTabs) {
+            val closed = if (closeTabs) {
                 val saved = plan.mapNotNull { byId[it.tabId]?.url }.toSet()
                 openTabs.filter { it.url in saved }.also { tabs -> tabs.forEach { tc.closeTab(it.id) } }
                     .map { it.url }
             } else {
                 emptyList()
             }
-            if (madeCollections.isNotEmpty()) collections = s.collections.all()
+            if (madeGroups.isNotEmpty()) sections = s.sections.all()
+            if (madeCollections.isNotEmpty() || madeGroups.isNotEmpty()) collections = s.collections.all()
             // Only the open collection is redrawn — the plan will have filled several, and the others
             // are read when the user goes to them.
             selectedId?.let { reloadCards(it) }
             openTabs = tc.currentTabs()
             triageWindowId = null
+            topicsRun = null
+            // The tabs are sorted; there is nothing left to invite anybody to.
+            starterOffer = null
 
             undo = Undo(t.triageApplied(createdCardIds.size)) {
                 // A collection this plan invented takes its own cards and sections down with it, so
@@ -1917,7 +2034,11 @@ val App = FC<AppProps> { props ->
                 madeCollections.values.forEach { s.collections.delete(it) }
                 madeSections.values.forEach { s.cardSections.delete(it) }
                 createdCardIds.forEach { s.cards.delete(it) }
+                // A sidebar section this plan created goes back with it — with everything still under it,
+                // which by now is only what the plan itself put there.
+                madeGroups.values.forEach { s.sections.delete(it) }
                 closed.forEach { url -> tc.createTab(url) }
+                sections = s.sections.all()
                 collections = s.collections.all()
                 selectedId?.let { reloadCards(it) }
                 openTabs = tc.currentTabs()
@@ -3481,6 +3602,52 @@ val App = FC<AppProps> { props ->
                     // Read-only: the collection is read and its links opened, but every control that
                     // would change it — add, sort into, rename, delete, drag — is simply not there.
                     val editable = !current.readOnly
+                    // The first-run offer, in the page and above the collection it would fill. It waits
+                    // here as long as the user ignores it, says what it found before doing any of it, and
+                    // goes for good on either button — see [STARTER_SEEN_PREF], which is already written
+                    // by the time this is drawn.
+                    starterOffer?.let { offer ->
+                        div {
+                            className = ClassName("starter-offer")
+                            div {
+                                className = ClassName("starter-offer-text")
+                                div {
+                                    className = ClassName("starter-offer-title")
+                                    +t.starterOfferTitle(openTabs.size)
+                                }
+                                div {
+                                    className = ClassName("starter-offer-body")
+                                    +t.starterOfferBody(offer.topics.size)
+                                }
+                            }
+                            button {
+                                className = ClassName("btn primary")
+                                // The offer stays where it is while the plan is read. Closing that window
+                                // is "not yet", not "no" — and an invitation that vanished the moment it
+                                // was opened left anyone who pressed Cancel with no way back to it.
+                                // Only "not now" takes it away, and only applying a plan retires it.
+                                //
+                                // The pref is written here rather than when the offer appears: an offer
+                                // nobody has answered has not been made, and closing the tab without
+                                // saying anything used to spend it.
+                                onClick = {
+                                    prefSet(STARTER_SEEN_PREF, "1")
+                                    topicsRun = offer
+                                }
+                                +t.starterOfferAction
+                            }
+                            button {
+                                className = ClassName("btn")
+                                // The one plain "no" there is, and the only thing that ends the offer
+                                // without sorting anything.
+                                onClick = {
+                                    prefSet(STARTER_SEEN_PREF, "1")
+                                    starterOffer = null
+                                }
+                                +t.starterOfferDismiss
+                            }
+                        }
+                    }
                     div {
                         className = ClassName("content-head")
                         h2 {
@@ -4006,6 +4173,46 @@ val App = FC<AppProps> { props ->
                                             targetCollection?.let { target -> saveTabs(allWindowTabs, target) }
                                         },
                                         onTriage = { triageWindowId = windowId },
+                                        topicsHint = t.topicsTabs.takeIf { allWindowTabs.size >= 2 },
+                                        onTopics = {
+                                            scope.launch {
+                                                // Straight up, with the shelves the addresses give. The
+                                                // model is asked from inside the window — see the
+                                                // [PlanSource] below — because it takes seconds, and they
+                                                // used to be spent with nothing at all on screen.
+                                                val topics = findTopics(allWindowTabs)
+                                                val bySite = siteGroups(topics, allWindowTabs, t)
+                                                console.log(
+                                                    "[topics] groups by site: " +
+                                                        bySite.entries.joinToString { "${it.key} → ${it.value}" },
+                                                )
+                                                // What the user already keeps, read the way the model
+                                                // triage reads it — and filtered the same way, so a
+                                                // collection behind a PIN is neither matched nor named.
+                                                val open = store
+                                                val places = if (open == null) {
+                                                    emptyMap()
+                                                } else {
+                                                    existingPlaces(
+                                                        topics,
+                                                        allWindowTabs,
+                                                        knownCollections(
+                                                            collections.filter { it.id !in hiddenCollectionIds && !it.readOnly },
+                                                            sections.filter { it.id !in lockedSectionIds },
+                                                            open.cardSections,
+                                                            open.cards,
+                                                        ),
+                                                    )
+                                                }
+                                                topicsRun = TopicsRun(
+                                                    windowId,
+                                                    starter = false,
+                                                    topics = topics,
+                                                    groups = bySite,
+                                                    places = places,
+                                                )
+                                            }
+                                        },
                                         onSort = { by -> sortTabs(windowId, by) },
                                     ) {
                                         if (showTabCards) {
@@ -4170,6 +4377,8 @@ val App = FC<AppProps> { props ->
                 onSignIn = {
                     onboardingOpen = false
                     prefSet(ONBOARDING_SEEN_PREF, "1")
+                    // Someone signing in is bringing collections of their own: no tabs to offer them.
+                    prefSet(STARTER_SEEN_PREF, "1")
                     accountOpen = true
                 }
                 onClose = {
@@ -4563,6 +4772,57 @@ val App = FC<AppProps> { props ->
                     onApply = { plan -> applyTriage(plan, triageSection.id) }
                     onClose = { triageWindowId = null }
                 }
+            }
+        }
+
+        // The topics plan, in the same window — see [PlanSource]. Over one browser window's tabs from its
+        // own button, or over all of them as the first-run offer, which saves without closing anything.
+        val topics = topicsRun
+        val topicsTabs = topics?.let { run -> run.windowId?.let { id -> openTabs.filter { it.windowId == id } } ?: openTabs }.orEmpty()
+        val topicsSection = sections.firstOrNull { !it.deletable && it.id !in lockedSectionIds }
+            ?: sections.firstOrNull { it.id !in lockedSectionIds }
+        if (topics != null && triageStore != null && topicsSection != null && topicsTabs.isNotEmpty()) {
+            val topicsCloseTabs = !topics.starter && closeSavedTabs
+            TabTriageModal {
+                strings = t
+                source = PlanSource(
+                    heading = t.topicsHeading,
+                    intro = t.topicsIntro(topics.topics.size, topicsTabs.size, keepsTabs = topics.starter),
+                    unsortedHint = t.topicsUnsortedHint,
+                ) { asking ->
+                    topicPlan(topics.topics, topics.groups, topics.places, asking, t.topicsAsking) {
+                        // The first-run offer asks it too. It did not, back when the model was asked
+                        // *before* the window could open and a new user's first sight of stramus was
+                        // several seconds of nothing. Asked from in here, with the plan already up and a
+                        // line saying what is being waited for, it costs that user nothing and gives them
+                        // the one thing the addresses cannot: "Car Repair" over brakes and brake pads.
+                        modelGroups(ai, t.aiSystemPrompt, topics.topics.map { it.title }, t.languageName)
+                    }
+                }
+                assistant = ai
+                stramusApi = api
+                cloud = false
+                tabs = topicsTabs
+                intoCollections = triageTargets
+                savedCards = triageStore.cards
+                savedSections = triageStore.cardSections
+                sidebarSections = triageSidebarSections
+                newCollectionsIn = topicsSection.title
+                closesTabs = topicsCloseTabs
+                onCloseTabs = { ids ->
+                    val tc = tabCapture
+                    if (tc != null) {
+                        scope.launch {
+                            ids.forEach { tc.closeTab(it) }
+                            openTabs = tc.currentTabs()
+                        }
+                    }
+                }
+                onSaveOne = { assignment ->
+                    saveTriageOne(assignment, topicsSection.id, closeTabs = topicsCloseTabs, aiCreated = false)
+                }
+                onApply = { plan -> applyTriage(plan, topicsSection.id, closeTabs = topicsCloseTabs, aiCreated = false) }
+                onClose = { topicsRun = null }
             }
         }
 

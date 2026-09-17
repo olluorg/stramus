@@ -37,6 +37,19 @@ gives you the same collections on a second device, and nothing more.
   checks that decide which of the model's answers are trusted.
   Not to be confused with the AI *title* suggestion for a single card, which existed briefly and was
   removed.
+- **Topics, for a browser that is already full.** A fresh install opens on an invitation instead of an
+  empty page: your open tabs, read into collections by the words their titles share and by what the
+  addresses say you searched for. It crosses sites, which is the whole point — a repair spread over a
+  shop, a search, a forum and a chatbot comes out as one collection named in your own words. Whatever
+  no topic wanted is gathered by site, from four tabs up; search engines and chatbots never become a
+  collection. The sidebar groups come from a short table of what a site is *for* (shopping, code,
+  video, jobs), and Chrome's on-device model, where there is one, is asked for better ones over them —
+  from inside the open window, so nothing is ever waited for on a blank screen. A topic that reads
+  like a collection you already keep joins it, under the divider you made for it. No model is needed
+  for any of this; without one you lose the abstraction and nothing else.
+  See `core/src/commonMain/kotlin/stramus/core/topics/TitleTopics.kt`, whose opening comment also
+  records what was tried first: the browser's own signals — which tab opened which, tab groups, the
+  referrer chain — measured empty on a real window of 158 tabs.
 - **Folder view.** Sections can be displayed as a flat card grid or as nested folders, per collection.
 - **PIN-locked sections.** A section can be locked with a PIN so its contents aren't on screen when
   you share it — a shoulder-surfing guard, not encryption: the server sees the content of a synced

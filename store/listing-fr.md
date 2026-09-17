@@ -44,11 +44,14 @@ choisissez ChatGPT, Gemini ou Claude dans les réglages.
 confidentialité le dit.
 🎨 Thèmes et fonds — cinq thèmes, moitié clairs moitié sombres, une couleur d'accent, une image à vous.
 📦 Import et export — favoris, CSV, OneTab et Toby ; et le même chemin dans l'autre sens.
+🧩 Des thèmes tirés de vos onglets ouverts — au premier lancement, ils deviennent des collections
+nommées : d'après vos recherches et les mots que les titres partagent, à travers les sites.
 🌍 Onze langues d'interface.
 
-Nouveautés de la 1.5.2.
-La recherche pardonne une faute de frappe et une disposition de clavier oubliée : « ыекфьгы » trouve
-Stramus. Les réglages ont leur propre recherche. L'import et la fusion ne laissent plus de doublons.
+Nouveautés de la 1.6.0.
+Le premier lancement ne commence plus par une page vide : vos onglets ouverts deviennent des collections
+nommées — d'après vos recherches et les mots que les titres partagent, à travers les sites. Ce qui n'a
+pas de nom reste tel quel, plutôt que deviné.
 
 Politique de confidentialité : https://stramus.space/privacy.html
 Code source : https://github.com/olluorg/stramus
