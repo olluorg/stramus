@@ -113,6 +113,14 @@ private data class TriageState(
      * one group. The user may change it; nothing else may.
      */
     val newGroups: Map<String, String> = emptyMap(),
+    /**
+     * Collections whose group the *user* picked. A run that settles its groups late ([TriageStep.Regrouped])
+     * must not overrule them: an answer that arrives after someone has moved a collection by hand is an
+     * answer about a question they have already settled.
+     */
+    val userGroups: Set<String> = emptySet(),
+    /** What is still being waited for, if anything — see [TriageStep.Asking]. */
+    val asking: String? = null,
     /** Batches decided so far, of how many. Equal when the run is done; the head shows it while it is not. */
     val done: Int = 0,
     val total: Int = 0,
@@ -192,8 +200,25 @@ suspend fun knownCollections(
     }
 }
 
+/**
+ * A plan written by something other than the model triage — `topicPlan`, which groups the tabs by the
+ * words their titles share. The review is the same review, so it is the same window:
+ * only the words at the top and the run behind it differ, and neither pre-step is shown, their questions
+ * being about what the model should not spend a question on.
+ */
+class PlanSource(
+    val heading: String,
+    /** Said above the plan: what it was made from, and what saving it will and will not do. */
+    val intro: String?,
+    val unsortedHint: String,
+    val run: (List<TabGroup>) -> Flow<TriageStep>,
+)
+
 external interface TabTriageProps : Props {
     var strings: Strings
+
+    /** Where the plan comes from when it is not a model's — see [PlanSource]. Null for the model triage. */
+    var source: PlanSource?
 
     /** The local, on-device model — read only when [cloud] is false; see the note there. */
     var assistant: AiAssistant?
@@ -380,6 +405,7 @@ val TabTriageModal = FC<TabTriageProps> { props ->
         // whatever is left after the pre-step: a duplicate closed there never reaches the plan at all.
         if (duplicates.isNotEmpty()) setDropped { it + duplicates }
         phase = when {
+            props.source != null -> TriagePhase.PLAN
             duplicates.isNotEmpty() -> TriagePhase.SAVED
             openDupGroups.isNotEmpty() -> TriagePhase.DUPES
             else -> TriagePhase.PLAN
@@ -411,7 +437,10 @@ val TabTriageModal = FC<TabTriageProps> { props ->
             // the two can both report — see `TriageStep.Placed`.
             setPlan { it.copy(total = aiGroups.sumOf { group -> group.tabs.size }) }
 
-            val steps: Flow<TriageStep> = if (props.cloud) {
+            val source = props.source
+            val steps: Flow<TriageStep> = if (source != null) {
+                source.run(aiGroups)
+            } else if (props.cloud) {
                 cloudTriage(props.stramusApi, aiGroups)
             } else {
                 val assistant = props.assistant ?: run {
@@ -501,6 +530,16 @@ val TabTriageModal = FC<TabTriageProps> { props ->
                             )
                         }
                     }
+
+                    is TriageStep.Asking -> setPlan { current -> current.copy(asking = step.note) }
+
+                    // The groups, settled after the plan was drawn. Only for collections that do not exist
+                    // yet — an existing one is where it already is — and never for one the user has moved
+                    // themselves in the meantime.
+                    is TriageStep.Regrouped -> setPlan { current ->
+                        val late = step.groups.filterKeys { it !in current.userGroups }
+                        current.copy(newGroups = current.newGroups + late, asking = null)
+                    }
                 }
             }
         } catch (e: CancellationException) {
@@ -537,7 +576,13 @@ val TabTriageModal = FC<TabTriageProps> { props ->
 
     /** Move a collection the plan invented into another sidebar section. Only an invented one moves. */
     fun setGroup(title: String, group: String) {
-        setPlan { current -> current.copy(newGroups = current.newGroups + (title to group)) }
+        setPlan { current ->
+            current.copy(
+                newGroups = current.newGroups + (title to group),
+                // Remembered as the user's own, so a late answer cannot move it back — see [TriageState].
+                userGroups = current.userGroups + title,
+            )
+        }
     }
 
     /**
@@ -693,8 +738,13 @@ val TabTriageModal = FC<TabTriageProps> { props ->
             className = ClassName("modal-head")
             h3 {
                 className = ClassName("ai-title")
-                span { className = ClassName("ai-badge"); +s.aiChip }
-                +s.triageHeading
+                val source = props.source
+                if (source == null) {
+                    span { className = ClassName("ai-badge"); +s.aiChip }
+                    +s.triageHeading
+                } else {
+                    +source.heading
+                }
             }
             button { className = ClassName("icon del"); onClick = { props.onClose() }; icon("x") }
         }
@@ -729,6 +779,7 @@ val TabTriageModal = FC<TabTriageProps> { props ->
         div {
             className = ClassName("triage-body")
 
+            props.source?.intro?.let { intro -> div { className = ClassName("triage-intro"); +intro } }
             downloading?.let { progress ->
                 div { className = ClassName("ai-download"); +s.aiDownloading((progress * 100).toInt()) }
             }
@@ -738,6 +789,10 @@ val TabTriageModal = FC<TabTriageProps> { props ->
             if (running) {
                 div { className = ClassName("triage-progress"); +s.triageProgress(plan.done, plan.total) }
             }
+            // Said while something slower than the plan is still being waited for, and gone the moment it
+            // answers. The plan underneath is readable and correctable throughout: this is a line about
+            // one thing still to come, not a screen standing in for the window.
+            plan.asking?.let { note -> div { className = ClassName("triage-progress"); +note } }
 
             // The plan drawn as the thing it is about: the sidebar's own tree — section, then the
             // collections in it, then the dividers in those. The user is going to check this against
@@ -837,7 +892,9 @@ val TabTriageModal = FC<TabTriageProps> { props ->
                         span { className = ClassName("triage-group-title"); +s.triageUnsorted }
                         span { className = ClassName("count"); +leftOut.size.toString() }
                     }
-                    if (!running) div { className = ClassName("empty small"); +s.triageUnsortedHint }
+                    if (!running) {
+                        div { className = ClassName("empty small"); +(props.source?.unsortedHint ?: s.triageUnsortedHint) }
+                    }
                     triageRows(s, "left", leftOut, catalog, titlesByGroup, actions)
                 }
             }

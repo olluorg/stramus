@@ -46,11 +46,14 @@ Datenschutzerklärung sagt das auch so.
 🎨 Themes und Hintergründe — fünf Themes mit heller und dunkler Hälfte, eine Akzentfarbe, ein eigenes
 Bild.
 📦 Import und Export — Lesezeichen, CSV, OneTab und Toby; und denselben Weg zurück.
+🧩 Themen aus den offenen Tabs — der erste Start ordnet sie in benannte Sammlungen: nach Ihren Suchen
+und den gemeinsamen Wörtern der Titel, über alle Seiten hinweg.
 🌍 Elf Sprachen für die Oberfläche.
 
-Neu in 1.5.2.
-Die Suche verzeiht einen Tippfehler und eine vergessene Tastaturbelegung — „ыекфьгы“ findet Stramus. Die
-Einstellungen haben eine eigene Suche. Import und Zusammenführen lassen keine Duplikate mehr zurück.
+Neu in 1.6.0.
+Der erste Start beginnt nicht mehr mit einer leeren Seite: Ihre offenen Tabs werden zu benannten
+Sammlungen — nach Ihren Suchen und den gemeinsamen Wörtern der Titel, über alle Seiten hinweg. Was sich
+nicht benennen lässt, bleibt unangetastet statt geraten.
 
 Datenschutzerklärung: https://stramus.space/privacy.html
 Quellcode: https://github.com/olluorg/stramus

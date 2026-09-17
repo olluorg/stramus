@@ -297,6 +297,51 @@ interface Strings {
     val triageSaveOneHint: String
     val triageCloseOneHint: String
 
+    /** The window's second sorting button: into topics by how the tabs were opened, no model involved. */
+    val topicsTabs: String
+    val topicsHeading: String
+
+    /**
+     * Said above a topics plan: how many topics were found among how many tabs, and from what. [keepsTabs]
+     * is the first-run offer, which saves without closing anything and says so.
+     */
+    fun topicsIntro(topics: Int, tabs: Int, keepsTabs: Boolean): String
+
+    /** Under the tabs no signal joined to any other. */
+    val topicsUnsortedHint: String
+
+    /** Shown in the plan while the browser's model is being asked to name the sidebar groups. */
+    val topicsAsking: String
+
+
+    /**
+     * The sidebar groups a plan may propose over its new collections — see `SiteGroup`. Broad on purpose:
+     * a group is a shelf, and what is specific about a collection is already in its own name.
+     */
+    val topicGroupShopping: String
+    val topicGroupCode: String
+    val topicGroupVideo: String
+    val topicGroupJobs: String
+    val topicGroupReading: String
+    val topicGroupDocs: String
+
+    /**
+     * The first-run invitation, drawn in the page rather than over it: how many tabs are open, how many
+     * topics were found in them, and the two ways out. Nothing is done until the first button is pressed.
+     */
+    fun starterOfferTitle(tabs: Int): String
+    fun starterOfferBody(topics: Int): String
+    val starterOfferAction: String
+    val starterOfferDismiss: String
+
+    /**
+     * This language's own name, written in English — the one thing in the table that is not for the user
+     * to read. It goes into the question put to the browser's model (see `groupingPrompt`), which is asked
+     * in English and has to be told which language to answer in, or it answers in the language of whatever
+     * it was shown and a Russian heading lands beside the English ones.
+     */
+    val languageName: String
+
     /** What the model is told before it is shown the sites: what it is sorting, and into what. */
     val aiTriageSystemPrompt: String
 
@@ -905,6 +950,24 @@ private object EnStrings : Strings {
     override val triageSkipStep = "Continue without closing"
     override val triageSaveOneHint = "Save this tab now, into the collection shown"
     override val triageCloseOneHint = "Close this tab without saving it"
+    override val topicsTabs = "Group into topics — by the words in the titles and what you searched for"
+    override val topicsHeading = "Group tabs into topics"
+    override fun topicsIntro(topics: Int, tabs: Int, keepsTabs: Boolean) =
+        if (topics == 0) "Nothing here goes together yet — pick a collection for the tabs worth keeping."
+        else "Topics found: $topics, tabs: $tabs. Grouped by the words their titles share and what you searched for — check the plan and save it." + if (keepsTabs) " Your tabs stay open." else ""
+    override val topicsUnsortedHint = "Nothing links these to other tabs. Pick a collection, or leave them open."
+    override val topicsAsking = "Asking the browser's model about the sections…"
+    override val topicGroupShopping = "Shopping"
+    override val topicGroupCode = "Code"
+    override val topicGroupVideo = "Video"
+    override val topicGroupJobs = "Jobs"
+    override val topicGroupReading = "Reading"
+    override val topicGroupDocs = "Documents"
+    override fun starterOfferTitle(tabs: Int) = "You have $tabs tabs open"
+    override fun starterOfferBody(topics: Int) = "stramus found $topics topics in them. Sort them into collections? Your tabs stay open."
+    override val starterOfferAction = "Sort them"
+    override val starterOfferDismiss = "Not now"
+    override val languageName = "English"
     override val aiTriageSystemPrompt = "You sort a user's open browser tabs into their collections. " +
         "You are given tabs and the collections that exist. For every tab, answer with the one " +
         "collection it belongs in — reuse an existing name wherever the tab fits it, and only invent " +
@@ -1448,6 +1511,24 @@ private object RuStrings : Strings {
     override val triageSkipStep = "Продолжить, не закрывая"
     override val triageSaveOneHint = "Сохранить эту вкладку сейчас — в показанную коллекцию"
     override val triageCloseOneHint = "Закрыть эту вкладку, не сохраняя"
+    override val topicsTabs = "Разложить по темам — по словам в заголовках и по тому, что вы искали"
+    override val topicsHeading = "Разложить вкладки по темам"
+    override fun topicsIntro(topics: Int, tabs: Int, keepsTabs: Boolean) =
+        if (topics == 0) "Связанных вкладок пока не нашлось — выберите коллекцию для тех, что стоит сохранить."
+        else "Нашлось тем: $topics, вкладок: $tabs. Сгруппировали по словам в заголовках и по вашим запросам — проверьте и сохраните." + if (keepsTabs) " Вкладки останутся открытыми." else ""
+    override val topicsUnsortedHint = "Эти вкладки ни с чем не связаны. Выберите коллекцию или оставьте их открытыми."
+    override val topicsAsking = "Спрашиваем модель браузера про разделы…"
+    override val topicGroupShopping = "Покупки"
+    override val topicGroupCode = "Код"
+    override val topicGroupVideo = "Видео"
+    override val topicGroupJobs = "Работа"
+    override val topicGroupReading = "Чтение"
+    override val topicGroupDocs = "Документы"
+    override fun starterOfferTitle(tabs: Int) = "У вас открыто вкладок: $tabs"
+    override fun starterOfferBody(topics: Int) = "stramus нашёл в них тем: $topics. Разложить по коллекциям? Вкладки останутся открытыми."
+    override val starterOfferAction = "Разобрать"
+    override val starterOfferDismiss = "Не сейчас"
+    override val languageName = "Russian"
     override val aiTriageSystemPrompt = "Ты раскладываешь открытые вкладки браузера по коллекциям " +
         "пользователя. Тебе дают вкладки и список существующих коллекций. Для каждой вкладки назови одну " +
         "коллекцию, которой он принадлежит: переиспользуй существующее название везде, где сайт в него " +
@@ -1991,6 +2072,24 @@ private object FrStrings : Strings {
     override val triageSkipStep = "Continuer sans fermer"
     override val triageSaveOneHint = "Enregistrer cet onglet maintenant, dans la collection indiquée"
     override val triageCloseOneHint = "Fermer cet onglet sans l'enregistrer"
+    override val topicsTabs = "Regrouper par thème — d'après les mots des titres et vos recherches"
+    override val topicsHeading = "Regrouper les onglets par thème"
+    override fun topicsIntro(topics: Int, tabs: Int, keepsTabs: Boolean) =
+        if (topics == 0) "Aucun onglet lié pour l'instant — choisissez une collection pour ceux qui valent la peine d'être gardés."
+        else "Thèmes trouvés : $topics, onglets : $tabs. Regroupés d'après les mots des titres et vos recherches — vérifiez le plan et enregistrez-le." + if (keepsTabs) " Vos onglets restent ouverts." else ""
+    override val topicsUnsortedHint = "Rien ne relie ces onglets aux autres. Choisissez une collection ou laissez-les ouverts."
+    override val topicsAsking = "Le modèle du navigateur réfléchit aux sections…"
+    override val topicGroupShopping = "Achats"
+    override val topicGroupCode = "Code"
+    override val topicGroupVideo = "Vidéo"
+    override val topicGroupJobs = "Emploi"
+    override val topicGroupReading = "Lectures"
+    override val topicGroupDocs = "Documents"
+    override fun starterOfferTitle(tabs: Int) = "Onglets ouverts : $tabs"
+    override fun starterOfferBody(topics: Int) = "stramus y a trouvé $topics thèmes. Les ranger en collections ? Vos onglets restent ouverts."
+    override val starterOfferAction = "Ranger"
+    override val starterOfferDismiss = "Plus tard"
+    override val languageName = "French"
     override val aiTriageSystemPrompt = "Tu tries les onglets ouverts d'un utilisateur dans ses collections. " +
         "On te donne les onglets et les collections existantes. Pour chaque onglet, réponds avec l'unique " +
         "collection à laquelle il appartient — réutilise un nom existant partout où l'onglet lui correspond, " +
@@ -2536,6 +2635,24 @@ private object EsStrings : Strings {
     override val triageSkipStep = "Continuar sin cerrar"
     override val triageSaveOneHint = "Guardar esta pestaña ahora, en la colección indicada"
     override val triageCloseOneHint = "Cerrar esta pestaña sin guardarla"
+    override val topicsTabs = "Agrupar por temas — según las palabras de los títulos y lo que buscó"
+    override val topicsHeading = "Agrupar pestañas por temas"
+    override fun topicsIntro(topics: Int, tabs: Int, keepsTabs: Boolean) =
+        if (topics == 0) "Todavía no hay pestañas relacionadas: elija una colección para las que valga la pena guardar."
+        else "Temas encontrados: $topics, pestañas: $tabs. Agrupadas según las palabras de los títulos y lo que buscó: revise el plan y guárdelo." + if (keepsTabs) " Sus pestañas seguirán abiertas." else ""
+    override val topicsUnsortedHint = "Nada relaciona estas pestañas con otras. Elija una colección o déjelas abiertas."
+    override val topicsAsking = "Preguntando al modelo del navegador por las secciones…"
+    override val topicGroupShopping = "Compras"
+    override val topicGroupCode = "Código"
+    override val topicGroupVideo = "Vídeo"
+    override val topicGroupJobs = "Empleo"
+    override val topicGroupReading = "Lecturas"
+    override val topicGroupDocs = "Documentos"
+    override fun starterOfferTitle(tabs: Int) = "Pestañas abiertas: $tabs"
+    override fun starterOfferBody(topics: Int) = "stramus encontró $topics temas en ellas. ¿Ordenarlas en colecciones? Sus pestañas seguirán abiertas."
+    override val starterOfferAction = "Ordenar"
+    override val starterOfferDismiss = "Más tarde"
+    override val languageName = "Spanish"
     override val aiTriageSystemPrompt = "Ordenas las pestañas abiertas del navegador de un usuario en sus " +
         "colecciones. Se te dan las pestañas y las colecciones que existen. Para cada pestaña, responde con " +
         "la única colección a la que pertenece — reutiliza un nombre existente siempre que la pestaña encaje, " +
@@ -3081,6 +3198,24 @@ private object DeStrings : Strings {
     override val triageSkipStep = "Weiter, ohne zu schließen"
     override val triageSaveOneHint = "Diesen Tab jetzt speichern, in der gezeigten Sammlung"
     override val triageCloseOneHint = "Diesen Tab schließen, ohne ihn zu speichern"
+    override val topicsTabs = "Nach Themen ordnen — nach den Wörtern in den Titeln und Ihren Suchen"
+    override val topicsHeading = "Tabs nach Themen ordnen"
+    override fun topicsIntro(topics: Int, tabs: Int, keepsTabs: Boolean) =
+        if (topics == 0) "Noch keine zusammengehörigen Tabs gefunden — wählen Sie eine Sammlung für die, die sich lohnen."
+        else "Gefundene Themen: $topics, Tabs: $tabs. Gruppiert nach den Wörtern in den Titeln und Ihren Suchen — prüfen und speichern Sie den Plan." + if (keepsTabs) " Ihre Tabs bleiben geöffnet." else ""
+    override val topicsUnsortedHint = "Nichts verbindet diese Tabs mit anderen. Wählen Sie eine Sammlung oder lassen Sie sie offen."
+    override val topicsAsking = "Das Modell des Browsers überlegt sich die Bereiche…"
+    override val topicGroupShopping = "Einkäufe"
+    override val topicGroupCode = "Code"
+    override val topicGroupVideo = "Video"
+    override val topicGroupJobs = "Jobs"
+    override val topicGroupReading = "Lesen"
+    override val topicGroupDocs = "Dokumente"
+    override fun starterOfferTitle(tabs: Int) = "Geöffnete Tabs: $tabs"
+    override fun starterOfferBody(topics: Int) = "stramus hat darin $topics Themen gefunden. In Sammlungen ordnen? Ihre Tabs bleiben geöffnet."
+    override val starterOfferAction = "Ordnen"
+    override val starterOfferDismiss = "Später"
+    override val languageName = "German"
     override val aiTriageSystemPrompt = "Du sortierst die offenen Browser-Tabs eines Nutzers in dessen Sammlungen. " +
         "Du bekommst die Tabs und die vorhandenen Sammlungen. Antworte für jeden Tab mit der einen Sammlung, " +
         "zu der er gehört — nutze einen vorhandenen Namen, wo immer der Tab dazu passt, und erfinde nur dann " +
@@ -3626,6 +3761,24 @@ private object PtBrStrings : Strings {
     override val triageSkipStep = "Continuar sem fechar"
     override val triageSaveOneHint = "Salvar esta aba agora, na coleção indicada"
     override val triageCloseOneHint = "Fechar esta aba sem salvá-la"
+    override val topicsTabs = "Agrupar por temas — pelas palavras dos títulos e pelo que você pesquisou"
+    override val topicsHeading = "Agrupar abas por temas"
+    override fun topicsIntro(topics: Int, tabs: Int, keepsTabs: Boolean) =
+        if (topics == 0) "Ainda não há abas relacionadas — escolha uma coleção para as que valem a pena guardar."
+        else "Temas encontrados: $topics, abas: $tabs. Agrupadas pelas palavras dos títulos e pelo que você pesquisou — confira o plano e salve." + if (keepsTabs) " Suas abas continuam abertas." else ""
+    override val topicsUnsortedHint = "Nada liga estas abas a outras. Escolha uma coleção ou deixe-as abertas."
+    override val topicsAsking = "Perguntando ao modelo do navegador sobre as seções…"
+    override val topicGroupShopping = "Compras"
+    override val topicGroupCode = "Código"
+    override val topicGroupVideo = "Vídeo"
+    override val topicGroupJobs = "Vagas"
+    override val topicGroupReading = "Leituras"
+    override val topicGroupDocs = "Documentos"
+    override fun starterOfferTitle(tabs: Int) = "Abas abertas: $tabs"
+    override fun starterOfferBody(topics: Int) = "O stramus encontrou $topics temas nelas. Organizar em coleções? Suas abas continuam abertas."
+    override val starterOfferAction = "Organizar"
+    override val starterOfferDismiss = "Depois"
+    override val languageName = "Brazilian Portuguese"
     override val aiTriageSystemPrompt = "Você organiza as abas abertas do navegador de um usuário em suas " +
         "coleções. Você recebe as abas e as coleções existentes. Para cada aba, responda com a única " +
         "coleção a que ela pertence — reutilize um nome existente sempre que a aba se encaixar nele, e só " +
@@ -4167,6 +4320,24 @@ private object ZhCnStrings : Strings {
     override val triageSkipStep = "不关闭，继续"
     override val triageSaveOneHint = "立即把该标签页保存到所示收藏夹"
     override val triageCloseOneHint = "不保存，直接关闭该标签页"
+    override val topicsTabs = "按主题整理——依据标题中的词语和你的搜索"
+    override val topicsHeading = "按主题整理标签页"
+    override fun topicsIntro(topics: Int, tabs: Int, keepsTabs: Boolean) =
+        if (topics == 0) "暂未发现相关联的标签页——请为值得保留的标签页选择收藏夹。"
+        else "找到主题：$topics，标签页：$tabs。已按标题中的词语和你的搜索分组——请检查方案后保存。" + if (keepsTabs) "标签页将保持打开。" else ""
+    override val topicsUnsortedHint = "这些标签页与其他标签页没有关联。请选择收藏夹，或让它们保持打开。"
+    override val topicsAsking = "正在请浏览器的模型划分分区……"
+    override val topicGroupShopping = "购物"
+    override val topicGroupCode = "代码"
+    override val topicGroupVideo = "视频"
+    override val topicGroupJobs = "求职"
+    override val topicGroupReading = "阅读"
+    override val topicGroupDocs = "文档"
+    override fun starterOfferTitle(tabs: Int) = "你打开了 $tabs 个标签页"
+    override fun starterOfferBody(topics: Int) = "stramus 从中找到 $topics 个主题。整理成收藏夹吗？标签页将保持打开。"
+    override val starterOfferAction = "开始整理"
+    override val starterOfferDismiss = "以后再说"
+    override val languageName = "Simplified Chinese"
     override val aiTriageSystemPrompt = "你需要把用户浏览器中打开的标签页整理到他们的收藏夹中。系统会给你提供" +
         "标签页列表和现有的收藏夹。对每个标签页，回答它所属的唯一一个收藏夹——只要合适就复用已有的名称，" +
         "只有在都不合适时才发明一个简短的新名称（一到两个词）。在收藏夹内，你也可以指定一个分组，同样优先" +
@@ -4698,6 +4869,24 @@ private object JaStrings : Strings {
     override val triageSkipStep = "閉じずに続ける"
     override val triageSaveOneHint = "このタブを今すぐ、表示されているコレクションに保存"
     override val triageCloseOneHint = "このタブを保存せずに閉じる"
+    override val topicsTabs = "トピックごとにまとめる — タイトルの言葉と検索内容から"
+    override val topicsHeading = "タブをトピックごとにまとめる"
+    override fun topicsIntro(topics: Int, tabs: Int, keepsTabs: Boolean) =
+        if (topics == 0) "関連するタブはまだ見つかりません。残しておきたいタブにはコレクションを選んでください。"
+        else "トピック: $topics、タブ: $tabs。タイトルに共通する言葉と検索内容でまとめました。プランを確認して保存してください。" + if (keepsTabs) "タブは開いたままです。" else ""
+    override val topicsUnsortedHint = "これらのタブは他のタブとつながりがありません。コレクションを選ぶか、開いたままにしてください。"
+    override val topicsAsking = "ブラウザのモデルにセクションを尋ねています…"
+    override val topicGroupShopping = "買い物"
+    override val topicGroupCode = "コード"
+    override val topicGroupVideo = "動画"
+    override val topicGroupJobs = "仕事探し"
+    override val topicGroupReading = "読みもの"
+    override val topicGroupDocs = "ドキュメント"
+    override fun starterOfferTitle(tabs: Int) = "開いているタブ: $tabs"
+    override fun starterOfferBody(topics: Int) = "その中に $topics 個のトピックが見つかりました。コレクションにまとめますか？タブは開いたままです。"
+    override val starterOfferAction = "まとめる"
+    override val starterOfferDismiss = "あとで"
+    override val languageName = "Japanese"
     override val aiTriageSystemPrompt = "あなたはユーザーのブラウザで開いているタブを、そのコレクションに整理します。" +
         "タブと既存のコレクションが与えられます。各タブについて、それが属する唯一のコレクションを答えてください——" +
         "タブに合う既存の名前があればそれを使い、どれにも合わない場合のみ短い新しい名前（1、2語）を考えてください。" +
@@ -5238,6 +5427,24 @@ private object KoStrings : Strings {
     override val triageSkipStep = "닫지 않고 계속"
     override val triageSaveOneHint = "이 탭을 표시된 컬렉션에 지금 저장"
     override val triageCloseOneHint = "저장하지 않고 이 탭 닫기"
+    override val topicsTabs = "주제별로 묶기 — 제목의 단어와 검색한 내용을 기준으로"
+    override val topicsHeading = "탭을 주제별로 묶기"
+    override fun topicsIntro(topics: Int, tabs: Int, keepsTabs: Boolean) =
+        if (topics == 0) "아직 서로 관련된 탭이 없습니다. 보관할 만한 탭에 컬렉션을 선택하세요."
+        else "찾은 주제: $topics, 탭: $tabs. 제목에 함께 나오는 단어와 검색한 내용을 기준으로 묶었습니다. 계획을 확인하고 저장하세요." + if (keepsTabs) " 탭은 열린 채로 유지됩니다." else ""
+    override val topicsUnsortedHint = "이 탭들은 다른 탭과 연결되지 않습니다. 컬렉션을 선택하거나 열어 두세요."
+    override val topicsAsking = "브라우저의 모델에게 섹션을 묻는 중…"
+    override val topicGroupShopping = "쇼핑"
+    override val topicGroupCode = "코드"
+    override val topicGroupVideo = "동영상"
+    override val topicGroupJobs = "채용"
+    override val topicGroupReading = "읽을거리"
+    override val topicGroupDocs = "문서"
+    override fun starterOfferTitle(tabs: Int) = "열린 탭: ${tabs}개"
+    override fun starterOfferBody(topics: Int) = "그중에서 ${topics}개의 주제를 찾았습니다. 컬렉션으로 정리할까요? 탭은 열린 채로 유지됩니다."
+    override val starterOfferAction = "정리하기"
+    override val starterOfferDismiss = "나중에"
+    override val languageName = "Korean"
     override val aiTriageSystemPrompt = "당신은 사용자의 브라우저에 열려 있는 탭을 그의 컬렉션으로 정리합니다. " +
         "탭 목록과 기존 컬렉션이 주어집니다. 각 탭에 대해 그 탭이 속하는 단 하나의 컬렉션으로 답하세요——" +
         "탭에 맞는 기존 이름이 있으면 그것을 재사용하고, 어느 것에도 맞지 않을 때만 짧은 새 이름(한두 단어)을 " +
@@ -5780,6 +5987,24 @@ private object ItStrings : Strings {
     override val triageSkipStep = "Continua senza chiudere"
     override val triageSaveOneHint = "Salva questa scheda ora, nella raccolta indicata"
     override val triageCloseOneHint = "Chiudi questa scheda senza salvarla"
+    override val topicsTabs = "Raggruppa per argomenti — in base alle parole dei titoli e a cosa hai cercato"
+    override val topicsHeading = "Raggruppa le schede per argomenti"
+    override fun topicsIntro(topics: Int, tabs: Int, keepsTabs: Boolean) =
+        if (topics == 0) "Nessuna scheda collegata per ora — scegli una raccolta per quelle che vale la pena tenere."
+        else "Argomenti trovati: $topics, schede: $tabs. Raggruppate in base alle parole dei titoli e a cosa hai cercato — controlla il piano e salvalo." + if (keepsTabs) " Le schede restano aperte." else ""
+    override val topicsUnsortedHint = "Niente collega queste schede ad altre. Scegli una raccolta o lasciale aperte."
+    override val topicsAsking = "Sto chiedendo le sezioni al modello del browser…"
+    override val topicGroupShopping = "Acquisti"
+    override val topicGroupCode = "Codice"
+    override val topicGroupVideo = "Video"
+    override val topicGroupJobs = "Lavoro"
+    override val topicGroupReading = "Letture"
+    override val topicGroupDocs = "Documenti"
+    override fun starterOfferTitle(tabs: Int) = "Schede aperte: $tabs"
+    override fun starterOfferBody(topics: Int) = "stramus ci ha trovato $topics argomenti. Organizzarle in raccolte? Le schede restano aperte."
+    override val starterOfferAction = "Organizza"
+    override val starterOfferDismiss = "Più tardi"
+    override val languageName = "Italian"
     override val aiTriageSystemPrompt = "Ordini le schede aperte nel browser di un utente nelle sue raccolte. " +
         "Ti vengono fornite le schede e le raccolte esistenti. Per ogni scheda, rispondi con l'unica " +
         "raccolta a cui appartiene — riusa un nome esistente ovunque la scheda vi si adatti, e inventa " +
@@ -6325,6 +6550,24 @@ private object TrStrings : Strings {
     override val triageSkipStep = "Kapatmadan devam et"
     override val triageSaveOneHint = "Bu sekmeyi şimdi, gösterilen koleksiyona kaydet"
     override val triageCloseOneHint = "Bu sekmeyi kaydetmeden kapat"
+    override val topicsTabs = "Konulara göre grupla — başlıklardaki kelimelere ve aramalarınıza göre"
+    override val topicsHeading = "Sekmeleri konulara göre grupla"
+    override fun topicsIntro(topics: Int, tabs: Int, keepsTabs: Boolean) =
+        if (topics == 0) "Henüz birbiriyle ilişkili sekme yok — saklamaya değer olanlar için bir koleksiyon seçin."
+        else "Bulunan konu: $topics, sekme: $tabs. Başlıklardaki kelimelere ve aramalarınıza göre gruplandı — planı kontrol edip kaydedin." + if (keepsTabs) " Sekmeleriniz açık kalır." else ""
+    override val topicsUnsortedHint = "Bu sekmeleri başka sekmelere bağlayan bir şey yok. Bir koleksiyon seçin ya da açık bırakın."
+    override val topicsAsking = "Bölümler için tarayıcının modeline soruluyor…"
+    override val topicGroupShopping = "Alışveriş"
+    override val topicGroupCode = "Kod"
+    override val topicGroupVideo = "Video"
+    override val topicGroupJobs = "İş ilanları"
+    override val topicGroupReading = "Okumalar"
+    override val topicGroupDocs = "Belgeler"
+    override fun starterOfferTitle(tabs: Int) = "Açık sekme: $tabs"
+    override fun starterOfferBody(topics: Int) = "stramus bunlarda $topics konu buldu. Koleksiyonlara ayrılsın mı? Sekmeleriniz açık kalır."
+    override val starterOfferAction = "Ayır"
+    override val starterOfferDismiss = "Sonra"
+    override val languageName = "Turkish"
     override val aiTriageSystemPrompt = "Bir kullanıcının tarayıcısında açık olan sekmeleri onun koleksiyonlarına " +
         "ayırıyorsun. Sana sekmeler ve mevcut koleksiyonlar veriliyor. Her sekme için, ait olduğu tek " +
         "koleksiyonla cevap ver — sekme uyduğu her yerde mevcut bir adı yeniden kullan, ve hiçbirine " +

@@ -154,3 +154,14 @@ if (liveSync) {
         environment("STRAMUS_LIVE_URL", "http://127.0.0.1:$liveSyncPort")
     }
 }
+
+// The title-grouping sample (see `TitleTopicsSample`) is read by a person, not by an assertion: it prints
+// how a real window of tabs came out. So the JVM test task has to let its output through, and to pass on
+// the path to the dump it reads — a test JVM inherits neither by default.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    testLogging { showStandardStreams = true }
+    // Handed on to the test JVM, which does not inherit the build's own properties. An environment
+    // variable would not do: the daemon has the environment it was started with, not the one the command
+    // was typed in.
+    System.getProperty("stramus.topics.sample")?.let { systemProperty("stramus.topics.sample", it) }
+}

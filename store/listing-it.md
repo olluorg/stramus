@@ -41,11 +41,14 @@ Oppure scegli ChatGPT, Gemini o Claude nelle impostazioni.
 🔒 Un PIN su una sezione — la toglie dallo schermo. Non è cifratura, e l'informativa lo dice.
 🎨 Temi e sfondi — cinque temi con metà chiara e metà scura, un colore d'accento, un'immagine tua.
 📦 Importazione ed esportazione — segnalibri, CSV, OneTab e Toby; e la stessa strada al contrario.
+🧩 Argomenti dalle schede aperte — al primo avvio diventano raccolte con un nome: da cosa hai cercato
+e dalle parole che i titoli hanno in comune, attraverso i siti.
 🌍 Undici lingue dell'interfaccia.
 
-Novità della 1.5.2.
-La ricerca perdona un refuso e una disposizione di tastiera dimenticata: «ыекфьгы» trova Stramus. Le
-impostazioni hanno una ricerca propria. Importazione e unione non lasciano più doppioni.
+Novità della 1.6.0.
+Il primo avvio non parte più da una pagina vuota: le schede aperte diventano raccolte con un nome — da
+cosa hai cercato e dalle parole che i titoli hanno in comune, attraverso i siti. Ciò che non si riesce a
+nominare resta com'è, invece di essere indovinato.
 
 Informativa sulla privacy: https://stramus.space/privacy.html
 Codice sorgente: https://github.com/olluorg/stramus

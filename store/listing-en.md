@@ -42,11 +42,14 @@ choose ChatGPT, Gemini or Claude in settings.
 🎨 Themes and backgrounds — five themes with a light and a dark half, an accent colour, a picture of your
 own.
 📦 Import and export — bookmarks, CSV, OneTab and Toby; and back out the same way.
+🧩 Topics from the tabs you have open — a first run reads them into named collections: by what you
+searched for and by the words the titles share, across sites rather than one site at a time.
 🌍 Eleven interface languages.
 
-New in 1.5.2.
-Search forgives a typo and a forgotten keyboard layout — "ыекфьгы" finds Stramus. Settings have a search
-of their own. Import and merging no longer leave duplicates behind.
+New in 1.6.0.
+A first run no longer opens on an empty page: the tabs you have open are read into named collections —
+by what you searched for and by the words their titles share, across sites. What it cannot name, it
+leaves alone rather than guessing.
 
 Privacy policy: https://stramus.space/privacy.html
 Source code: https://github.com/olluorg/stramus

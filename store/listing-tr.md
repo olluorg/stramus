@@ -41,11 +41,14 @@ ayarlardan ChatGPT, Gemini veya Claude'u seçin.
 🔒 Bölüme PIN — onu ekrandan alır. Bu şifreleme değildir, gizlilik politikası da bunu söyler.
 🎨 Temalar ve arka planlar — açık ve koyu yarısı olan beş tema, bir vurgu rengi, kendi görseliniz.
 📦 İçe ve dışa aktarma — yer imleri, CSV, OneTab ve Toby; aynı yol tersine de işler.
+🧩 Açık sekmelerden konular — ilk açılışta adı olan koleksiyonlara dönüşürler: aramalarınıza ve
+başlıkların ortak kelimelerine göre, tek bir siteye bakmadan.
 🌍 On bir arayüz dili.
 
-1.5.2'deki yenilikler.
-Arama bir yazım yanlışını ve unutulmuş bir klavye düzenini affediyor: «ыекфьгы» Stramus'u buluyor.
-Ayarların kendi araması var. İçe aktarma ve birleştirme artık yinelenen kayıt bırakmıyor.
+1.6.0'daki yenilikler.
+İlk açılış artık boş bir sayfayla başlamıyor: açık sekmeleriniz adı olan koleksiyonlara dönüşüyor —
+aramalarınıza ve başlıkların ortak kelimelerine göre, siteleri aşarak. Adlandırılamayan şey tahmin
+edilmiyor, olduğu gibi bırakılıyor.
 
 Gizlilik politikası: https://stramus.space/privacy.html
 Kaynak kodu: https://github.com/olluorg/stramus
